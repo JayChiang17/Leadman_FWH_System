@@ -1,0 +1,724 @@
+/**************************************************
+ *  AssemblyProduction.css  – 玻璃風掃描畫面 (RWD)
+ **************************************************/
+
+ :root {
+  --primary-bg: linear-gradient(135deg, #dce3e9, #e8eff5);
+  --glass-bg: rgba(255, 255, 255, .15);
+  --glass-border: rgba(255, 255, 255, .30);
+  --text-dark: #2c3e50;
+  --accent-blue: #007bff;
+  --accent-green: #28a745;
+  --accent-red: #dc3545;
+  --shadow-light: 0 4px 12px rgba(0,0,0,.06);
+  --shadow-medium: 0 8px 20px rgba(0,0,0,.15);
+  --shadow-heavy: 0 12px 30px rgba(0,0,0,.1);
+}
+
+/* ---------- 基礎 ---------- */
+body {
+  background: var(--primary-bg);
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* ---------- 主卡片 ---------- */
+.ai-container {
+  width: 95vw;
+  max-width: 1000px;
+  margin: 5vh auto;
+  padding: 28px 32px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-heavy);
+  position: relative;
+  transition: transform 0.2s ease;
+}
+
+/* ---------- 上方小按鈕 ---------- */
+.ai-btn {
+  position: absolute;
+  top: 14px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.3);
+  background: rgba(255,255,255,.2);
+  color: var(--text-dark);
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.ai-btn:hover {
+  background: rgba(255,255,255,.35);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,.1);
+}
+
+.ai-btn:active {
+  transform: translateY(0);
+}
+
+.top-left { left: 18px; }
+.top-left-ng { left: 110px; }
+.top-left-nglist { left: 165px; }
+.top-right { right: 18px; }
+
+/* ---------- 標題 & 今日產量 ---------- */
+.ai-title {
+  font-size: 22px;
+  font-weight: 900;
+  text-align: center;
+  color: var(--text-dark);
+  margin: 12px 0 24px;
+  animation: fadeIn 0.5s ease;
+}
+
+.ai-counter {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(255,255,255,.25);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  padding: 14px 20px;
+  margin-bottom: 30px;
+  box-shadow: var(--shadow-light);
+  font-size: 15px;
+  font-weight: 500;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.ai-counter:hover {
+  background: rgba(255,255,255,.35);
+  transform: scale(1.02);
+}
+
+.ai-counter span {
+  font-size: 40px;
+  font-weight: 800;
+  color: #222;
+  margin: 0 8px;
+  animation: pulse 2s infinite;
+}
+
+/* ---------- 輸入表單 ---------- */
+.ai-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.ai-field {
+  animation: slideUp 0.3s ease;
+}
+
+.ai-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dark);
+  margin-bottom: 6px;
+}
+
+.ai-field input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 13px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: rgba(255,255,255,.9);
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.ai-field input:focus {
+  border-color: var(--accent-blue);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0,123,255,.25);
+  background: #fff;
+}
+
+.ai-field input::placeholder {
+  color: #999;
+  font-style: italic;
+}
+
+.flash-success {
+  background: #d2f7d2 !important;
+  animation: flash 0.5s ease;
+}
+
+.flash-error {
+  background: #f8d6d6 !important;
+  animation: flash 0.5s ease;
+}
+
+.ai-submit {
+  padding: 12px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #fff;
+  background: var(--accent-green);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.ai-submit:hover {
+  background: #218838;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(40,167,69,.3);
+}
+
+.ai-submit:active {
+  transform: translateY(0);
+}
+
+.ai-submit:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ---------- 系統訊息 ---------- */
+.ai-last-ts {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2e7d32;
+  text-align: center;
+  margin-top: 10px;
+  animation: fadeIn 0.5s ease;
+}
+
+.ai-msg {
+  font-size: 13px;
+  font-weight: bold;
+  text-align: center;
+  margin: 10px 0;
+  animation: slideUp 0.3s ease;
+}
+
+.ai-msg.success { color: var(--accent-green); }
+.ai-msg.error { color: var(--accent-red); }
+
+/* ---------- 圖表 ---------- */
+.ai-chart {
+  padding: 18px;
+  background: rgba(255,255,255,.2);
+  border-radius: 16px;
+  box-shadow: var(--shadow-light);
+  margin-top: 20px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.ai-chart:hover {
+  background: rgba(255,255,255,.25);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-medium);
+}
+
+.ai-chart h3 {
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 16px;
+  color: #333;
+}
+
+.ai-chart canvas {
+  height: 300px !important;
+  max-height: 300px !important;
+}
+
+.ai-chart-empty {
+  text-align: center;
+  padding: 20px;
+  font-style: italic;
+  color: #888;
+}
+
+/* ---------- NG Modal (半透明覆蓋) ---------- */
+.ai-ng-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  animation: fadeIn 0.2s ease;
+}
+
+.ai-ng-box {
+  width: clamp(280px, 90vw, 380px);
+  padding: clamp(1rem, 4vw, 1.8rem);
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 6px 22px rgba(0,0,0,.26);
+  position: relative;
+  animation: slideDown 0.3s ease;
+}
+
+.ai-ng-box h3 {
+  font-size: clamp(1rem, 3vw, 1.2rem);
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.ai-ng-close {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  border: none;
+  background: none;
+  font-size: clamp(1.2rem, 3.5vw, 1.4rem);
+  font-weight: bold;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ai-ng-close:hover {
+  color: var(--accent-red);
+  transform: rotate(90deg);
+}
+
+.ai-ng-input {
+  width: 100%;
+  padding: .6rem 1rem;
+  font-size: 1rem;
+  border: 1px solid #cbd6e2;
+  border-radius: .4rem;
+  margin-bottom: 1.2rem;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.ai-ng-input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(0,123,255,.15);
+  outline: none;
+}
+
+.ai-ng-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.ai-ng-field label {
+  font-size: .85rem;
+  font-weight: 600;
+  color: #555;
+}
+
+.ai-ng-field input {
+  padding: .55rem .9rem;
+  border: 1px solid #cbd6e2;
+  border-radius: .375rem;
+  transition: all 0.2s ease;
+}
+
+.ai-ng-field input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(0,123,255,.15);
+  outline: none;
+}
+
+.ai-ng-btns {
+  display: flex;
+  gap: .5rem;
+  margin-top: 1.2rem;
+}
+
+.ai-ng-btns button {
+  flex: 1 1 0;
+  padding: .6rem 0;
+  border: none;
+  border-radius: .4rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: .9rem;
+}
+
+.ai-ng-btns button:nth-child(1) {
+  background: #dc3545;
+  color: #fff;
+}
+
+.ai-ng-btns button:nth-child(1):hover {
+  background: #bd2d39;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(220,53,69,.3);
+}
+
+.ai-ng-btns button:nth-child(2) {
+  background: #28a745;
+  color: #fff;
+}
+
+.ai-ng-btns button:nth-child(2):hover {
+  background: #218838;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(40,167,69,.3);
+}
+
+.ai-ng-btns button:nth-child(3) {
+  background: #bdc3c7;
+  color: #000;
+}
+
+.ai-ng-btns button:nth-child(3):hover {
+  background: #aeb5b9;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,.2);
+}
+
+/* ---------- View-DB / NG-LIST Modal ---------- */
+.ai-table-modal {
+  position: fixed;
+  top: 5vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(1200px, 94vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: #fff;
+  padding: clamp(1rem, 3vw, 1.8rem);
+  border-radius: 18px;
+  border: 1px solid #ddd;
+  box-shadow: 0 10px 36px rgba(0,0,0,.22);
+  z-index: 1000;
+  font-size: clamp(.78rem, 1.9vw, .9rem);
+  animation: slideDown 0.3s ease;
+}
+
+.ai-table-modal h3 {
+  margin: 0 0 1rem;
+  font-size: clamp(.95rem, 2.5vw, 1.1rem);
+  text-align: center;
+}
+
+.ai-table-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  box-shadow: inset 0 0 8px rgba(0,0,0,.05);
+}
+
+.ai-table-modal table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 700px;
+}
+
+.ai-table-modal th,
+.ai-table-modal td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee;
+  white-space: normal;
+  word-break: break-all;
+  line-height: 1.25;
+  transition: background 0.2s ease;
+}
+
+.ai-table-modal th {
+  background: #f5f5f5;
+  font-weight: 600;
+  text-align: left;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.ai-table-modal tr:hover td {
+  background: #f8f9fa;
+}
+
+.ai-table-modal th:last-child,
+.ai-table-modal td:last-child {
+  width: 40px;
+  text-align: center;
+}
+
+.ai-table-modal .ts {
+  white-space: nowrap;
+  min-width: 135px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.ai-table-modal th.status,
+.ai-table-modal td.status {
+  white-space: nowrap;
+  min-width: 70px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.ai-table-modal th.reason,
+.ai-table-modal td.reason {
+  min-width: 150px;
+}
+
+.ai-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  background: none;
+  border: none;
+  font-size: clamp(1.2rem, 3.5vw, 1.4rem);
+  font-weight: bold;
+  color: var(--accent-red);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ai-close:hover {
+  opacity: .75;
+  transform: rotate(90deg);
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  color: crimson;
+  font-size: 1.15rem;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+  padding: 4px;
+}
+
+.delete-btn:hover {
+  transform: scale(1.25);
+}
+
+.row-ng {
+  background: #fff4f4;
+}
+
+.row-ng td {
+  color: #d93025;
+  font-weight: 600;
+}
+
+/* ---------- Export pop ---------- */
+.ai-export-pop {
+  position: absolute;
+  top: 54px;
+  right: 20px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255,255,255,.15);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+  backdrop-filter: blur(14px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  box-shadow: var(--shadow-medium);
+  z-index: 99;
+  font-size: .8rem;
+  animation: slideDown 0.2s ease;
+}
+
+.ai-date {
+  padding: 6px 10px;
+  font-size: .75rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+  transition: all 0.2s ease;
+}
+
+.ai-date:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(0,123,255,.15);
+  outline: none;
+}
+
+.ai-to {
+  font-size: .75rem;
+  color: #555;
+  font-weight: 600;
+}
+
+.ai-export-btn {
+  padding: 6px 10px;
+  font-size: .75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  background: var(--accent-blue);
+  color: #fff;
+  transition: all 0.15s ease;
+}
+
+.ai-export-btn:hover {
+  opacity: .85;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,123,255,.3);
+}
+
+/* ---------- Animations ---------- */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes flash {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* ---------- Mobile RWD ---------- */
+@media (max-width: 768px) {
+  .ai-container {
+    width: 98vw;
+    padding: 20px 16px;
+    margin: 2vh auto;
+  }
+
+  .ai-btn {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  .top-left { left: 10px; }
+  .top-left-ng { left: 80px; }
+  .top-left-nglist { left: 120px; }
+  .top-right { right: 10px; }
+
+  .ai-export-pop {
+    right: 10px;
+    top: 45px;
+    flex-direction: column;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 500px) {
+  .ai-title { font-size: 18px; }
+  
+  .ai-counter {
+    font-size: 13px;
+    padding: 10px 16px;
+  }
+  
+  .ai-counter span { font-size: 32px; }
+  
+  .ai-form input,
+  .ai-submit {
+    font-size: 12px;
+    padding: 8px;
+  }
+  
+  .ai-chart h3 { font-size: 14px; }
+  
+  .ai-table-modal {
+    width: 95vw;
+    padding: 1rem;
+    top: 2vh;
+  }
+  
+  .ai-ng-btns button {
+    font-size: .8rem;
+    padding: .5rem 0;
+  }
+
+  .ai-table-modal table {
+    min-width: 300px;
+  }
+
+  .ai-table-modal th,
+  .ai-table-modal td {
+    padding: 6px 4px;
+    font-size: 0.75rem;
+  }
+}
+
+/* ===== Light Text Override (強制黑字) ===== */
+.ai-container {
+  color: #1e293b; /* slate-800，比純黑柔和，想要 #000 可改 */
+}
+
+.ai-container h1,
+.ai-container h2,
+.ai-container h3,
+.ai-container label,
+.ai-container span,
+.ai-container p {
+  color: inherit;
+}
+
+/* View-DB / NG-LIST Modal */
+.ai-table-modal {
+  color: #1e293b !important;
+  background: #ffffff !important;   /* 確保不是透明玻璃，避免底色穿透洗字 */
+}
+
+.ai-table-modal h3 {
+  color: #1e293b !important;
+}
+
+.ai-table-modal th,
+.ai-table-modal td {
+  color: #1e293b !important;
+}
+
+/* NG 列維持紅色 */
+.ai-table-modal .row-ng td {
+  color: #d93025 !important;
+}
+
+/* 關閉鈕保持紅色 (已有) */
+.ai-close {
+  color: var(--accent-red) !important;
+}
+ 

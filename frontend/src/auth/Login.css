@@ -1,0 +1,114 @@
+/* 頁面背景與置中 */
+body.login-body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #cfd9df, #e2ebf0);
+    font-family: 'Segoe UI', sans-serif;
+  }
+  
+  /* 外層容器 */
+  .login-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  /* 登入卡片：玻璃風格 */
+  .glass-card {
+    position: relative;
+    width: 360px;
+    padding: 3rem;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+  }
+  
+  /* 仿玻璃反光 */
+  .glass-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -50%;
+    width: 200%;
+    height: 100%;
+    background: linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.25) 30%,
+      rgba(255, 255, 255, 0.05) 60%
+    );
+    transform: skewX(-20deg);
+    animation: glass-reflect 6s linear infinite;
+    pointer-events: none;
+  }
+  
+  @keyframes glass-reflect {
+    0% {
+      transform: translateX(-100%) skewX(-20deg);
+    }
+    100% {
+      transform: translateX(100%) skewX(-20deg);
+    }
+  }
+  
+  /* 標題 */
+  .login-title {
+    font-size: 1.7rem;
+    font-weight: 600;
+    text-align: center;
+    color: #2c3e50;
+    margin-bottom: 2rem;
+  }
+  
+  /* 輸入欄位 */
+  .login-input {
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 1rem;
+    border-radius: 10px;
+    border: none;
+    background: rgba(255, 255, 255, 0.85);
+    color: #000;
+    margin-bottom: 1.5rem;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
+    box-sizing: border-box;
+  }
+  
+  .login-input::placeholder {
+    color: #888;
+  }
+  
+  /* 錯誤訊息 */
+  .login-error {
+    color: #e74c3c;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+    text-align: center;
+  }
+  
+  /* 登入按鈕 */
+  .login-button {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    font-weight: bold;
+    color: white;
+    background-color: #007bff;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background-color 0.25s ease;
+  }
+  
+  .login-button:hover {
+    background-color: #0056b3;
+  }
+  

@@ -1,0 +1,398 @@
+/* ───────────────────────────────────────────────
+  ❶  基本參數
+─────────────────────────────────────────────── */
+:root{
+    --primary-bg:linear-gradient(135deg,#dce3e9,#e8eff5);
+    --glass-bg:rgba(255,255,255,.15);
+    --glass-border:rgba(255,255,255,.3);
+    --text-dark:#2c3e50;
+    --accent-blue:#007bff;
+    --accent-green:#28a745;
+    --accent-red:#dc3545;
+  }
+  
+  /* 背景與字體（整體放大） */
+  body{
+    background:var(--primary-bg);
+    font-family:"Segoe UI",Tahoma,sans-serif;
+    font-size:16px;
+    margin:0;
+    padding:0;
+  }
+  
+  /* ───────────────────────────────────────────────
+    ❷  主卡片（更寬）
+  ─────────────────────────────────────────────── */
+  .mi-container{
+    width:95vw;
+    max-width:1200px;
+    margin:5vh auto;
+    padding:32px 40px;
+    background:var(--glass-bg);
+    backdrop-filter:blur(18px) saturate(160%);
+    border:1px solid var(--glass-border);
+    border-radius:20px;
+    box-shadow:0 12px 30px rgba(0,0,0,.1);
+    position:relative;
+    display:flex;
+    flex-direction:column;
+  }
+  
+  /* ───────────────────────────────────────────────
+    ❸  Top controls（View DB / NG / Export）
+  ─────────────────────────────────────────────── */
+  .mi-top-controls{
+    position:absolute;
+    top:16px;
+    left:20px;
+    right:20px;
+    display:flex;
+    gap:12px;
+    align-items:center;
+  }
+  .mi-btn{
+    position:relative;
+    padding:8px 14px;
+    font-size:14px;
+    font-weight:600;
+    border-radius:10px;
+    border:1px solid rgba(255,255,255,.3);
+    background:rgba(255,255,255,.2);
+    color:var(--text-dark);
+    cursor:pointer;
+    backdrop-filter:blur(10px);
+    transition:background .2s;
+  }
+  .mi-btn:hover{background:rgba(255,255,255,.35);}
+  .mi-btn-ng{border-color:rgba(255,255,255,.3);}
+  
+  /* ───────────────────────────────────────────────
+    ❹  標題 & 今日產量
+  ─────────────────────────────────────────────── */
+  .mi-title{
+    font-size:24px;
+    font-weight:900;
+    text-align:center;
+    color:var(--text-dark);
+    margin:20px 0 28px;
+  }
+  
+  .mi-counter-panel{
+    display:flex;
+    gap:20px;
+    margin-bottom:34px;
+    width:100%;
+  }
+  
+  .mi-counter{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    background:rgba(255,255,255,.25);
+    border:1px solid var(--glass-border);
+    border-radius:14px;
+    padding:22px 28px;
+    box-shadow:0 4px 12px rgba(0,0,0,.06);
+  }
+  .mi-counter .count{font-size:48px;font-weight:800;color:#222;}
+  .mi-counter .label{font-size:16px;margin-top:6px;color:#555;}
+  .mi-counter.box-a{border-left:5px solid var(--accent-blue);}
+  .mi-counter.box-b{border-left:5px solid var(--accent-green);}
+  
+  /* ───────────────────────────────────────────────
+    ❺  掃碼表單
+  ─────────────────────────────────────────────── */
+  .mi-form{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    margin-bottom:24px;
+  }
+  .mi-label{font-size:14px;font-weight:600;color:var(--text-dark);}
+  .mi-input{
+    flex:1;
+    padding:12px 14px;
+    font-size:14px;
+    border:1px solid #ccc;
+    border-radius:8px;
+    background:rgba(255,255,255,.93);
+  }
+  .mi-input:focus{
+    border-color:var(--accent-blue);
+    outline:none;
+    box-shadow:0 0 0 2px rgba(0,123,255,.25);
+  }
+  .flash-ok{background:#d2f7d2!important;}
+  .flash-err{background:#f8d6d6!important;}
+  .mi-submit{
+    width:100%;
+    padding:12px 0;
+    font-size:15px;
+    font-weight:700;
+    color:#fff;
+    background:var(--accent-green);
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    transition:background .25s;
+  }
+  .mi-submit:hover{background:#218838;}
+  
+  /* ───────────────────────────────────────────────
+    ❻  系統訊息
+  ─────────────────────────────────────────────── */
+  .mi-msg{font-size:14px;font-weight:bold;text-align:center;}
+  .mi-msg.ok{color:var(--accent-green);}
+  .mi-msg.err{color:var(--accent-red);}
+  .mi-last-ts{font-size:14px;font-weight:600;color:#2e7d32;text-align:center;margin-top:12px;}
+  
+  /* ───────────────────────────────────────────────
+    ❼  趨勢圖
+  ─────────────────────────────────────────────── */
+  .mi-trend-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:32px;
+    margin-top:24px;
+  }
+  .mi-chart-box{
+    padding:22px;
+    background:rgba(255,255,255,.22);
+    border-radius:16px;
+    box-shadow:0 4px 10px rgba(0,0,0,.05);
+    min-width:0;
+    overflow:hidden;
+  }
+  .mi-chart-box canvas{height:360px!important;max-height:360px!important;}
+  .mi-chart-empty{text-align:center;padding:20px;font-style:italic;color:#888;}
+  
+  /* ───────────────────────────────────────────────
+    ❽  Export pop
+  ─────────────────────────────────────────────── */
+  .mi-export-pop{
+    position:absolute;
+    top:60px;
+    right:24px;
+    display:flex;
+    gap:10px;
+    align-items:center;
+    padding:12px 16px;
+    background:rgba(255,255,255,.15);
+    border:1px solid var(--glass-border);
+    border-radius:14px;
+    backdrop-filter:blur(14px) saturate(180%);
+    box-shadow:0 8px 20px rgba(0,0,0,.15);
+    z-index:99;
+    font-size:.85rem;
+  }
+  .mi-date{padding:6px 10px;font-size:.78rem;border:1px solid #ccc;border-radius:6px;background:#fff;}
+  .mi-to{font-size:.78rem;color:#555;}
+  .mi-export-btn{
+    padding:6px 10px;
+    font-size:.78rem;
+    font-weight:600;
+    border:none;
+    border-radius:6px;
+    cursor:pointer;
+    background:var(--accent-blue);
+    color:#fff;
+  }
+  .mi-export-btn:hover{opacity:.85;}
+  
+  /* ───────────────────────────────────────────────
+    ❾  NG modal – 液態玻璃風格 + 對齊優化 + 美化按鈕
+  ─────────────────────────────────────────────── */
+  .mi-ng-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  
+  .mi-ng-box {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 2rem 2rem;
+    min-width: 460px;        /* ✅ 讓卡片變大 */
+    border-radius: 1rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .mi-ng-content {
+    width: 100%;
+    max-width: 340px;        /* ✅ 仍控制輸入欄與按鈕對齊 */
+  }
+  
+  .mi-ng-box h3 {
+    text-align: center;
+    margin-bottom: 1rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+  
+  /* 輸入欄 */
+  .mi-ng-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.6rem 1rem;
+    font-size: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 0.5rem;
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: inset 0 0 4px rgba(255, 255, 255, 0.1);
+  }
+  
+  .mi-ng-input::placeholder {
+    color: rgba(255, 255, 255, 0.6);
+  }
+  
+  /* 按鈕列 */
+  .mi-ng-btns {
+    display: flex;
+    gap: 0.6rem;
+    margin-top: 0.4rem;
+  }
+  
+  .mi-ng-btns button {
+    flex: 1;
+    padding: 0.6rem 0;
+    border: none;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #fff;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: all 0.2s ease-in-out;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+  
+  /* NG */
+  .ng-btn {
+    background: rgba(220, 53, 69, 0.7);
+  }
+  .ng-btn:hover {
+    background: rgba(189, 45, 57, 0.9);
+  }
+  
+  /* Fixed */
+  .fixed-btn {
+    background: rgba(40, 167, 69, 0.7);
+  }
+  .fixed-btn:hover {
+    background: rgba(33, 136, 56, 0.9);
+  }
+  
+  /* Update */
+  .update-btn {
+    background: rgba(0, 105, 217, 0.7);
+  }
+  .update-btn:hover {
+    background: rgba(0, 86, 179, 0.9);
+  }
+  
+  /* Cancel */
+  .cancel-btn {
+    background: rgba(189, 195, 199, 0.7);
+    color: #2c3e50;
+  }
+  .cancel-btn:hover {
+    background: rgba(174, 181, 185, 0.9);
+  }
+  
+  
+  /* ───────────────────────────────────────────────
+    ❿  View-DB modal
+  ─────────────────────────────────────────────── */
+  .mi-table-modal{
+    width:96vw;max-width:1000px;
+    position:fixed;left:50%;transform:translateX(-50%);
+    top:6vh;max-height:88vh;overflow-y:auto;
+    background:#fff;padding:28px 30px;border-radius:20px;
+    box-shadow:0 10px 36px rgba(0,0,0,.22);z-index:1000;
+  }
+  .mi-table-modal h3{margin:0 0 1.2rem;font-size:1.1rem;text-align:center;}
+  .mi-table-modal table{width:100%;border-collapse:collapse;table-layout:auto;font-size:.85rem;}
+  .mi-table-modal th,
+  .mi-table-modal td{
+    padding:7px 6px;
+    border-bottom:1px solid #eee;
+    white-space:normal;
+    word-break:break-all;
+    line-height:1.3;
+  }
+  .mi-table-modal th{background:#f5f5f5;font-weight:600;text-align:left;}
+  .mi-table-modal th:last-child,
+  .mi-table-modal td:last-child{width:42px;text-align:center;}
+  .mi-table-modal th.timestamp,
+  .mi-table-modal td.timestamp{white-space:nowrap;}
+  
+  .mi-close{
+    position:absolute;top:18px;right:24px;
+    background:none;border:none;font-size:1.4rem;
+    font-weight:bold;color:var(--accent-red);
+    cursor:pointer;
+  }
+  .mi-close:hover{opacity:.75;}
+  
+  .delete-btn{
+    background:none;border:none;color:crimson;
+    font-size:1.2rem;cursor:pointer;
+    transition:transform .12s;
+  }
+  .delete-btn:hover{transform:scale(1.25);}
+  .row-ng{background:#fff4f4;}
+  .row-ng td{color:#d93025;font-weight:600;}
+  
+  /* ───────────────────────────────────────────────
+    ⓫  RWD
+  ─────────────────────────────────────────────── */
+  @media(max-width:600px){
+    .mi-title{font-size:20px;}
+    .mi-counter .count{font-size:36px;}
+    .mi-counter{font-size:14px;}
+    .mi-input,
+    .mi-submit{font-size:13px;padding:10px;}
+    .mi-table-modal{max-width:95vw;}
+    .mi-trend-grid{grid-template-columns:1fr;}
+  }
+  
+  /* ===== Light Text Override (MI 版) ===== */
+.mi-container,
+.mi-container * {
+  color: #1e293b;           /* slate-800，想要純黑用 #000 */
+}
+
+/* View‑DB / NG‑LIST Modal */
+.mi-table-modal,
+.mi-ng-box {
+  color: #1e293b !important;
+  background: #ffffff !important;      /* 若要半透明玻璃→改 rgba(255,255,255,.88) + blur */
+}
+
+/* 表格標題 & 儲存格 */
+.mi-table-modal th,
+.mi-table-modal td {
+  color: inherit !important;
+}
+
+/* NG 列維持紅色 */
+.mi-table-modal .row-ng td {
+  color: #d93025 !important;
+}

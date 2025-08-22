@@ -1,0 +1,28 @@
+/* --------------------------------------------------
+   Global reset / typography / utility helpers
+   -------------------------------------------------- */
+   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+   html,body{height:100%;}
+   body{
+     font-family: 'Segoe UI', system-ui, sans-serif;
+     font-size: var(--fs-500);
+     background: var(--grey-100);
+     color: var(--grey-700);
+     -webkit-font-smoothing: antialiased;
+   }
+   a{color:inherit;text-decoration:none;transition:color var(--tr-fast);}a:hover{color:var(--clr-accent);}button{cursor:pointer;font-family:inherit;}
+   
+   /* glass morphic card */
+   .glass{
+     background: rgba(255,255,255,0.45);
+     backdrop-filter: blur(10px);
+     border:1px solid rgba(255,255,255,0.4);
+     border-radius: 0.75rem;
+     box-shadow:0 4px 8px rgba(0,0,0,.06);
+   }
+   
+   /* util helpers */
+   .text-muted{color:var(--grey-400);} .right{text-align:right;}
+   .flash-ok{animation:flashOK 0.7s;} .flash-err{animation:flashErr 0.7s;}
+   @keyframes flashOK{0%{background:#d1fae5;}100%{background:transparent;}}
+   @keyframes flashErr{0%{background:#fee2e2;}100%{background:transparent;}}

@@ -1,0 +1,18 @@
+/* Tailwind layers -------------------------------------------------- */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 其他全域樣式 ------------------------------------------------------ */
+@import "./styles/variables.css";
+@import "./styles/theme.css";
+@import "./styles/layout.css";
+
+/* 若想保留淡淡格線，可改用純 CSS（不依賴圖檔） */
+/*
+body {
+  background:
+    linear-gradient(#e5e7eb 1px, transparent 1px) 0 0 / 16px 16px,
+    linear-gradient(90deg, #e5e7eb 1px, transparent 1px) 0 0 / 16px 16px;
+}
+*/

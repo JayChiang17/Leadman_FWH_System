@@ -1,0 +1,38 @@
+/* --------------------------------------------------
+   Design Tokens / CSS Custom Properties
+   -------------------------------------------------- */
+   :root {
+    /* brand palette */
+    --clr-primary:  #1e293b;   /* sidebar background */
+    --clr-primary-50: #273549;
+    --clr-accent:   #38bdf8;   /* active / accent blue */
+    --clr-danger:   #dc2626;
+    --clr-danger-50: #b91c1c;
+    --clr-success:  #2ecc71;
+  
+    /* greys */
+    --grey-100: #f1f5f9;
+    --grey-200: #e2e8f0;
+    --grey-300: #cbd5e1;
+    --grey-400: #94a3b8;
+    --grey-700: #475569;
+  
+    /* typographic scale */
+    --fs-900: 2rem;
+    --fs-800: 1.5rem;
+    --fs-700: 1.25rem;
+    --fs-600: 1.125rem;
+    --fs-500: 1rem;
+    --fs-400: 0.925rem;
+  
+    /* spacing */
+    --space-xs: 0.25rem;
+    --space-s:  0.5rem;
+    --space-m:  1rem;
+    --space-l:  1.5rem;
+    --space-xl: 2rem;
+  
+    /* transitions */
+    --bezier: cubic-bezier(.4,.0,.2,1);
+    --tr-fast: 150ms var(--bezier);
+  }

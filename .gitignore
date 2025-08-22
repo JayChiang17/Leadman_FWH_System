@@ -1,0 +1,59 @@
+# ===== Secrets / Env =====
+# Ignore all .env files in both backend and frontend
+.env
+.env.*
+*.env
+*.env.local
+**/.env
+**/.env.*
+**/*.env
+**/*.env.local
+!.env.example
+!**/.env.example
+
+# ===== SQLite / Databases =====
+# Your backend includes assembly.db / model.db / documents.db / downtime.db / login.db / Module_Equipment.db
+# and their -wal / -shm companions. Ignore all SQLite files.
+*.db
+*.sqlite
+*.sqlite3
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+*.db-wal
+*.db-shm
+**/*.db-wal
+**/*.db-shm
+
+# If you have vector indexes or temp data, ignore them
+backend/vectorstore/
+backend/data/**
+
+# ===== Python (FastAPI) =====
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+.envrc
+
+# ===== Node / React =====
+node_modules/
+dist/
+build/
+.cache/
+.next/
+out/
+coverage/
+*.log
+
+# ===== OS / IDE =====
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+*.exe
+
+backend/documents/**
+!backend/documents/.gitkeep

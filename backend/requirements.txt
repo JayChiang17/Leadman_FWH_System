@@ -1,0 +1,36 @@
+# Web Framework
+fastapi
+uvicorn[standard]
+
+# Google Sheets Integration
+gspread
+gspread-async
+google-auth
+
+# Environment Variables
+python-dotenv
+
+# Authentication & Security
+passlib[bcrypt]
+python-jose[cryptography]
+
+# Data Processing & Excel
+pandas
+openpyxl
+
+# Date & Time
+pytz
+
+# WebSocket & CORS
+python-multipart
+
+# Standard libraries (already included in Python)
+# sqlite3 - built-in
+# json - built-in
+# datetime - built-in
+# collections - built-in
+# typing - built-in
+# pathlib - built-in
+# io - built-in
+# urllib - built-in
+# logging - built-in

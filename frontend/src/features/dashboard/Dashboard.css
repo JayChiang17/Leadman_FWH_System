@@ -1,0 +1,218 @@
+/* ============================================================
+   Dashboard.css – 玻璃風儀表板（RWD＋深色主題＋全螢幕）
+   Simplified 2025‑07‑10 │ Final (no animation)
+================================================================ */
+
+:root {
+  /* 色票與佈局參數 */
+  --primary-bg: linear-gradient(135deg, #dce3e9, #e8eff5);
+  --glass-bg: rgba(255, 255, 255, 0.15);
+  --glass-brd: rgba(255, 255, 255, 0.30);
+  --txt-dark: #2c3e50;
+  --accent-blue: #007bff;
+
+  /* KPI 色票 */
+  --kpi-a: #FF9800;        --kpi-a-bg: #FF980033;
+  --kpi-b: #03A9F4;        --kpi-b-bg: #03A9F433;
+  --kpi-assembly: #0097A7; --kpi-assembly-bg: #0097A733;
+  --kpi-plan: #90a4ae55;
+  --week-a: rgba(102, 224, 190, 0.65);
+    /* Tiffany 綠：清新柔綠 */
+  --week-b: rgba(255, 138, 128, 0.65);
+    /* 西瓜紅：柔和對比 */
+
+  --card-gap: 1.6rem;
+  --card-pad: 1.2rem;  /* 卡片內距 */
+  --card-radius: 22px;
+  --card-width: 380px; /* 卡片最小寬度 */
+  --badge-space: 0.9rem;/* 最小留白，貼齊底部 */   /* 圖表下方保留 – 更緊湊 */   /* 圖表下方保留 (縮小) */ /* 圖表下方保留 */
+  --achievement-gold: #FFD700;
+}
+
+/* ========== 容器 ========== */
+.dashboard-screen {
+  height: 100%;
+  box-sizing: border-box;
+  background: var(--primary-bg);
+  color: var(--txt-dark);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  overflow: auto;
+  position: relative;
+  padding: var(--card-gap);
+}
+
+/* ========== 固定 2×2 網格 ========== */
+.dashboard-grid {
+  /* 讓版面可依內容高度延伸，避免底部被裁切 */
+  display: grid;
+  gap: var(--card-gap);
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  align-content: start;   /* 防止超出視窗時被截斷 */
+}
+@media (max-width: 1024px) {
+  .dashboard-grid { grid-template-columns: 1fr; grid-template-rows: unset; }
+}
+/* ========== 卡片 ========== */
+.dashboard-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: var(--card-pad);
+  background: var(--glass-bg);
+  backdrop-filter: blur(22px) saturate(180%);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  border: 1px solid var(--glass-brd);
+  border-radius: var(--card-radius);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.card-title { margin: 0; font-size: 1.55rem; font-weight: 600; z-index: 2; }
+.card-big   { margin: .3rem 0 1.2rem; font-size: 4.0rem; font-weight: 700; line-height: 1; z-index: 2; }
+.card-big.right { text-align: right; align-self: flex-end; margin-right: 0.9rem; }
+.module-overlay { position: absolute; top: 1.2rem; right: 1.2rem; font-weight: 600; color: #607d8b; }
+
+/* ========== NG 角標 ========== */
+.ng-badge {
+  position: absolute; bottom: .5rem; right: .8rem;
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .4rem .9rem; border-radius: 18px;
+  font-size: .75rem; font-weight: 600; white-space: nowrap;
+  pointer-events: none; backdrop-filter: blur(8px);
+  background: rgba(244, 67, 54, .08);
+  border: 1px solid rgba(244, 67, 54, .2);
+  color: #f44336;
+}
+
+.ng-badge.mod {
+  background: rgba(244, 67, 54, .08);
+  border: 1px solid rgba(244, 67, 54, .2);
+  color: #f44336;
+}
+.ng-badge.assy {
+  /* 與模組統一使用紅色警示 */
+  background: rgba(244, 67, 54, .08);
+  border: 1px solid rgba(244, 67, 54, .2);
+  color: #f44336;
+}
+.ng-icon { font-size: .875rem; opacity: .8; color: inherit; }
+
+/* ========== 圖表區塊 ========== */
+.chart         { flex: 1; width: 100% !important; min-height: 0; }
+.chart-wrapper { position: relative; flex: 1; display: flex; align-items: center; padding-bottom: var(--badge-space); }
+.chart canvas  { height: 100% !important; width: 100% !important; }
+
+/* ========== 達標星號 ========== */
+.achievement-star { margin-left: .4rem; font-size: 1rem; color: var(--achievement-gold); vertical-align: text-bottom; }
+.dashboard-card.achieved       { border: 1px solid rgba(76, 175, 80, .45); }
+.dashboard-card.achieved.assy { border: 1px solid rgba(0, 188, 212, .45); }
+
+/* ========== Plan 浮層 ========== */
+.plan-inputs {
+  position: absolute; top: 3.4rem; right: 1rem; z-index: 20;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: .7rem .9rem; background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid var(--glass-brd); border-radius: 14px;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+  font-size: .9rem;
+}
+.plan-row { display: flex; align-items: center; gap: 8px; }
+.plan-row span  { width: 3rem; }
+.plan-row input { width: 60px; padding: 4px 6px; border-radius: 8px; text-align: right; border: 1px solid #b0bec5; background: #fff; }
+.save-btn {
+  align-self: flex-end; margin-top: 4px; padding: 5px 12px; font-size: .82rem;
+  font-weight: 600; color: #fff; background: var(--accent-blue);
+  border: none; border-radius: 8px; cursor: pointer; transition: transform .15s;
+}
+.save-btn:hover { transform: translateY(-1px); }
+.plan-toggle { cursor: pointer; margin-left: .5rem; font-size: .9rem; color: #607d8b; }
+.plan-toggle:hover { text-decoration: underline; }
+
+/* ========== 全螢幕按鈕 ========== */
+.fs-btn {
+  position: absolute; top: 12px; right: 14px; z-index: 30;
+  width: 34px; height: 34px; border: none; border-radius: 50%;
+  background: var(--glass-bg); backdrop-filter: blur(18px);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background .15s;
+}
+.fs-btn:hover { background: rgba(255, 255, 255, 0.28); }
+
+/* ========== 自訂滾動條 ========== */
+.dashboard-screen::-webkit-scrollbar       { width: 6px; }
+.dashboard-screen::-webkit-scrollbar-thumb { background: #64748b44; border-radius: 3px; }
+.dashboard-screen:hover::-webkit-scrollbar-thumb { background: #64748b7a; }
+
+/* ========== 全螢幕 ========== */
+.dashboard-screen:fullscreen,
+.dashboard-screen:-webkit-full-screen,
+.dashboard-screen:-moz-full-screen,
+.dashboard-screen:-ms-fullscreen {
+  position: fixed; inset: 0; width: 100vw; height: 100vh;
+  padding: .15rem;               /* 幾乎貼邊 */
+  overflow: hidden; z-index: 99999;
+}
+.dashboard-screen:fullscreen .dashboard-grid {
+  gap: .8rem;
+  height: 100%;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+.dashboard-screen:fullscreen .dashboard-card {
+  padding: calc(var(--card-pad) * 0.9);
+}
+.dashboard-screen:fullscreen .chart-wrapper { padding-bottom: var(--badge-space); }
+.dashboard-screen:fullscreen .chart canvas   { height: calc(100% - var(--badge-space)) !important; }
+
+/* ========== 字級 RWD ========== */
+@media (min-width: 3000px) {
+  .dashboard-screen:fullscreen .card-title { font-size: clamp(2.4rem, 1.1vw, 3.6rem); }
+  .dashboard-screen:fullscreen .card-big   { font-size: clamp(6rem , 3vw , 11rem); }
+}
+@media (min-width: 2560px) { .card-title { font-size: 2rem; } .card-big { font-size: 5rem; } }
+@media (max-width: 1440px) { .card-title { font-size: 1.4rem; } .card-big { font-size: 3rem; } }
+
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+
+.dashboard-card {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.dashboard-card.high-risk {
+  border: 2px solid #ef4444;
+  animation: pulse 2s infinite;
+}
+
+/* ========== 風險徽章（卡片置中） ========== */
+.risk-badge {
+  position: absolute;
+  top: 8px;               /* 與 card-title 對齊，可自行微調 */
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,.3);
+}
+.risk-badge.critical { background: #ef4444; animation: pulse 2s infinite; }
+.risk-badge.warning  { background: #f97316; }
+.risk-badge.caution  { background: #eab308; }
+.risk-badge.good     { background: #22c55e; }
