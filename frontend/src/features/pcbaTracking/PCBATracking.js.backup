@@ -1,0 +1,1393 @@
+// src/features/pcbaTracking/PCBATracking.js
+import React, { useEffect, useState, useMemo, useCallback, useContext, useRef } from "react";
+import {
+  // icons used in THIS file (補齊，避免 no-undef)
+  Wifi, WifiOff, Download, Search, Bell, Database, Settings,
+  Filter, Calendar, BarChart3, Clock, Activity, CheckCircle, Package, AlertCircle, X, Tag, ArrowRight,
+} from "lucide-react";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList
+} from "recharts";
+
+import usePCBAWebSocket from "../../utils/usePCBAWebSocket";
+import { AuthCtx } from "../../auth/AuthContext";
+
+// 拆分後的 UI 元件
+import PCBAStatCard from "./components/PCBAStatCard";
+import PCBAProductionFlow from "./components/PCBAProductionFlow";
+import PCBANGListPanel from "./components/PCBANGListPanel";
+import PCBASlipProgress from "./components/PCBASlipProgress";
+import PCBAEnhancedScannerPanel from "./components/PCBAEnhancedScannerPanel";
+import PCBASlipModal from "./components/PCBASlipModal";
+import PCBAPackingSlipPanel from "./components/PCBAPackingSlipPanel";
+import PCBASlipLibrary from "./components/PCBASlipLibrary";
+import PCBAModernBoardCard from "./components/PCBAModernBoardCard";
+import PCBAAdminEditModal from "./components/PCBAAdminEditModal";
+import PCBATodayScansCard from "./components/PCBATodayScansCard";
+
+// 共用常數與工具
+import { labelOf } from "./PCBAConstants";
+import {
+  decodeJWT, getToken, useDebounced, inferModel,
+  fmtElapsed, toCaliTime, toCAISODate, shortMMDD, authFetch
+} from "./PCBAUtils";
+
+/* ----------------------- 主頁 ----------------------- */
+export default function PCBATracking() {
+  const PAGE_SIZE = 50;
+
+  // boards 與統計
+  const [data, setData] = useState([]);
+  const [stats, setStats] = useState({ total: 0, aging: 0, coating: 0, completed: 0, efficiency: 0, byModel: {} });
+  const [loadingList, setLoadingList] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+
+  // slip 相關
+  const [slipOpen, setSlipOpen] = useState(false);
+  const [slip, setSlip] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("pcba_slip") || "null") || { slipNumber: "", targetPairs: 0 }; }
+    catch { return { slipNumber: "", targetPairs: 0 }; }
+  });
+  const [useSlipFilter, setUseSlipFilter] = useState(() => localStorage.getItem("pcba_slip_filter") === "1");
+  const [slipFilterApplied, setSlipFilterApplied] = useState(() => localStorage.getItem("pcba_slip_filter_value") || "");
+  const [savingSlip, setSavingSlip] = useState(false);
+  const [slipStatus, setSlipStatus] = useState(null);
+
+  // Slip library
+  const [slipList, setSlipList] = useState([]);
+  const [loadingSlipList, setLoadingSlipList] = useState(false);
+
+  // 掃碼/面板
+  const [scan, setScan] = useState("");
+  const [stage, setStage] = useState("aging");
+
+  // 詳情與編輯
+  const [pick, setPick] = useState(null);
+  const [editBoard, setEditBoard] = useState(null);
+  const [newSlip, setNewSlip] = useState("");
+  useEffect(() => { setNewSlip(pick?.slipNumber || ""); }, [pick]);
+
+  // 篩選
+  const [fStage, setFStage] = useState("all");
+  const [modelFilter, setModelFilter] = useState("all");
+  const [ngFilter, setNgFilter] = useState("all");
+  const [q, setQ] = useState("");
+  const [filterSlip, setFilterSlip] = useState("");
+  const [filterDate, setFilterDate] = useState("");
+
+  const debouncedQ = useDebounced(q, 350);
+  const debouncedSlip = useDebounced(filterSlip, 350);
+
+  // toast 與 blink
+  const [log, setLog] = useState([]);
+  const [blink, setBlink] = useState(new Set());
+
+  // 日輸出(圖)
+  const [rangeDays, setRangeDays] = useState(7);
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+
+  const [dailyRows, setDailyRows] = useState([]);
+  const [dailyAvg, setDailyAvg] = useState(0);
+
+  // 每日消耗(圖)
+  const [dailyConsumption, setDailyConsumption] = useState([]);
+  const [consumptionAvg, setConsumptionAvg] = useState(0);
+
+  // 今日分佈
+  const [todayRow, setTodayRow] = useState(null);
+
+  // 全域 NG
+  const [ngActive, setNgActive] = useState([]);
+
+  // auth
+  const auth = useContext(AuthCtx) || {};
+  const token = getToken();
+  const claims = token ? decodeJWT(token) : null;
+  const roleLower = String(claims?.role || auth?.user?.role || "").toLowerCase();
+  const isEditor = roleLower === "admin" || roleLower === "operator";
+  const roleBadge = roleLower === "admin" ? "Admin" : roleLower === "operator" ? "Operator" : "Viewer";
+  const operatorName = claims?.sub || auth?.user?.username || "User";
+
+  const toastTimersRef = useRef(new Set());
+
+  const toast = useCallback((msg, level = "info") => {
+    if (!msg) return;
+    const id = Date.now() + Math.random();
+    setLog((l) => [...l, { id, msg, level }]);
+    const timer = setTimeout(() => {
+      setLog((l) => l.filter((x) => x.id !== id));
+      toastTimersRef.current.delete(timer);
+    }, 3200);
+    toastTimersRef.current.add(timer);
+  }, []);
+
+  // Cleanup toast timers on unmount
+  useEffect(() => {
+    return () => {
+      toastTimersRef.current.forEach(timer => clearTimeout(timer));
+      toastTimersRef.current.clear();
+    };
+  }, []);
+
+  const guardEdit = useCallback(() => {
+    if (!isEditor) {
+      toast("Viewer role cannot modify. Please sign in as Operator or Admin.", "warning");
+      return false;
+    }
+    return true;
+  }, [isEditor, toast]);
+
+  const blinkTimersRef = useRef(new Map());
+
+  const upsertLocal = useCallback((b) => {
+    setData((p) => {
+      const i = p.findIndex((x) => x.serialNumber === b.serialNumber);
+      if (i >= 0) { const cp = [...p]; cp[i] = { ...cp[i], ...b }; return cp; }
+      return [b, ...p];
+    });
+    setBlink((s) => new Set(s).add(b.serialNumber));
+
+    // Clear existing timer for this serial
+    if (blinkTimersRef.current.has(b.serialNumber)) {
+      clearTimeout(blinkTimersRef.current.get(b.serialNumber));
+    }
+
+    const timer = setTimeout(() => {
+      setBlink((s) => { const n = new Set(s); n.delete(b.serialNumber); return n; });
+      blinkTimersRef.current.delete(b.serialNumber);
+    }, 700);
+    blinkTimersRef.current.set(b.serialNumber, timer);
+  }, []);
+
+  // Cleanup blink timers on unmount
+  useEffect(() => {
+    return () => {
+      blinkTimersRef.current.forEach(timer => clearTimeout(timer));
+      blinkTimersRef.current.clear();
+    };
+  }, []);
+
+  /* KPI breakdowns */
+  const stageBreakdown = useMemo(() => {
+    const bm = stats?.byModel ?? {};
+    const safe = (m, k) => Number(bm?.[m]?.[k] ?? 0);
+    return {
+      aging:     { AM7: safe("AM7", "aging"),     AU8: safe("AU8", "aging") },
+      coating:   { AM7: safe("AM7", "coating"),   AU8: safe("AU8", "coating") },
+      completed: { AM7: safe("AM7", "completed"), AU8: safe("AU8", "completed") },
+    };
+  }, [stats.byModel]);
+
+  const pickPositive = (...v) => v.map(Number).find((n) => Number.isFinite(n) && n > 0) || 0;
+  const available = useMemo(() => {
+    const a7 = pickPositive(stats.availableAM7, stageBreakdown.completed.AM7);
+    const a8 = pickPositive(stats.availableAU8, stageBreakdown.completed.AU8);
+    const total = pickPositive(stats.availableTotal, stats.completed, a7 + a8);
+    return { AM7: a7, AU8: a8, total };
+  }, [stats, stageBreakdown.completed]);
+  const pairsDone = useMemo(() => Math.min(available.AM7, available.AU8), [available]);
+
+  /* -------- Slip handlers -------- */
+  const refreshSlip = useCallback(async (sn) => {
+    if (!sn) { setSlipStatus(null); return; }
+    try {
+      const r = await authFetch(`/pcba/slips/${encodeURIComponent(sn)}/status`);
+      if (r.ok) setSlipStatus(await r.json());
+    } catch { /* ignore */ }
+  }, []);
+
+  const fetchSlipListRef = useRef();
+  fetchSlipListRef.current = async () => {
+    setLoadingSlipList(true);
+    try {
+      const r = await authFetch(`/pcba/slips`);
+      if (r.ok) {
+        const arr = await r.json();
+        arr.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+        setSlipList(arr);
+      }
+    } catch { /* ignore */ }
+    finally { setLoadingSlipList(false); }
+  };
+  const fetchSlipList = useCallback(() => fetchSlipListRef.current(), []);
+
+  const saveSlip = useCallback(async () => {
+    if (!guardEdit()) return;
+    if (!slip?.slipNumber?.trim()) return;
+    setSavingSlip(true);
+    try {
+      const res = await authFetch(`/pcba/slips`, {
+        method: "POST",
+        body: JSON.stringify({ slipNumber: slip.slipNumber.trim(), targetPairs: Number(slip.targetPairs || 0) }),
+      });
+      if (!res.ok) {
+        const t = await res.json().catch(() => ({ detail: "" }));
+        throw new Error(t.detail || `Save failed (${res.status})`);
+      }
+      localStorage.setItem("pcba_slip", JSON.stringify({ slipNumber: slip.slipNumber.trim(), targetPairs: Number(slip.targetPairs || 0) }));
+      localStorage.setItem("pcba_slip_filter_value", slip.slipNumber.trim());
+      setSlipFilterApplied(slip.slipNumber.trim());
+      toast(`Slip saved: ${slip.slipNumber} (${slip.targetPairs || 0})`, "success");
+      refreshSlip(slip.slipNumber.trim());
+      await fetchSlipList();
+    } catch (e) {
+      toast(e.message || "Save slip failed", "error");
+    } finally { setSavingSlip(false); }
+  }, [guardEdit, slip, toast, refreshSlip, fetchSlipList]);
+
+  useEffect(() => { localStorage.setItem("pcba_slip_filter", useSlipFilter ? "1" : "0"); }, [useSlipFilter]);
+
+  /* -------- Global NG -------- */
+  const fetchNGActiveRef = useRef();
+  fetchNGActiveRef.current = async () => {
+    try {
+      const r = await authFetch(`/pcba/ng/active?limit=2000`);
+      if (r.ok) setNgActive(await r.json());
+    } catch { /* ignore */ }
+  };
+  const fetchNGActive = useCallback(() => fetchNGActiveRef.current(), []);
+
+  useEffect(() => { fetchNGActive(); }, [fetchNGActive]);
+
+  /* 今日統計 */
+  const fetchTodayStatsRef = useRef();
+  fetchTodayStatsRef.current = async () => {
+    try {
+      const r = await authFetch(`/pcba/statistics/today`);
+      if (r.ok) setTodayRow(await r.json());
+    } catch { /* ignore */ }
+  };
+  const fetchTodayStats = useCallback(() => fetchTodayStatsRef.current(), []);
+
+  /* WebSocket */
+  const onWSMessage = useCallback((msg) => {
+    switch (msg.type) {
+      case "initial_data":
+        if (!data.length && Array.isArray(msg.boards)) setData(msg.boards);
+        if (msg.statistics) setStats((s) => ({ ...s, ...msg.statistics }));
+        fetchNGActive();
+        fetchTodayStats();
+        break;
+      case "board_update":
+        if (msg.board?.serialNumber) {
+          upsertLocal(msg.board);
+          setPick((p) => (p && p.serialNumber === msg.board.serialNumber ? { ...p, ...msg.board } : p));
+        }
+        if (slipFilterApplied) refreshSlip(slipFilterApplied);
+        fetchDashboardDaily(rangeDays, customFrom, customTo);
+        fetchNGActive();
+        fetchTodayStats();
+        break;
+      case "board_deleted":
+        if (msg.serialNumber) setData((p) => p.filter((x) => x.serialNumber !== msg.serialNumber));
+        if (slipFilterApplied) refreshSlip(slipFilterApplied);
+        fetchDashboardDaily(rangeDays, customFrom, customTo);
+        fetchNGActive();
+        fetchTodayStats();
+        break;
+      case "statistics_update":
+        if (msg.statistics) setStats((s) => ({ ...s, ...msg.statistics }));
+        break;
+      case "notification": toast(msg.message, msg.level || "info"); break;
+      case "error": toast(msg.message || "Server error", "error"); break;
+      default: break;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [upsertLocal, toast, slipFilterApplied, refreshSlip, rangeDays, customFrom, customTo, data.length, fetchNGActive, fetchTodayStats]);
+
+  const { isConnected, isConnecting, reconnect } = usePCBAWebSocket(onWSMessage);
+
+  /* 初始抓資料 */
+  useEffect(() => {
+    (async () => {
+      try {
+        const [rStats, rDash] = await Promise.all([
+          authFetch(`/pcba/statistics`),
+          authFetch(`/pcba/dashboard/summary`),
+        ]);
+
+        const statsJson  = rStats.ok  ? await rStats.json()  : null;
+        const dashJson   = rDash.ok   ? await rDash.json()   : null;
+
+        if (statsJson)  setStats((v) => ({ ...v, ...statsJson }));
+        if (dashJson) {
+          const inv = dashJson.inventory || {};
+          setStats((v) => ({
+            ...v,
+            availableAM7:   inv.availableAM7  ?? v.availableAM7  ?? 0,
+            availableAU8:   inv.availableAU8  ?? v.availableAU8  ?? 0,
+            availableTotal: inv.availableTotal ?? v.availableTotal ?? 0,
+            consumedAM7:    inv.usedAM7       ?? v.consumedAM7   ?? 0,
+            consumedAU8:    inv.usedAU8       ?? v.consumedAU8   ?? 0,
+            consumedTotal:  inv.usedTotal     ?? v.consumedTotal ?? 0,
+          }));
+
+          const daily = dashJson.daily || {};
+          const rows = (daily.rows || []).map((r) => ({
+            date: r.date,
+            dateShort: shortMMDD(r.date),
+            pairs: Number(r.pairsOK || 0),
+          }));
+          setDailyRows(rows);
+          setDailyAvg(Number(daily.avgPairsOKPerDay || 0));
+
+          setTodayRow(dashJson.today || null);
+        } else {
+          fetchDashboardDaily(rangeDays, customFrom, customTo);
+          fetchTodayStats();
+        }
+      } catch { /* ignore */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* boards 分頁/查詢 */
+  const buildListQueryRef = useRef();
+  buildListQueryRef.current = (offset = 0, limit = PAGE_SIZE) => {
+    const qs = new URLSearchParams();
+    if (fStage !== "all") qs.set("stage", fStage);
+    if (modelFilter !== "all") qs.set("model", modelFilter);
+    if (debouncedQ) qs.set("search", debouncedQ);
+    const effectiveSlip = (useSlipFilter && slipFilterApplied) ? slipFilterApplied : debouncedSlip;
+    if (effectiveSlip) qs.set("slip", effectiveSlip);
+    qs.set("limit", String(limit));
+    qs.set("offset", String(offset));
+    return `/pcba/boards?${qs.toString()}`;
+  };
+
+  const fetchBoardsRef = useRef();
+  fetchBoardsRef.current = async ({ reset = false, offset: offsetOverride } = {}) => {
+    setLoadingList(true);
+    try {
+      const effectiveSlip = (useSlipFilter && slipFilterApplied) ? slipFilterApplied : debouncedSlip;
+      const usingSlip = Boolean(effectiveSlip);
+
+      if (usingSlip) {
+        const ALL = [];
+        let offset = 0;
+        const perPage = 100;
+        const hardCap = 10000;
+        let loops = 0;
+        while (offset < hardCap) {
+          const url = buildListQueryRef.current(offset, perPage);
+          const r = await authFetch(url);
+          if (!r.ok) break;
+          const batch = await r.json();
+          if (!Array.isArray(batch) || batch.length === 0) break;
+          ALL.push(...batch);
+          offset += batch.length;
+          loops += 1;
+          if (batch.length < perPage) break;
+          if (loops > 200) break;
+        }
+        setData(ALL);
+        setHasMore(false);
+      } else {
+        const offset = reset ? 0 : (Number.isFinite(offsetOverride) ? offsetOverride : 0);
+        const url = buildListQueryRef.current(offset, PAGE_SIZE);
+        const r = await authFetch(url);
+        if (r.ok) {
+          const arr = await r.json();
+          setData((prev) => (reset ? arr : [...prev, ...arr]));
+          setHasMore(arr.length === PAGE_SIZE);
+        }
+      }
+    } catch { /* ignore */ }
+    finally { setLoadingList(false); }
+  };
+  const fetchBoards = useCallback((params) => fetchBoardsRef.current(params), []);
+
+  // Trigger fetch when filters change
+  useEffect(() => {
+    fetchBoards({ reset: true });
+  }, [fStage, modelFilter, debouncedQ, debouncedSlip, useSlipFilter, slipFilterApplied]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* 套用 slip filter */
+  const applySlip = useCallback((val) => {
+    setSlipFilterApplied(val);
+    localStorage.setItem("pcba_slip_filter_value", val || "");
+    if (val) refreshSlip(val);
+    else setSlipStatus(null);
+    fetchBoards({ reset: true });
+  }, [refreshSlip, fetchBoards]);
+
+  const editSlipTarget = useCallback(async (sn, tp) => {
+    if (!guardEdit()) return;
+    try {
+      const r = await authFetch(`/pcba/slips/${encodeURIComponent(sn)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ targetPairs: Number(tp || 0) })
+      });
+      if (!r.ok) {
+        const t = await r.json().catch(() => ({ detail: "" }));
+        throw new Error(t.detail || `Update failed (${r.status})`);
+      }
+      toast(`Updated ${sn} → ${tp}`, "success");
+      await fetchSlipList();
+      if (slipStatus?.slipNumber === sn) refreshSlip(sn);
+    } catch (e) { toast(e.message || "Update slip failed", "error"); }
+  }, [guardEdit, fetchSlipList, toast, slipStatus, refreshSlip]);
+
+  const deleteSlip = useCallback(async (sn) => {
+    if (!guardEdit()) return;
+    const ok = window.confirm(`Delete slip ${sn}? (Only allowed when no boards use it)`);
+    if (!ok) return;
+    try {
+      const r = await authFetch(`/pcba/slips/${encodeURIComponent(sn)}`, { method: "DELETE" });
+      if (r.status === 409) {
+        const t = await r.json().catch(() => ({ detail: "Cannot delete: related boards exist" }));
+        throw new Error(t.detail);
+      }
+      if (!r.ok) {
+        const t = await r.json().catch(() => ({ detail: "" }));
+        throw new Error(t.detail || `Delete failed (${r.status})`);
+      }
+      toast(`Deleted slip ${sn}`, "success");
+      await fetchSlipList();
+      if (slipFilterApplied === sn) { applySlip(""); }
+    } catch (e) { toast(e.message || "Delete slip failed", "error"); }
+  }, [guardEdit, fetchSlipList, toast, slipFilterApplied, applySlip]);
+
+  /* 變更 slip（明確檢查配對上限） */
+  const changeSlip = useCallback(async (serialNumber, newSlip, targetPairs) => {
+    if (!guardEdit()) return;
+    try {
+      let boardInfo = null;
+      try {
+        const r0 = await authFetch(`/pcba/boards/${encodeURIComponent(serialNumber)}`);
+        if (r0.ok) boardInfo = await r0.json();
+      } catch { /* ignore */ }
+
+      const normalizedNew = (newSlip || "").trim();
+      if (boardInfo && boardInfo.stage === "completed" && !boardInfo.ngFlag && normalizedNew) {
+        const rs = await authFetch(`/pcba/slips/${encodeURIComponent(normalizedNew)}/status`);
+        if (rs.ok) {
+          const s = await rs.json();
+          const mdl = (boardInfo.model || "").toUpperCase();
+          const am7 = Number(s.completedAM7 || 0) + (mdl === "AM7" ? 1 : 0);
+          const au8 = Number(s.completedAU8 || 0) + (mdl === "AU8" ? 1 : 0);
+          const nextPairs = Math.min(am7, au8);
+          const tgt = Number(s.targetPairs || 0);
+          if (tgt > 0 && nextPairs > tgt) {
+            toast(`Slip ${normalizedNew} target ${tgt} reached; cannot move more pairs in`, "error");
+            throw new Error("Slip target would be exceeded");
+          }
+        }
+      }
+
+      const res = await authFetch(`/pcba/boards/${encodeURIComponent(serialNumber)}/slip`, {
+        method: "PATCH",
+        body: JSON.stringify({ slipNumber: normalizedNew || null, targetPairs }),
+      });
+      if (!res.ok) {
+        const t = await res.json().catch(() => ({ detail: "" }));
+        throw new Error(t.detail || `Update slip failed (${res.status})`);
+      }
+      const updated = await res.json();
+      upsertLocal(updated);
+      toast(`Slip updated: ${serialNumber} → ${normalizedNew || "(removed)"}`, "success");
+      if (slipFilterApplied) refreshSlip(slipFilterApplied);
+      fetchBoards({ reset: true });
+      fetchNGActive();
+      return updated;
+    } catch (e) {
+      toast(e.message || "Update slip failed", "error");
+      throw e;
+    }
+  }, [guardEdit, upsertLocal, toast, slipFilterApplied, refreshSlip, fetchBoards, fetchNGActive]);
+
+  /* Admin 編輯/刪除/NG */
+  const handleAdminEdit = async (serialNumber, formData) => {
+    if (!guardEdit()) return;
+    try {
+      const current = data.find(b => b.serialNumber === serialNumber) || {};
+      const slipChanged = (formData.slipNumber ?? "") !== (current.slipNumber ?? "");
+
+      if (slipChanged) await changeSlip(serialNumber, formData.slipNumber, formData.targetPairs);
+
+      const { slipNumber, targetPairs, ...rest } = formData;
+      const payload = Object.fromEntries(Object.entries(rest).filter(([_, v]) => v !== undefined));
+
+      const res = await authFetch(`/pcba/boards/${encodeURIComponent(serialNumber)}/admin`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const t = await res.json().catch(() => ({ detail: "" }));
+        throw new Error(t.detail || `Edit failed (${res.status})`);
+      }
+      const updatedBoard = await res.json();
+
+      if (formData.newSerialNumber && formData.newSerialNumber !== serialNumber) {
+        setData((p) => p.filter((x) => x.serialNumber !== serialNumber));
+        upsertLocal(updatedBoard);
+      } else {
+        upsertLocal(updatedBoard);
+      }
+      setEditBoard(null);
+      toast("Board updated successfully", "success");
+
+      if (slipFilterApplied && (slipChanged || payload.stage)) refreshSlip(slipFilterApplied);
+      fetchNGActive();
+      setPick((p)=> p && p.serialNumber === updatedBoard.serialNumber ? { ...p, ...updatedBoard } : p);
+    } catch (e) { toast(e.message || "Edit failed", "error"); }
+  };
+
+  const handleDelete = useCallback(async (board) => {
+    if (!guardEdit()) return;
+    const yes = window.confirm(`Delete ${board.serialNumber}?`);
+    if (!yes) return;
+    try {
+      const res = await authFetch(`/pcba/boards/${encodeURIComponent(board.serialNumber)}`, { method: "DELETE" });
+      if (res.status === 404) return toast(`Board ${board.serialNumber} not found`, "warning");
+      if (!res.ok) {
+        const t = await res.json().catch(() => ({ detail: "" }));
+        throw new Error(t.detail || `Delete failed (${res.status})`);
+      }
+      setData((p) => p.filter((x) => x.serialNumber !== board.serialNumber));
+      setPick(null);
+      toast(`Deleted ${board.serialNumber}`, "success");
+      if (slipFilterApplied) refreshSlip(slipFilterApplied);
+      fetchBoards({ reset: true });
+      fetchNGActive();
+    } catch (e) { toast(e.message || "Delete failed", "error"); }
+  }, [guardEdit, toast, slipFilterApplied, refreshSlip, fetchBoards, fetchNGActive]);
+
+  const toggleNG = useCallback(async (board, setToNG) => {
+    if (!guardEdit()) return;
+    try {
+      let reason = "";
+      if (setToNG) reason = prompt("Enter NG reason (optional):") || "";
+      else { const ok = window.confirm("Clear NG flag?"); if (!ok) return; }
+
+      const res = await authFetch(`/pcba/boards/${encodeURIComponent(board.serialNumber)}/ng`, {
+        method: "PATCH",
+        body: JSON.stringify({ ng: !!setToNG, reason }),
+      });
+      if (!res.ok) {
+        const t = await res.json().catch(() => ({ detail: "" }));
+        throw new Error(t.detail || `NG update failed (${res.status})`);
+      }
+      const updated = await res.json();
+      upsertLocal(updated);
+      setPick((p) => (p && p.serialNumber === updated.serialNumber ? { ...p, ...updated } : p));
+      toast(setToNG ? "Marked NG" : "Cleared NG", "success");
+      if (slipFilterApplied) refreshSlip(slipFilterApplied);
+      fetchBoards({ reset: true });
+      fetchNGActive();
+    } catch (e) { toast(e.message || "NG update failed", "error"); }
+  }, [guardEdit, upsertLocal, toast, slipFilterApplied, refreshSlip, fetchBoards, fetchNGActive]);
+
+  /* --------- Daily chart --------- */
+  const fetchDashboardDailyRef = useRef();
+  fetchDashboardDailyRef.current = async (days, fromC = "", toC = "") => {
+    try {
+      let url = `/pcba/statistics/daily`;
+      if (days && days > 0) {
+        url += `?days=${days}`;
+      } else if (fromC && toC) {
+        url += `?start=${encodeURIComponent(fromC)}&end=${encodeURIComponent(toC)}`;
+      }
+      const r = await authFetch(url);
+      if (r.ok) {
+        const body = await r.json();
+        const rowsRaw = body?.rows || [];
+        const rows = rowsRaw.map(rw => ({
+          date: rw.date,
+          dateShort: shortMMDD(rw.date),
+          pairs: Number(rw.pairsOK || 0)
+        }));
+        setDailyRows(rows);
+        setDailyAvg(Number(body?.avgPairsOKPerDay || 0));
+      }
+    } catch { /* ignore */ }
+  };
+  const fetchDashboardDaily = useCallback((days, fromC, toC) =>
+    fetchDashboardDailyRef.current(days, fromC, toC), []);
+
+  useEffect(() => {
+    fetchDashboardDaily(rangeDays, customFrom, customTo);
+  }, [rangeDays, customFrom, customTo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* --------- Daily consumption chart --------- */
+  const fetchDailyConsumptionRef = useRef();
+  fetchDailyConsumptionRef.current = async (days, fromC = "", toC = "") => {
+    try {
+      let url = `/pcba/statistics/consumption`;
+      if (days && days > 0) {
+        url += `?days=${days}`;
+      } else if (fromC && toC) {
+        url += `?start=${encodeURIComponent(fromC)}&end=${encodeURIComponent(toC)}`;
+      }
+      const r = await authFetch(url);
+      if (r.ok) {
+        const body = await r.json();
+        const rowsRaw = body?.rows || [];
+        const rows = rowsRaw.map(rw => ({
+          date: rw.date,
+          dateShort: shortMMDD(rw.date),
+          consumed: Number(rw.consumed || 0),
+          consumedPairs: Number(rw.consumedPairs || 0)
+        }));
+        setDailyConsumption(rows);
+        setConsumptionAvg(Number(body?.avgConsumedPerDay || 0));
+      }
+    } catch { /* ignore */ }
+  };
+  const fetchDailyConsumption = useCallback((days, fromC, toC) =>
+    fetchDailyConsumptionRef.current(days, fromC, toC), []);
+
+  useEffect(() => {
+    fetchDailyConsumption(rangeDays, customFrom, customTo);
+  }, [rangeDays, customFrom, customTo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* client 端額外篩（Slip / SN 查詢時忽略日期） */
+  const list = useMemo(() => {
+    const effectiveSlip = (useSlipFilter && slipFilterApplied) ? slipFilterApplied : debouncedSlip;
+    const ignoreDate = Boolean(effectiveSlip || debouncedQ);
+    return data.filter((b) => {
+      const matchDate = ignoreDate ? true : (!filterDate ? true : toCAISODate(b.lastUpdate || b.startTime) === filterDate);
+      const matchNG = ngFilter === "all" ? true : (ngFilter === "ng" ? !!b.ngFlag : !b.ngFlag);
+      return matchDate && matchNG;
+    });
+  }, [data, filterDate, ngFilter, useSlipFilter, slipFilterApplied, debouncedSlip, debouncedQ]);
+
+  /* Slip 各階段 pairs（若後端沒給 aging/coating pairs，就前端估） */
+  const slipPairByStage = useMemo(() => {
+    if (!slipStatus?.slipNumber) return { aging: 0, coating: 0, completed: Number(slipStatus?.completedPairs || 0) };
+
+    if (typeof slipStatus.agingPairs === "number" || typeof slipStatus.coatingPairs === "number") {
+      return {
+        aging: Number(slipStatus.agingPairs || 0),
+        coating: Number(slipStatus.coatingPairs || 0),
+        completed: Number(slipStatus.completedPairs || 0),
+      };
+    }
+
+    const countPairsAt = (stageKey) => {
+      const arr = data.filter(b =>
+        b.slipNumber === slipStatus.slipNumber &&
+        b.stage === stageKey &&
+        !b.ngFlag
+      );
+      const am7 = arr.reduce((n, b) => n + (b.model === "AM7" ? 1 : 0), 0);
+      const au8 = arr.reduce((n, b) => n + (b.model === "AU8" ? 1 : 0), 0);
+      return Math.min(am7, au8);
+    };
+
+    return {
+      aging: countPairsAt("aging"),
+      coating: countPairsAt("coating"),
+      completed: Number(slipStatus.completedPairs || countPairsAt("completed")),
+    };
+  }, [data, slipStatus]);
+
+  /* 匯出 */
+  const exportCsv = () => {
+    const rows = [
+      ["Serial", "Batch", "Slip", "Model", "Stage", "Start (CA Time)", "Last Update (CA Time)", "Duration", "Operator", "NG Flag", "NG Reason"],
+      ...list.map((b) => [
+        b.serialNumber, b.batchNumber, b.slipNumber || "",
+        b.model, labelOf(b.stage),
+        toCaliTime(b.startTime), toCaliTime(b.lastUpdate), fmtElapsed(b.startTime, b.lastUpdate, b.stage),
+        b.operator || "User",
+        b.ngFlag ? "NG" : "",
+        (b.ngReason || "").replace(/\n/g, " "),
+      ]),
+    ];
+    const blob = new Blob([rows.map((r) => r.map((cell) => {
+      const str = String(cell ?? "");
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    }).join(",")).join("\n")], { type: "text/csv" });
+    const a = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    a.href = url;
+    a.download = `PCBA_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    // Revoke the blob URL to prevent memory leak
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+    toast("Report exported", "success");
+  };
+
+  useEffect(() => { if (slipOpen) fetchSlipList(); }, [slipOpen, fetchSlipList]);
+
+  const openDetail = useCallback(async (serial) => {
+    const found = data.find(b => b.serialNumber === serial);
+    if (found) setPick(found);
+    try {
+      const r = await authFetch(`/pcba/boards/${encodeURIComponent(serial)}`);
+      if (r.ok) setPick(await r.json());
+    } catch { /* keep current */ }
+  }, [data]);
+
+  const submit = async (selectedStageFromPanel) => {
+    if (!guardEdit()) return;
+
+    const chosenStage = selectedStageFromPanel;
+    if (!chosenStage) return toast("請先選擇階段（Aging / Coating / Inventory）", "warning");
+
+    const raw = scan.trim();
+    if (!raw) return toast("Please scan a barcode", "warning");
+
+    const mdlPreview = inferModel(raw);
+    if (!mdlPreview) return toast("Only AU8/AM7 models accepted", "error");
+
+    const serial = raw;
+
+    let preBoard = data.find(b => b.serialNumber === serial);
+    try {
+      if (!preBoard) {
+        const r0 = await authFetch(`/pcba/boards/${encodeURIComponent(serial)}`);
+        if (r0.ok) preBoard = await r0.json();
+      }
+    } catch { /* ignore */ }
+    const preSlip = preBoard?.slipNumber || null;
+    const effectiveModel = (preBoard?.model || mdlPreview || "").toUpperCase();
+
+    if (chosenStage === "completed" && preSlip) {
+      try {
+        const rs = await authFetch(`/pcba/slips/${encodeURIComponent(preSlip)}/status`);
+        if (rs.ok) {
+          const s = await rs.json();
+          const am7 = Number(s.completedAM7 || 0) + (effectiveModel === "AM7" ? 1 : 0);
+          const au8 = Number(s.completedAU8 || 0) + (effectiveModel === "AU8" ? 1 : 0);
+          const nextPairs = Math.min(am7, au8);
+          const tgt = Number(s.targetPairs || 0);
+          if (tgt > 0 && nextPairs > tgt) {
+            toast(`Slip ${preSlip} target ${tgt} reached; cannot complete more pairs`, "error");
+            setScan("");
+            return;
+          }
+        }
+      } catch { /* let backend double-check */ }
+    }
+
+    const payload = {
+      serialNumber: serial,
+      stage: chosenStage,
+      model: "AUTO-DETECT",
+      operator: operatorName,
+    };
+
+    if (chosenStage === "aging" && !preSlip) {
+      const picked = (slipFilterApplied || slip?.slipNumber || "").trim();
+      if (picked) {
+        payload.slipNumber = picked;
+        if (slip?.targetPairs != null) payload.targetPairs = slip.targetPairs;
+      }
+    }
+
+    try {
+      const res = await authFetch(`/pcba/scan`, { method: "POST", body: JSON.stringify(payload) });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        // revert protection
+        try {
+          const rCheck = await authFetch(`/pcba/boards/${encodeURIComponent(serial)}`);
+          if (rCheck.ok) {
+            const fresh = await rCheck.json();
+            const changedUnexpectedly =
+              preSlip !== undefined && preSlip !== null && fresh?.slipNumber !== preSlip;
+            if (changedUnexpectedly) {
+              await changeSlip(serial, preSlip || "", undefined);
+              toast("Reverted slip due to scan error", "warning");
+            }
+          }
+        } catch {}
+        throw new Error(errJson.detail || `Scan failed (${res.status})`);
+      }
+
+      const updated = await res.json();
+      upsertLocal(updated);
+      toast(`${serial} → ${labelOf(chosenStage)}`, "success");
+      if (slipFilterApplied) refreshSlip(slipFilterApplied);
+      fetchBoards({ reset: true });
+      fetchNGActive();
+      fetchTodayStats();
+    } catch (e) {
+      toast(e.message || "Submit failed", "error");
+    } finally {
+      setScan("");
+    }
+  };
+
+  const ngCount = useMemo(() => ngActive.filter((b) => b.ngFlag).length, [ngActive]);
+
+  // ====== Infinite Scroll Refs & Observer (只針對 Active Boards，避免卡頓) ======
+  const listContainerRef = useRef(null);
+  const loadMoreRef = useRef(null);
+  useEffect(() => {
+    const root = listContainerRef.current;
+    const target = loadMoreRef.current;
+    if (!root || !target) return;
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingList) {
+          fetchBoards({ reset: false, offset: data.length });
+        }
+      },
+      { root, rootMargin: "200px", threshold: 0.1 }
+    );
+
+    io.observe(target);
+    return () => io.disconnect();
+  }, [hasMore, loadingList, fetchBoards, data.length]);
+
+  /* ---------------- UI ---------------- */
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 text-[15px]">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-40">
+        <div className="px-3 md:px-4 py-3.5">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 md:gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-gradient-to-br from-sky-600 to-teal-600 rounded-xl shadow-lg"><Package className="text-white" size={22} /></div>
+                <div>
+                  <h1 className="text-base md:text-lg font-bold text-gray-900">PCBA Production Tracker</h1>
+                  <p className="text-[11px] md:text-xs text-gray-500">Live dashboard</p>
+                </div>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] md:text-[11px] font-semibold ${
+                isEditor ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-700"
+              }`}>{roleBadge}</span>
+              {slipStatus?.slipNumber && (
+                <span className="hidden sm:inline px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-[11px] md:text-xs font-semibold">
+                  Slip: {slipStatus.slipNumber} • {slipStatus.completedPairs}/{slipStatus.targetPairs} pairs
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 md:gap-3">
+              <button
+                onClick={() => setSlipOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors"
+                title="Open Packing Slip Tracker"
+              >
+                <Tag size={16} />Slip
+              </button>
+
+              <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg ${isConnected ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                {isConnected ? <Wifi size={18} /> : <WifiOff size={18} />}
+                <span className="text-sm font-medium">{isConnected ? "Connected" : isConnecting ? "Connecting..." : "Offline"}</span>
+              </div>
+              <button onClick={reconnect} className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors" disabled={isConnecting} title="Reconnect"><Settings size={20} /></button>
+              <button onClick={exportCsv} className="hidden sm:flex items-center gap-2 px-3.5 py-2.5 bg-gradient-to-r from-sky-600 to-teal-600 text-white rounded-lg hover:shadow-lg transition-all duration-200 font-medium">
+                <Download size={18} /> Export
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Content */}
+      <div className="px-3 md:px-4 py-5 md:py-6 space-y-6 max-w-[1800px] mx-auto">
+        {/* KPI - Work in Process */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 md:gap-5">
+          <PCBAStatCard title="WIP: Aging" value={stats.aging} icon={Clock} gradient="from-amber-500 to-orange-600" breakdown={stageBreakdown.aging} subtitle="Boards in aging process" />
+          <PCBAStatCard title="WIP: Coating" value={stats.coating} icon={Activity} gradient="from-cyan-600 to-teal-600" breakdown={stageBreakdown.coating} subtitle="Boards in coating process" />
+          <PCBAStatCard title="WIP: Inventory" value={available.total} icon={CheckCircle} gradient="from-green-500 to-emerald-600" breakdown={available} subtitle="Ready for assembly" badgeLabel={`NG ${ngCount}`} />
+          <PCBAStatCard title="Available Pairs" value={pairsDone} icon={Package} gradient="from-indigo-500 to-indigo-700" subtitle="min(AM7, AU8) ready" />
+          <PCBAStatCard title="Today's Consumed" value={todayRow?.consumed || 0} icon={ArrowRight} gradient="from-rose-500 to-pink-600" breakdown={{AM7: todayRow?.consumedAM7 || 0, AU8: todayRow?.consumedAU8 || 0}} subtitle="Used today (resets daily)" />
+        </div>
+
+        {/* 今日掃描 */}
+        <PCBATodayScansCard today={todayRow} />
+
+        {/* Daily Output */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 md:p-6">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <BarChart3 size={18} className="text-violet-600" />
+              <h3 className="text-base md:text-lg font-semibold text-gray-900">Daily Output (Pairs)</h3>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                {[{k:7,label:"7d"},{k:30,label:"30d"},{k:90,label:"90d"}].map(opt => (
+                  <button
+                    key={opt.k}
+                    onClick={() => { setRangeDays(opt.k); setCustomFrom(""); setCustomTo(""); fetchDashboardDaily(opt.k); }}
+                    className={`px-2.5 py-1 rounded-md text-sm ${rangeDays === opt.k && !customFrom ? "bg-white shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
+                  >{opt.label}</button>
+                ))}
+                <button
+                  onClick={() => { setRangeDays(0); }}
+                  className={`px-2.5 py-1 rounded-md text-sm ${rangeDays === 0 ? "bg-white shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
+                >Custom</button>
+              </div>
+
+              <div className="hidden sm:flex items-center gap-2">
+                <span className="text-xs text-gray-500">Avg / Active Day:</span>
+                <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold">{dailyAvg.toFixed(1)}</span>
+              </div>
+            </div>
+          </div>
+
+          {rangeDays === 0 && (
+            <div className="mt-3 flex items-center gap-3 flex-wrap">
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
+                <input
+                  type="date"
+                  value={customFrom}
+                  onChange={(e)=>setCustomFrom(e.target.value)}
+                  className="pl-9 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-black"
+                />
+              </div>
+              <span className="text-sm text-gray-500">to</span>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
+                <input
+                  type="date"
+                  value={customTo}
+                  onChange={(e)=>setCustomTo(e.target.value)}
+                  className="pl-9 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-black"
+                />
+              </div>
+              <button
+                onClick={()=> customFrom && customTo && fetchDashboardDaily(0, customFrom, customTo)}
+                className="px-3 py-2 rounded-lg bg-slate-800 text-white hover:bg-slate-900 text-sm"
+              >Apply</button>
+            </div>
+          )}
+
+          <div className="mt-4 h-[260px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dailyRows} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="dateShort" />
+                <YAxis allowDecimals={false} />
+                <Tooltip formatter={(v, n) => [v, n === "pairs" ? "Pairs" : n.toUpperCase()]} />
+                <Bar dataKey="pairs" name="Pairs" fill="#6366f1" radius={[6,6,0,0]} maxBarSize={42}>
+                  <LabelList dataKey="pairs" position="top" formatter={(v)=> (v||0)} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Daily Consumption */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 md:p-6">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <ArrowRight size={18} className="text-rose-600" />
+              <h3 className="text-base md:text-lg font-semibold text-gray-900">Daily Consumption (Boards Used by Assembly)</h3>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Avg / Day:</span>
+              <span className="px-2 py-1 rounded-full bg-rose-50 text-rose-700 text-sm font-semibold">{consumptionAvg.toFixed(1)}</span>
+            </div>
+          </div>
+
+          <div className="mt-4 h-[260px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={dailyConsumption} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="dateShort" />
+                <YAxis allowDecimals={false} />
+                <Tooltip formatter={(v, n) => [v, n === "consumed" ? "Boards" : n === "consumedPairs" ? "Pairs" : n]} />
+                <Bar dataKey="consumed" name="Boards" fill="#f43f5e" radius={[6,6,0,0]} maxBarSize={42}>
+                  <LabelList dataKey="consumed" position="top" formatter={(v)=> (v||0)} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="mt-3 p-3 bg-rose-50 rounded-lg border border-rose-200">
+            <div className="text-xs text-gray-700">
+              <strong>Note:</strong> This tracks boards removed from WIP inventory when scanned by assembly.
+              Each scan reduces the "WIP: Inventory" count in real-time.
+            </div>
+          </div>
+        </div>
+
+        {/* Slip Progress */}
+        <PCBASlipProgress status={slipStatus} pairByStage={slipPairByStage} />
+
+        {/* Scanner */}
+        <PCBAEnhancedScannerPanel
+          scanInput={scan}
+          setScanInput={setScan}
+          handleScan={submit}
+          stageToAssign={stage}
+          setStageToAssign={setStage}
+          disabled={!isEditor}
+        />
+
+        {/* Boards + Pipeline + NG */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          {/* Boards */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="p-5 border-b border-gray-200 bg-gradient-to-br from-gray-50 to-white">
+                <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <Database size={22} className="text-indigo-600" /> Active Boards
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    {loadingList && (
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full text-xs font-semibold">
+                        <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-600 border-t-transparent"></div>
+                        Searching...
+                      </div>
+                    )}
+                    <span className="px-3 py-1.5 bg-gradient-to-r from-indigo-100 to-indigo-50 text-indigo-700 rounded-full text-sm font-bold border border-indigo-200 shadow-sm">
+                      {list.length !== data.length ? (
+                        <>
+                          <span className="text-indigo-900">{list.length.toLocaleString()}</span>
+                          <span className="text-indigo-400 mx-1">/</span>
+                          <span className="text-indigo-600">{data.length.toLocaleString()}</span>
+                        </>
+                      ) : (
+                        list.length.toLocaleString()
+                      )} items
+                    </span>
+                  </div>
+                </div>
+
+                {/* Active filters indicator & clear button */}
+                {(q || filterDate || filterSlip || fStage !== "all" || modelFilter !== "all" || ngFilter !== "all") && (
+                  <div className="mb-3 flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-gray-600">Active Filters:</span>
+                    {q && <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-md text-xs font-medium">Search: {q}</span>}
+                    {filterDate && <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-md text-xs font-medium">Date: {filterDate}</span>}
+                    {filterSlip && <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-md text-xs font-medium">Slip: {filterSlip}</span>}
+                    {modelFilter !== "all" && <span className="px-2 py-1 bg-cyan-100 text-cyan-700 rounded-md text-xs font-medium">Model: {modelFilter}</span>}
+                    {fStage !== "all" && <span className="px-2 py-1 bg-green-100 text-green-700 rounded-md text-xs font-medium">Stage: {labelOf(fStage)}</span>}
+                    {ngFilter !== "all" && <span className="px-2 py-1 bg-rose-100 text-rose-700 rounded-md text-xs font-medium">Status: {ngFilter === "ng" ? "NG Only" : "OK Only"}</span>}
+                    <button
+                      onClick={() => {
+                        setQ("");
+                        setFilterDate("");
+                        setFilterSlip("");
+                        setFStage("all");
+                        setModelFilter("all");
+                        setNgFilter("all");
+                      }}
+                      className="ml-auto px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-xs font-semibold transition-colors flex items-center gap-1"
+                    >
+                      <X size={14} />
+                      Clear All
+                    </button>
+                  </div>
+                )}
+
+                {/* filters */}
+                <div className="grid grid-cols-12 gap-3">
+                  <div className="col-span-12 sm:col-span-6 lg:col-span-5 xl:col-span-4 min-w-0">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400" size={18} />
+                      <input
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                        placeholder="Search serial or batch..."
+                        className="w-full pl-10 pr-4 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
+                                   focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
+                                   text-black placeholder-gray-400 transition-all duration-200 hover:border-indigo-300"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-span-6 sm:col-span-3 lg:col-span-2 xl:col-span-2 min-w-0">
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" size={18}/>
+                      <input
+                        type="date"
+                        value={filterDate}
+                        onChange={(e)=> setFilterDate(e.target.value)}
+                        className="w-full pl-10 pr-3 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
+                                   focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500
+                                   text-black transition-all duration-200 hover:border-purple-300"
+                        title="Update Date (CA Time)"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-span-12 sm:col-span-6 lg:col-span-5 xl:col-span-4 min-w-0">
+                    <div className="relative">
+                      <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-400" size={16}/>
+                      <input
+                        value={filterSlip}
+                        onChange={(e)=> setFilterSlip(e.target.value)}
+                        placeholder="Packing Slip #..."
+                        className="w-full pl-9 pr-3 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
+                                   focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500
+                                   text-black placeholder-gray-400 transition-all duration-200 hover:border-amber-300"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-span-6 sm:col-span-3 lg:col-span-2 xl:col-span-2 min-w-0">
+                    <select
+                      value={modelFilter}
+                      onChange={(e) => setModelFilter(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500
+                                 text-black appearance-none cursor-pointer transition-all duration-200 hover:border-cyan-300
+                                 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEgMS41TDYgNi41TDExIDEuNSIgc3Ryb2tlPSIjOTg5OGE4IiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+')] bg-[length:12px] bg-[center_right_12px] bg-no-repeat pr-9"
+                    >
+                      <option value="all">All Models</option>
+                      <option value="AM7">AM7</option>
+                      <option value="AU8">AU8</option>
+                    </select>
+                  </div>
+
+                  <div className="col-span-6 sm:col-span-3 lg:col-span-2 xl:col-span-2 min-w-0">
+                    <div className="relative">
+                      <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-green-400" size={18} />
+                      <select
+                        value={fStage}
+                        onChange={(e) => setFStage(e.target.value)}
+                        className="w-full pl-10 pr-9 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
+                                   focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500
+                                   appearance-none cursor-pointer text-black transition-all duration-200 hover:border-green-300
+                                   bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEgMS41TDYgNi41TDExIDEuNSIgc3Ryb2tlPSIjOTg5OGE4IiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+')] bg-[length:12px] bg-[center_right_12px] bg-no-repeat"
+                      >
+                        <option value="all">All Stages</option>
+                        <option value="aging">Aging</option>
+                        <option value="coating">Coating</option>
+                        <option value="completed">Inventory</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="col-span-6 sm:col-span-3 lg:col-span-2 xl:col-span-2 min-w-0">
+                    <div className="relative">
+                      <AlertCircle className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-400" size={18} />
+                      <select
+                        value={ngFilter}
+                        onChange={(e) => setNgFilter(e.target.value)}
+                        className="w-full pl-10 pr-9 py-2.5 bg-white border-2 border-rose-300 rounded-xl text-sm
+                                   focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-rose-400
+                                   appearance-none cursor-pointer text-black transition-all duration-200 hover:border-rose-400
+                                   bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEgMS41TDYgNi41TDExIDEuNSIgc3Ryb2tlPSIjOTg5OGE4IiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+')] bg-[length:12px] bg-[center_right_12px] bg-no-repeat"
+                      >
+                        <option value="all">All Status</option>
+                        <option value="ng">NG Only</option>
+                        <option value="ok">OK Only</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div ref={listContainerRef} className="relative p-5 space-y-3 max-h-[calc(100vh-340px)] md:max-h-[calc(100vh-260px)] overflow-y-auto scroll-smooth">
+                {/* 滾動漸層指示器 */}
+                {list.length > 5 && (
+                  <div className="sticky bottom-0 h-12 bg-gradient-to-t from-white via-white/90 to-transparent pointer-events-none -mb-5 z-10"></div>
+                )}
+                {list.length ? (
+                  list.map((b) => (
+                    <PCBAModernBoardCard
+                      key={b.serialNumber}
+                      board={b}
+                      onViewDetails={() => openDetail(b.serialNumber)}
+                      isBlink={blink.has(b.serialNumber)}
+                      isEditor={isEditor}
+                      onEdit={() => setEditBoard(b)}
+                      onDelete={handleDelete}
+                      onToggleNG={toggleNG}
+                    />
+                  ))
+                ) : (
+                  <div className="text-center py-14">
+                    <Database className="mx-auto text-gray-300 mb-4" size={52} />
+                    <p className="text-gray-500">No boards found</p>
+                    <p className="text-sm text-gray-400 mt-1">Try adjusting your filters</p>
+                  </div>
+                )}
+
+                <div ref={loadMoreRef} className="pt-3 h-10 flex items-center justify-center">
+                  {hasMore ? (
+                    <span className="text-sm text-gray-400">
+                      {loadingList ? "Loading…" : "Scroll to load more"}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right column */}
+          <div className="lg:col-span-1 space-y-5">
+            <PCBAProductionFlow stats={stats} />
+            <PCBANGListPanel
+              data={ngActive}
+              onView={(serial) => openDetail(serial)}
+              onClear={(board) => toggleNG(board, false)}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 詳情 Modal（仍保留在本檔） */}
+      {pick && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl lg:max-w-4xl xl:max-w-5xl w-full max-h-[90vh] overflow-hidden">
+            <div className={`p-6 text-white ${pick.ngFlag ? "bg-gradient-to-r from-rose-600 to-red-600" : "bg-gradient-to-r from-sky-600 to-teal-600"}`}>
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-2xl font-bold mb-2 break-all">{pick.serialNumber}</h3>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium backdrop-blur-sm">{pick.model}</span>
+                    {pick.version === "V2" && (
+                      <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-gradient-to-r from-emerald-400 to-teal-400 text-white shadow-md">
+                        V2 NEW
+                      </span>
+                    )}
+                    {pick.version === "V1" && (
+                      <span className="px-2.5 py-1 rounded-md text-xs font-medium bg-white/30 text-white backdrop-blur-sm">
+                        V1
+                      </span>
+                    )}
+                    {pick.slipNumber && <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium backdrop-blur-sm break-all">{pick.slipNumber}</span>}
+                    {pick.ngFlag && <span className="px-3 py-1 bg-white/25 rounded-full text-sm font-semibold text-white">NG</span>}
+                  </div>
+                </div>
+                <button onClick={() => setPick(null)} className="p-2 hover:bg-white/20 rounded-lg transition-colors"><X size={24} /></button>
+              </div>
+            </div>
+            <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4">
+                <h4 className="text-sm font-semibold text-gray-600 mb-3">Current Status</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div><p className="text-xs text-gray-500 mb-1">Stage</p><p className="font-semibold text-gray-900">{labelOf(pick.stage)}</p></div>
+                  <div><p className="text-xs text-gray-500 mb-1">Duration</p><p className="font-semibold text-gray-900">{fmtElapsed(pick.startTime, pick.lastUpdate, pick.stage)}</p></div>
+                  <div><p className="text-xs text-gray-500 mb-1">Operator</p><p className="font-semibold text-gray-900">{pick.operator || "System"}</p></div>
+                  <div><p className="text-xs text-gray-500 mb-1">Start Time (CA)</p><p className="font-semibold text-gray-900">{toCaliTime(pick.startTime)}</p></div>
+                  <div><p className="text-xs text-gray-500 mb-1">Last Update (CA)</p><p className="font-semibold text-gray-900">{toCaliTime(pick.lastUpdate)}</p></div>
+                  <div><p className="text-xs text-gray-500 mb-1">Serial (PK)</p><p className="font-semibold text-gray-900 break-all">{pick.serialNumber}</p></div>
+                  {pick.slipNumber && <div><p className="text-xs text-gray-500 mb-1">Slip Number</p><p className="font-semibold text-gray-900 break-all">{pick.slipNumber}</p></div>}
+                  {pick.ngReason && <div className="md:col-span-3"><p className="text-xs text-gray-500 mb-1">NG Reason</p><p className="font-semibold text-gray-900 break-words">{pick.ngReason}</p></div>}
+                </div>
+              </div>
+
+              {/* inline change slip */}
+              <div className="p-4 border border-gray-200 rounded-xl">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 text-gray-700">
+                    <Tag size={16} className="text-indigo-600" />
+                    <span className="font-semibold">Change Slip</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={newSlip}
+                      onChange={(e)=> setNewSlip(e.target.value)}
+                      placeholder="New slip…"
+                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-black placeholder-gray-400"
+                    />
+                    <button
+                      onClick={()=> changeSlip(pick.serialNumber, newSlip || "")}
+                      className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm flex items-center gap-1"
+                    >
+                      Save <ArrowRight size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-sm font-semibold text-gray-600 mb-3">Production History</h4>
+                <div className="space-y-3">
+                  {(Array.isArray(pick.history) ? pick.history : []).map((h, i) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <div className={`p-2 rounded-lg ${h.notes?.toLowerCase().startsWith("ng ") ? "bg-rose-600" : "bg-indigo-600"} mt-1`}>
+                        {h.notes?.toLowerCase().startsWith("ng ") ? <AlertCircle className="text-white" size={16} /> : <Activity className="text-white" size={16} />}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{h.notes?.toLowerCase().startsWith("ng ") ? "NG" : labelOf(h.stage || "")}</p>
+                        <p className="text-xs text-gray-500 mt-1">{toCaliTime(h.timestamp)} • Processed by {h.operator}</p>
+                        {h.notes && <p className="text-xs text-gray-400 mt-1 italic break-words">{h.notes}</p>}
+                      </div>
+                    </div>
+                  ))}
+                  {(!Array.isArray(pick.history) || pick.history.length === 0) && (
+                    <p className="text-sm text-gray-400">Loading history…</p>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-gray-200 p-6 bg-gray-50">
+              <div className="flex justify-between items-center flex-wrap gap-3">
+                <div className="text-xs text-gray-400">Serial: {pick.serialNumber}</div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => toggleNG(pick, !pick.ngFlag)}
+                    className={`px-4 py-2 rounded-lg transition-colors font-medium ${
+                      pick.ngFlag ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
+                                  : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                    }`}
+                  >
+                    {pick.ngFlag ? "Clear NG" : "Mark NG"}
+                  </button>
+                  {isEditor && (
+                    <button onClick={() => handleDelete(pick)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-medium">
+                      Delete Board
+                    </button>
+                  )}
+                  <button onClick={() => setPick(null)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editBoard && <PCBAAdminEditModal board={editBoard} onClose={() => setEditBoard(null)} onSave={handleAdminEdit} />}
+
+      {/* Packing Slip Modal */}
+      <PCBASlipModal open={slipOpen} onClose={() => setSlipOpen(false)}>
+        <div className="grid grid-cols-1 gap-6">
+          <PCBAPackingSlipPanel
+            slip={slip}
+            setSlip={setSlip}
+            useSlipFilter={useSlipFilter}
+            setUseSlipFilter={setUseSlipFilter}
+            onSave={saveSlip}
+            status={slipStatus}
+            saving={savingSlip}
+            onApplySlipFilter={applySlip}
+            appliedValue={slipFilterApplied}
+            disabled={!isEditor}
+          />
+          <PCBASlipLibrary
+            items={slipList}
+            loading={loadingSlipList}
+            onRefresh={fetchSlipList}
+            onEditTarget={editSlipTarget}
+            onDelete={deleteSlip}
+            onApplyFilter={(sn) => { applySlip(sn); setSlip((p) => ({ ...p, slipNumber: sn })); }}
+            disabled={!isEditor}
+          />
+        </div>
+      </PCBASlipModal>
+
+      {/* Toasts */}
+      <div className="fixed bottom-4 right-4 space-y-2 z-50">
+        {log.map((n) => (
+          <div key={n.id} className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm animate-slide-in ${
+              n.level === "error" ? "bg-red-500 text-white" :
+              n.level === "warning" ? "bg-amber-500 text-white" :
+              n.level === "success" ? "bg-green-500 text-white" : "bg-gray-800 text-white"}`}>
+            {n.level === "error" ? <AlertCircle size={20} /> : <Bell size={20} />}
+            <span className="font-medium">{n.msg}</span>
+          </div>
+        ))}
+      </div>
+
+      <style>{`
+        @keyframes slide-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .animate-slide-in { animation: slide-in 0.3s ease-out; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+        .animate-pulse { animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      `}</style>
+    </div>
+  );
+}

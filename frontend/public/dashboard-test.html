@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard API 测试</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 900px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    .test-item {
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 8px;
+      border-left: 4px solid #ccc;
+      background: #f8f9fa;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .test-item.pending {
+      border-left-color: #ffc107;
+      background: #fff9e6;
+    }
+    .test-item.pass {
+      border-left-color: #28a745;
+      background: #d4edda;
+    }
+    .test-item.fail {
+      border-left-color: #dc3545;
+      background: #f8d7da;
+    }
+    .status {
+      font-weight: bold;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 14px;
+    }
+    .status.pending {
+      background: #ffc107;
+      color: white;
+    }
+    .status.pass {
+      background: #28a745;
+      color: white;
+    }
+    .status.fail {
+      background: #dc3545;
+      color: white;
+    }
+    .btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px 5px;
+      transition: background 0.3s;
+    }
+    .btn:hover {
+      background: #5568d3;
+    }
+    .btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .log {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 15px 0;
+      max-height: 400px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+    }
+    .log-entry {
+      margin: 5px 0;
+      padding: 5px;
+    }
+    .log-entry.success {
+      color: #28a745;
+    }
+    .log-entry.error {
+      color: #dc3545;
+    }
+    .log-entry.info {
+      color: #007bff;
+    }
+    .detail {
+      font-size: 12px;
+      color: #666;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Dashboard API 连接测试</h1>
+    <p class="subtitle">测试所有 Dashboard 需要的 API 端点是否正常</p>
+
+    <div>
+      <button id="start-test-btn" class="btn" onclick="runAllTests()">开始测试</button>
+      <button class="btn" onclick="location.reload()">重新载入</button>
+    </div>
+
+    <div id="tests-container">
+      <div id="test-1" class="test-item pending">
+        <div>
+          <div><strong>1. Model Inventory Daily Count</strong></div>
+          <div class="detail">GET /api/model_inventory_daily_count</div>
+        </div>
+        <span class="status pending">等待中</span>
+      </div>
+
+      <div id="test-2" class="test-item pending">
+        <div>
+          <div><strong>2. Model Inventory Trend</strong></div>
+          <div class="detail">GET /api/model_inventory_trend</div>
+        </div>
+        <span class="status pending">等待中</span>
+      </div>
+
+      <div id="test-3" class="test-item pending">
+        <div>
+          <div><strong>3. Assembly Inventory Daily Count</strong></div>
+          <div class="detail">GET /api/assembly_inventory_daily_count</div>
+        </div>
+        <span class="status pending">等待中</span>
+      </div>
+
+      <div id="test-4" class="test-item pending">
+        <div>
+          <div><strong>4. Assembly Inventory Trend</strong></div>
+          <div class="detail">GET /api/assembly_inventory_trend</div>
+        </div>
+        <span class="status pending">等待中</span>
+      </div>
+
+      <div id="test-5" class="test-item pending">
+        <div>
+          <div><strong>5. Weekly KPI</strong></div>
+          <div class="detail">GET /api/weekly_kpi</div>
+        </div>
+        <span class="status pending">等待中</span>
+      </div>
+
+      <div id="test-6" class="test-item pending">
+        <div>
+          <div><strong>6. Assembly Weekly KPI</strong></div>
+          <div class="detail">GET /api/assembly_weekly_kpi</div>
+        </div>
+        <span class="status pending">等待中</span>
+      </div>
+
+      <div id="test-7" class="test-item pending">
+        <div>
+          <div><strong>7. Risk Alerts</strong></div>
+          <div class="detail">GET /api/risk/alerts</div>
+        </div>
+        <span class="status pending">等待中</span>
+      </div>
+
+      <div id="test-8" class="test-item pending">
+        <div>
+          <div><strong>8. Downtime Events</strong></div>
+          <div class="detail">GET /api/downtime/events/today</div>
+        </div>
+        <span class="status pending">等待中</span>
+      </div>
+    </div>
+
+    <div class="log" id="log-output"></div>
+  </div>
+
+  <script>
+    const logOutput = document.getElementById('log-output');
+    let passCount = 0;
+    let failCount = 0;
+
+    function log(message, type = 'info') {
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      const timestamp = new Date().toLocaleTimeString('zh-TW');
+      entry.textContent = `[${timestamp}] ${message}`;
+      logOutput.appendChild(entry);
+      logOutput.scrollTop = logOutput.scrollHeight;
+    }
+
+    async function testAPI(testId, endpoint) {
+      const testEl = document.getElementById(`test-${testId}`);
+      const statusEl = testEl.querySelector('.status');
+
+      log(`测试 ${endpoint}...`, 'info');
+
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('未找到 token，请先登入');
+        }
+
+        const response = await fetch(`/api/${endpoint}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          testEl.className = 'test-item pass';
+          statusEl.className = 'status pass';
+          statusEl.textContent = '✅ PASS';
+          log(`✅ ${endpoint} - 成功 (${response.status})`, 'success');
+          log(`   数据: ${JSON.stringify(data).substring(0, 100)}...`, 'info');
+          passCount++;
+        } else if (response.status === 401) {
+          testEl.className = 'test-item fail';
+          statusEl.className = 'status fail';
+          statusEl.textContent = '❌ 401';
+          log(`❌ ${endpoint} - 未授权 (401) - 请重新登入`, 'error');
+          failCount++;
+        } else {
+          testEl.className = 'test-item fail';
+          statusEl.className = 'status fail';
+          statusEl.textContent = `❌ ${response.status}`;
+          log(`❌ ${endpoint} - 失败 (${response.status})`, 'error');
+          failCount++;
+        }
+      } catch (error) {
+        testEl.className = 'test-item fail';
+        statusEl.className = 'status fail';
+        statusEl.textContent = '❌ ERROR';
+        log(`❌ ${endpoint} - 错误: ${error.message}`, 'error');
+        failCount++;
+      }
+    }
+
+    async function runAllTests() {
+      document.getElementById('start-test-btn').disabled = true;
+      logOutput.innerHTML = '';
+      passCount = 0;
+      failCount = 0;
+
+      log('========================================', 'info');
+      log('开始测试所有 Dashboard API 端点', 'info');
+      log('========================================', 'info');
+      log('', 'info');
+
+      const tests = [
+        [1, 'model_inventory_daily_count'],
+        [2, 'model_inventory_trend'],
+        [3, 'assembly_inventory_daily_count'],
+        [4, 'assembly_inventory_trend'],
+        [5, 'weekly_kpi'],
+        [6, 'assembly_weekly_kpi'],
+        [7, 'risk/alerts'],
+        [8, 'downtime/events/today']
+      ];
+
+      for (const [id, endpoint] of tests) {
+        await testAPI(id, endpoint);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      log('', 'info');
+      log('========================================', 'info');
+      log(`测试完成！通过: ${passCount} / 失败: ${failCount}`, passCount === 8 ? 'success' : 'error');
+      log('========================================', 'info');
+
+      if (passCount === 8) {
+        log('🎉 所有测试通过！Dashboard 应该可以正常显示', 'success');
+      } else if (failCount > 0 && document.querySelectorAll('.status.fail').length > 0) {
+        const firstFail = document.querySelector('.status.fail');
+        if (firstFail.textContent === '❌ 401') {
+          log('⚠️ 请先登入系统再进行测试', 'error');
+        } else {
+          log('❌ 有些 API 调用失败，Dashboard 可能无法完全显示', 'error');
+        }
+      }
+
+      document.getElementById('start-test-btn').disabled = false;
+    }
+
+    // 页面加载时检查登入状态
+    window.addEventListener('load', () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        log('⚠️ 未检测到登入 token', 'error');
+        log('请先访问 https://192.168.10.100:3000 并登入', 'info');
+        log('然后重新载入此页面进行测试', 'info');
+      } else {
+        log('✅ 检测到登入 token', 'success');
+        log('点击 "开始测试" 按钮开始检查所有 API', 'info');
+      }
+    });
+  </script>
+</body>
+</html>

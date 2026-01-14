@@ -1,0 +1,60 @@
+/* --------------------------------------------------
+   Design Tokens / CSS Custom Properties
+   -------------------------------------------------- */
+
+/* Light (預設) */
+:root,
+[data-theme="light"] {
+  /* brand / accents */
+  --clr-primary:  #1e293b;
+  --clr-primary-50: #273549;
+  --clr-accent:   #38bdf8;
+  --clr-accent-hover: #0ea5e9;
+  --clr-danger:   #dc2626;
+  --clr-danger-50:#b91c1c;
+  --clr-success:  #10b981;
+
+  /* surfaces */
+  --bg-main:   #f8fafc;   /* 頁面背景 */
+  --surface-1: #ffffff;   /* 卡片/面板 */
+  --surface-2: #f1f5f9;   /* 次層背景 */
+  --border:    #e5e7eb;
+
+  /* text */
+  --text-1: #0f172a;   /* 主要文字（黑） */
+  --text-2: #334155;   /* 次要 */
+  --text-3: #64748b;   /* 提示 */
+
+  /* shadows */
+  --shadow-sm: 0 2px 4px rgba(0,0,0,.06);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.10);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,.15);
+
+  /* spacing & type */
+  --space-xs: .25rem; --space-s: .5rem; --space-m: 1rem;
+  --space-l: 1.5rem;  --space-xl: 2rem;
+
+  --fs-900: 2rem; --fs-800: 1.5rem; --fs-700: 1.25rem;
+  --fs-600: 1.125rem; --fs-500: 1rem; --fs-400: .925rem;
+
+  /* transitions */
+  --bezier: cubic-bezier(.4,0,.2,1);
+  --tr-fast: 150ms var(--bezier);
+}
+
+/* Dark（在 <body> 加 .theme-dark 或 data-theme="dark" 時才會套用） */
+.theme-dark,
+[data-theme="dark"] {
+  --bg-main:   #0f1117;
+  --surface-1: #1a1d2e;
+  --surface-2: #16192a;
+  --border:    rgba(255,255,255,.10);
+
+  --text-1: #f0f2f5;
+  --text-2: #a8b2d1;
+  --text-3: #94a3b8;
+
+  --shadow-sm: 0 2px 4px rgba(0,0,0,.25);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.35);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,.45);
+}

@@ -1,0 +1,11 @@
+# Ignore everything except frontend and backend
+/*
+!/frontend/
+!/backend/
+!/CLAUDE.md
+!/.gitignore
+
+# Database files at root level
+*.db
+*.db-shm
+*.db-wal

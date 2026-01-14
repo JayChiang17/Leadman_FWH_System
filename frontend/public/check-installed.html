@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>檢查 PWA 安裝狀態</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    .status {
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 8px;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .installed {
+      background: #d4edda;
+      border: 2px solid #28a745;
+      color: #155724;
+    }
+    .not-installed {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      color: #856404;
+    }
+    .icon {
+      font-size: 24px;
+    }
+    .btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px 5px;
+      transition: background 0.3s;
+    }
+    .btn:hover {
+      background: #5568d3;
+    }
+    .btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .info {
+      background: #e7f3ff;
+      border: 1px solid #b3d9ff;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 15px 0;
+    }
+    .log {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 15px 0;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+    }
+    .log-entry {
+      margin: 5px 0;
+      padding: 5px;
+      border-left: 3px solid #667eea;
+      padding-left: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 PWA 安裝狀態檢查</h1>
+
+    <div id="display-mode-status" class="status">
+      <span class="icon">⏳</span>
+      <span>檢查中...</span>
+    </div>
+
+    <div id="install-status" class="status">
+      <span class="icon">⏳</span>
+      <span>檢查安裝提示狀態...</span>
+    </div>
+
+    <div class="info">
+      <h3>📱 Display Mode (顯示模式)</h3>
+      <ul>
+        <li><strong>standalone</strong> 或 <strong>fullscreen</strong> = PWA 已安裝並從主屏幕啟動</li>
+        <li><strong>browser</strong> = 在瀏覽器中打開（未安裝或未從主屏幕啟動）</li>
+        <li><strong>minimal-ui</strong> = 最小化 UI（部分瀏覽器支持）</li>
+      </ul>
+    </div>
+
+    <div>
+      <button id="trigger-install-btn" class="btn" disabled>
+        手動觸發安裝提示
+      </button>
+      <button id="reload-btn" class="btn" onclick="location.reload()">
+        重新載入頁面
+      </button>
+    </div>
+
+    <div class="log" id="log-output"></div>
+  </div>
+
+  <script>
+    const logOutput = document.getElementById('log-output');
+    const displayModeStatus = document.getElementById('display-mode-status');
+    const installStatus = document.getElementById('install-status');
+    const triggerInstallBtn = document.getElementById('trigger-install-btn');
+
+    let deferredPrompt = null;
+
+    function log(message, type = 'info') {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      const timestamp = new Date().toLocaleTimeString('zh-TW');
+      entry.textContent = `[${timestamp}] ${message}`;
+      logOutput.appendChild(entry);
+      logOutput.scrollTop = logOutput.scrollHeight;
+    }
+
+    // 檢查 Display Mode
+    function checkDisplayMode() {
+      const displayMode = window.matchMedia('(display-mode: standalone)').matches ? 'standalone' :
+                          window.matchMedia('(display-mode: fullscreen)').matches ? 'fullscreen' :
+                          window.matchMedia('(display-mode: minimal-ui)').matches ? 'minimal-ui' :
+                          'browser';
+
+      log(`Display Mode: ${displayMode}`);
+
+      if (displayMode === 'standalone' || displayMode === 'fullscreen') {
+        displayModeStatus.className = 'status installed';
+        displayModeStatus.innerHTML = `
+          <span class="icon">✅</span>
+          <span><strong>PWA 已安裝並從主屏幕啟動</strong> (Display Mode: ${displayMode})</span>
+        `;
+        log('✅ PWA 已安裝！您正在獨立窗口中運行應用');
+      } else {
+        displayModeStatus.className = 'status not-installed';
+        displayModeStatus.innerHTML = `
+          <span class="icon">ℹ️</span>
+          <span><strong>在瀏覽器中打開</strong> (Display Mode: ${displayMode})</span>
+        `;
+        log('ℹ️ PWA 未安裝或從瀏覽器打開');
+      }
+    }
+
+    // 監聽 beforeinstallprompt 事件
+    window.addEventListener('beforeinstallprompt', (e) => {
+      log('✅ beforeinstallprompt 事件觸發！');
+      e.preventDefault();
+      deferredPrompt = e;
+
+      installStatus.className = 'status not-installed';
+      installStatus.innerHTML = `
+        <span class="icon">✅</span>
+        <span><strong>可以安裝！</strong>安裝提示已準備好</span>
+      `;
+
+      triggerInstallBtn.disabled = false;
+      log('✅ 安裝提示可用，您可以點擊「手動觸發安裝提示」按鈕');
+    });
+
+    // 手動觸發安裝
+    triggerInstallBtn.addEventListener('click', async () => {
+      if (!deferredPrompt) {
+        log('❌ 沒有可用的安裝提示');
+        return;
+      }
+
+      log('ℹ️ 觸發安裝提示...');
+      deferredPrompt.prompt();
+
+      const { outcome } = await deferredPrompt.userChoice;
+      log(`ℹ️ 用戶選擇: ${outcome}`);
+
+      if (outcome === 'accepted') {
+        log('✅ 用戶接受安裝');
+      } else {
+        log('❌ 用戶拒絕安裝');
+      }
+
+      deferredPrompt = null;
+      triggerInstallBtn.disabled = true;
+    });
+
+    // 監聽 appinstalled 事件
+    window.addEventListener('appinstalled', () => {
+      log('🎉 PWA 安裝成功！');
+      installStatus.className = 'status installed';
+      installStatus.innerHTML = `
+        <span class="icon">🎉</span>
+        <span><strong>PWA 已成功安裝！</strong></span>
+      `;
+    });
+
+    // 超時檢測
+    setTimeout(() => {
+      if (!deferredPrompt) {
+        installStatus.className = 'status not-installed';
+        installStatus.innerHTML = `
+          <span class="icon">⚠️</span>
+          <span><strong>安裝提示未觸發</strong> - 可能已安裝、條件未滿足、或瀏覽器限制</span>
+        `;
+        log('⚠️ 3 秒後未收到 beforeinstallprompt 事件');
+        log('可能原因：');
+        log('  1. PWA 已經安裝過了');
+        log('  2. Chrome 認為用戶參與度不足');
+        log('  3. 需要多次訪問才會觸發');
+        log('  4. 在 Incognito 模式中某些限制');
+      }
+    }, 3000);
+
+    // 頁面載入時執行
+    log('📄 頁面載入完成');
+    log(`🌐 當前 URL: ${location.href}`);
+    log(`🔒 協議: ${location.protocol}`);
+    checkDisplayMode();
+
+    // 檢查 Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((registration) => {
+        log(`✅ Service Worker 已就緒: ${registration.scope}`);
+      });
+    }
+  </script>
+</body>
+</html>

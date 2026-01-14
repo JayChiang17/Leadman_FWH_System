@@ -1,0 +1,691 @@
+/* ============================================================
+   Dashboard.css – 玻璃風儀表板（RWD＋深色主題＋全螢幕）
+   Simplified 2025‑07‑10 │ Final (no animation)
+================================================================ */
+
+:root {
+  /* 色票與佈局參數 */
+  --primary-bg: linear-gradient(135deg, #dce3e9, #e8eff5);
+  --glass-bg: rgba(255, 255, 255, 0.15);
+  --glass-brd: rgba(255, 255, 255, 0.30);
+  --txt-dark: #2c3e50;
+  --accent-blue: #007bff;
+
+  /* KPI 色票 */
+  --kpi-a: #FF9800;        --kpi-a-bg: #FF980033;
+  --kpi-b: #03A9F4;        --kpi-b-bg: #03A9F433;
+  --kpi-assembly: #0097A7; --kpi-assembly-bg: #0097A733;
+  --kpi-plan: #90a4ae55;
+  --week-a: rgba(102, 224, 190, 0.65);
+    /* Tiffany 綠：清新柔綠 */
+  --week-b: rgba(255, 138, 128, 0.65);
+    /* 西瓜紅：柔和對比 */
+
+  --card-gap: 1.2rem;
+  --card-pad: 0.6rem;  /* 卡片內距 - 縮小 */
+  --card-radius: 22px;
+  --card-width: 380px; /* 卡片最小寬度 */
+  --badge-space: 0.3rem;/* 圖表下方保留 - 最小化 */
+  --achievement-gold: #FFD700;
+}
+
+/* ========== 容器 ========== */
+.dashboard-screen {
+  height: 100%;
+  box-sizing: border-box;
+  background: var(--primary-bg);
+  color: var(--txt-dark);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  overflow: auto;
+  position: relative;
+  padding: var(--card-gap);
+}
+
+/* ========== 固定 2×2 網格 ========== */
+.dashboard-grid {
+  /* 讓版面可依內容高度延伸，避免底部被裁切 */
+  display: grid;
+  gap: var(--card-gap);
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: auto auto;
+  align-content: start;   /* 防止超出視窗時被截斷 */
+  min-height: 0;
+}
+@media (max-width: 1024px) {
+  .dashboard-grid { grid-template-columns: 1fr; grid-template-rows: unset; }
+}
+/* ========== 卡片 ========== */
+.dashboard-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: var(--card-pad);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: var(--card-radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  min-width: 0;
+  transition: all 0.3s ease;
+}
+
+.dashboard-card:hover {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.card-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  z-index: 2;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.card-big {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.8rem;
+  margin: 0;
+  font-size: 4rem;
+  font-weight: 800;
+  line-height: 1;
+  z-index: 3;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+  text-align: right;
+  opacity: 0.95;
+}
+
+.card-big.right {
+  /* Already positioned absolutely */
+}
+
+.module-overlay {
+  position: absolute;
+  bottom: 0.3rem;
+  left: 0.8rem;
+  display: flex;
+  gap: 0.625rem;
+  z-index: 10;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  max-width: calc(100% - 2rem);
+}
+
+.module-overlay-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.65rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.module-overlay-badge .badge-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.module-overlay-badge .badge-value {
+  font-size: 0.9375rem;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.module-overlay-badge.badge-a .badge-value {
+  color: #FF9800;
+}
+
+.module-overlay-badge.badge-b .badge-value {
+  color: #03A9F4;
+}
+
+.module-overlay-badge.badge-apower2 .badge-value {
+  color: #41c7af;
+}
+
+.module-overlay-badge.badge-apowers .badge-value {
+  color: #e0b875;
+}
+
+/* ========== NG 角標 ========== */
+.ng-badge {
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  backdrop-filter: blur(12px);
+  background: rgba(239, 68, 68, 0.15);
+  border: 1.5px solid rgba(239, 68, 68, 0.4);
+  color: #dc2626;
+  box-shadow: 0 2px 12px rgba(239, 68, 68, 0.2);
+  z-index: 15;
+  transition: all 0.3s ease;
+}
+
+.ng-badge.mod {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1.5px solid rgba(239, 68, 68, 0.4);
+  color: #dc2626;
+}
+
+.ng-badge.assy {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1.5px solid rgba(239, 68, 68, 0.4);
+  color: #dc2626;
+}
+
+.ng-icon {
+  font-size: 1rem;
+  opacity: 0.9;
+  color: inherit;
+}
+
+.ng-text {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.ng-rate {
+  opacity: 0.85;
+  font-size: 0.75rem;
+}
+
+/* ========== 圖表區塊 ========== */
+.chart         { flex: 10; width: 100% !important; min-height: 0; }
+.chart-wrapper { position: relative; flex: 10; display: flex; align-items: stretch; padding-bottom: var(--badge-space); }
+.chart canvas  { height: 100% !important; width: 100% !important; }
+
+/* ========== 達標星號 ========== */
+.achievement-star {
+  margin-left: 0.5rem;
+  font-size: 1.125rem;
+  color: var(--achievement-gold);
+  vertical-align: text-bottom;
+  filter: drop-shadow(0 2px 4px rgba(255, 215, 0, 0.4));
+}
+
+.dashboard-card.achieved {
+  border: 2px solid rgba(34, 197, 94, 0.6);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08),
+              0 0 32px rgba(34, 197, 94, 0.15);
+  position: relative;
+}
+
+.dashboard-card.achieved::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.08), rgba(16, 185, 129, 0.08));
+  border-radius: var(--card-radius);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.dashboard-card.achieved.assy {
+  border: 2px solid rgba(20, 184, 166, 0.6);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08),
+              0 0 32px rgba(20, 184, 166, 0.15);
+}
+
+.dashboard-card.achieved.assy::before {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.08), rgba(13, 148, 136, 0.08));
+}
+
+/* ========== Plan 浮層 ========== */
+.plan-inputs {
+  position: absolute;
+  top: 3.4rem;
+  right: 1rem;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15), 0 4px 8px rgba(0, 0, 0, 0.08);
+  font-size: 0.875rem;
+  min-width: 240px;
+}
+
+.plan-inputs::before {
+  content: 'Set Daily Plan';
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+}
+
+.plan-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.plan-row span {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: 0.02em;
+  min-width: 3.5rem;
+}
+
+.plan-row input {
+  width: 80px;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  text-align: right;
+  border: 1.5px solid #cbd5e1;
+  background: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1e293b;
+  transition: all 0.2s ease;
+}
+
+.plan-row input:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.plan-row input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.save-btn {
+  align-self: stretch;
+  margin-top: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.save-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 123, 255, 0.4);
+  background: linear-gradient(135deg, #0056b3, #004085);
+}
+
+.save-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+.plan-toggle {
+  cursor: pointer;
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+  color: #607d8b;
+  transition: color 0.2s ease;
+}
+
+.plan-toggle:hover {
+  color: var(--accent-blue);
+  text-decoration: underline;
+}
+
+/* ========== 全螢幕按鈕 ========== */
+.fs-btn {
+  position: absolute; top: 12px; right: 14px; z-index: 30;
+  width: 34px; height: 34px; border: none; border-radius: 50%;
+  background: var(--glass-bg); backdrop-filter: blur(18px);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background .15s;
+}
+.fs-btn:hover { background: rgba(255, 255, 255, 0.28); }
+
+/* ========== 自訂滾動條 ========== */
+.dashboard-screen::-webkit-scrollbar       { width: 6px; }
+.dashboard-screen::-webkit-scrollbar-thumb { background: #64748b44; border-radius: 3px; }
+.dashboard-screen:hover::-webkit-scrollbar-thumb { background: #64748b7a; }
+
+/* ========== 全螢幕 ========== */
+.dashboard-screen:fullscreen,
+.dashboard-screen:-webkit-full-screen,
+.dashboard-screen:-moz-full-screen,
+.dashboard-screen:-ms-fullscreen {
+  position: fixed; inset: 0; width: 100vw; height: 100vh;
+  padding: 0.5rem;
+  overflow: hidden; z-index: 99999;
+  box-sizing: border-box;
+}
+.dashboard-screen:fullscreen .dashboard-grid {
+  gap: 0.5rem;
+  height: 100%;
+  width: 100%;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  box-sizing: border-box;
+}
+.dashboard-screen:fullscreen .dashboard-card {
+  padding: 0.4rem;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+.dashboard-screen:fullscreen .card-title {
+  font-size: 1.2rem;
+  margin: 0 0 0.1rem 0;
+  flex-shrink: 0;
+}
+.dashboard-screen:fullscreen .card-big {
+  position: absolute;
+  font-size: 5rem;
+  top: 0.5rem;
+  right: 1rem;
+  margin: 0;
+}
+.dashboard-screen:fullscreen .chart {
+  flex: 10;
+  min-height: 0;
+  width: 100% !important;
+}
+.dashboard-screen:fullscreen .chart-wrapper {
+  flex: 10;
+  min-height: 0;
+  padding-bottom: 0.2rem;
+}
+.dashboard-screen:fullscreen .chart canvas {
+  max-height: 100% !important;
+  width: 100% !important;
+}
+.dashboard-screen:fullscreen .ng-badge {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.7rem;
+}
+.dashboard-screen:fullscreen .module-overlay {
+  bottom: 0.3rem;
+  left: 0.8rem;
+  gap: 0.4rem;
+}
+.dashboard-screen:fullscreen .module-overlay-badge {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.7rem;
+}
+.dashboard-screen:fullscreen .module-overlay-badge .badge-label {
+  font-size: 0.55rem;
+}
+.dashboard-screen:fullscreen .module-overlay-badge .badge-value {
+  font-size: 0.85rem;
+}
+
+/* ========== 字級 RWD ========== */
+@media (min-width: 3000px) {
+  .card-big { font-size: 6rem; }
+  .dashboard-screen:fullscreen .card-title { font-size: 1.6rem; }
+  .dashboard-screen:fullscreen .card-big { font-size: 7rem; }
+  .dashboard-screen:fullscreen .chart {
+    flex: 15;
+  }
+  .dashboard-screen:fullscreen .chart-wrapper {
+    flex: 15;
+  }
+}
+@media (min-width: 2560px) {
+  .card-title { font-size: 1.2rem; }
+  .card-big { font-size: 5rem; }
+  .dashboard-screen:fullscreen .card-title { font-size: 1.4rem; }
+  .dashboard-screen:fullscreen .card-big { font-size: 6rem; }
+  .dashboard-screen:fullscreen .chart {
+    flex: 12;
+  }
+  .dashboard-screen:fullscreen .chart-wrapper {
+    flex: 12;
+  }
+}
+@media (min-width: 1920px) and (max-width: 2559px) {
+  .card-big { font-size: 4.5rem; }
+  .dashboard-screen:fullscreen .card-title { font-size: 1.3rem; }
+  .dashboard-screen:fullscreen .card-big { font-size: 5.5rem; }
+}
+@media (max-width: 1440px) {
+  .card-title { font-size: 1rem; }
+  .card-big { font-size: 3.5rem; }
+}
+
+/* ========== 更細緻的 RWD 斷點 ========== */
+@media (max-width: 1200px) {
+  .card-title { font-size: 1rem; }
+  .card-big { font-size: 3.2rem; }
+
+  .module-overlay-badge {
+    padding: 0.3rem 0.55rem;
+    font-size: 0.7rem;
+  }
+
+  .module-overlay-badge .badge-label {
+    font-size: 0.575rem;
+  }
+
+  .module-overlay-badge .badge-value {
+    font-size: 0.875rem;
+  }
+
+  .plan-inputs {
+    right: 0.5rem;
+    min-width: 200px;
+  }
+
+  .risk-badge {
+    max-width: calc(100% - 10rem);
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    --card-gap: 1rem;
+    --card-pad: 1rem;
+  }
+
+  .dashboard-screen {
+    padding: 0.5rem;
+  }
+
+  .card-title {
+    font-size: 0.9rem;
+    margin: 0;
+  }
+
+  .card-big {
+    font-size: 2.8rem;
+    top: 0.4rem;
+    right: 0.6rem;
+  }
+
+  .module-overlay {
+    bottom: 0.3rem;
+    left: 0.6rem;
+    gap: 0.4rem;
+  }
+
+  .module-overlay-badge {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.65rem;
+  }
+
+  .module-overlay-badge .badge-label {
+    font-size: 0.55rem;
+  }
+
+  .module-overlay-badge .badge-value {
+    font-size: 0.8rem;
+  }
+
+  .ng-badge {
+    top: 0.5rem;
+    right: 0.5rem;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.7rem;
+  }
+
+  .plan-inputs {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    right: auto;
+    width: calc(100% - 2rem);
+    max-width: 300px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  }
+
+  .plan-toggle {
+    font-size: 0.8rem;
+  }
+
+  .risk-badge {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.65rem;
+    min-width: 100px;
+    max-width: calc(100% - 9rem);
+  }
+}
+
+@media (max-width: 480px) {
+  .card-title {
+    font-size: 0.85rem;
+  }
+
+  .card-big {
+    font-size: 2.2rem;
+    top: 0.3rem;
+    right: 0.5rem;
+  }
+
+  .module-overlay {
+    bottom: 0.3rem;
+    left: 0.5rem;
+    justify-content: flex-start;
+  }
+
+  .dashboard-card {
+    padding: 0.8rem;
+  }
+
+  .risk-badge {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.6rem;
+    min-width: 80px;
+    max-width: calc(100% - 7rem);
+    top: 0.5rem;
+    left: 0.5rem;
+  }
+
+  .card-big.right {
+    /* Already absolute positioned */
+  }
+}
+
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+
+.dashboard-card {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.dashboard-card.high-risk {
+  border: 2px solid #ef4444;
+  animation: pulse 2s infinite;
+}
+
+/* ========== 風險徽章 ========== */
+.risk-badge {
+  position: absolute;
+  top: 0.75rem;
+  left: 1rem;
+  right: auto;
+  transform: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: white;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px);
+  z-index: 15;
+  min-width: 120px;
+  max-width: calc(100% - 12rem);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.risk-badge.critical {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(220, 38, 38, 0.95));
+  animation: pulse 2s infinite;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+}
+
+.risk-badge.warning {
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.95), rgba(234, 88, 12, 0.95));
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+}
+
+.risk-badge.caution {
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.95), rgba(202, 138, 4, 0.95));
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+}
+
+.risk-badge.good {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(22, 163, 74, 0.95));
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+}

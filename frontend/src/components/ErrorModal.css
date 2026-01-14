@@ -1,0 +1,97 @@
+/* src/components/ErrorModal.css */
+.err-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: fadeIn 0.2s ease-out;
+  }
+  
+  .err-modal {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    animation: slideIn 0.3s ease-out;
+  }
+  
+  .err-modal h2 {
+    color: #dc3545;
+    margin-bottom: 16px;
+    font-size: 24px;
+  }
+  
+  .err-modal p {
+    margin-bottom: 20px;
+    color: #333;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+  
+  .err-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 24px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+  
+  .err-btn:hover {
+    background: #c82333;
+  }
+  
+  .err-btn:active {
+    transform: translateY(1px);
+  }
+  
+  /* Animations */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  @keyframes slideIn {
+    from {
+      transform: translateY(-20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  
+  /* Mobile responsive */
+  @media (max-width: 500px) {
+    .err-modal {
+      padding: 20px;
+      width: 95%;
+    }
+    
+    .err-modal h2 {
+      font-size: 20px;
+    }
+    
+    .err-modal p {
+      font-size: 14px;
+    }
+    
+    .err-btn {
+      font-size: 14px;
+      padding: 8px 20px;
+    }
+  }

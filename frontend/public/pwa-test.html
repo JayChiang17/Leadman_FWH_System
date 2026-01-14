@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PWA Installation Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #667eea;
+      margin-bottom: 24px;
+      font-size: 24px;
+    }
+    .test-item {
+      padding: 16px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      border: 2px solid #e0e0e0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .test-item.pass {
+      background: #e8f5e9;
+      border-color: #4caf50;
+    }
+    .test-item.fail {
+      background: #ffebee;
+      border-color: #f44336;
+    }
+    .icon {
+      font-size: 24px;
+      min-width: 24px;
+    }
+    .label {
+      flex: 1;
+      font-weight: 500;
+    }
+    .status {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    .pass .status {
+      background: #4caf50;
+      color: white;
+    }
+    .fail .status {
+      background: #f44336;
+      color: white;
+    }
+    button {
+      width: 100%;
+      padding: 16px;
+      margin-top: 20px;
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    button:active {
+      transform: scale(0.98);
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .info {
+      margin-top: 20px;
+      padding: 16px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .console-output {
+      margin-top: 20px;
+      padding: 16px;
+      background: #1e1e1e;
+      border-radius: 8px;
+      color: #d4d4d4;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .console-line {
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📱 PWA Installation Test</h1>
+
+    <div id="tests">
+      <div class="test-item" id="test-https">
+        <span class="icon">⏳</span>
+        <span class="label">HTTPS Protocol</span>
+        <span class="status">Testing...</span>
+      </div>
+
+      <div class="test-item" id="test-manifest">
+        <span class="icon">⏳</span>
+        <span class="label">Manifest File</span>
+        <span class="status">Testing...</span>
+      </div>
+
+      <div class="test-item" id="test-sw">
+        <span class="icon">⏳</span>
+        <span class="label">Service Worker</span>
+        <span class="status">Testing...</span>
+      </div>
+
+      <div class="test-item" id="test-install">
+        <span class="icon">⏳</span>
+        <span class="label">Install Prompt</span>
+        <span class="status">Waiting...</span>
+      </div>
+    </div>
+
+    <button id="install-btn" disabled>Install PWA</button>
+
+    <div class="info">
+      <strong>Instructions:</strong><br>
+      • All tests should show ✅ PASS<br>
+      • If Service Worker fails, you're on HTTP (need HTTPS)<br>
+      • If Install Prompt fails, refresh the page or clear cache<br>
+      • Click "Install PWA" when available
+    </div>
+
+    <div class="console-output" id="console"></div>
+  </div>
+
+  <script>
+    const log = (msg, type = 'info') => {
+      const console = document.getElementById('console');
+      const line = document.createElement('div');
+      line.className = 'console-line';
+      const icon = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+      line.textContent = `${icon} ${new Date().toLocaleTimeString()} - ${msg}`;
+      console.appendChild(line);
+      console.scrollTop = console.scrollHeight;
+    };
+
+    const updateTest = (id, pass, message) => {
+      const el = document.getElementById(id);
+      el.className = `test-item ${pass ? 'pass' : 'fail'}`;
+      el.querySelector('.icon').textContent = pass ? '✅' : '❌';
+      el.querySelector('.status').textContent = pass ? 'PASS' : 'FAIL';
+      log(`${id.replace('test-', '').toUpperCase()}: ${message}`, pass ? 'success' : 'error');
+    };
+
+    // Test 1: HTTPS
+    const isHTTPS = window.location.protocol === 'https:';
+    updateTest('test-https', isHTTPS, isHTTPS ? 'Using HTTPS' : 'HTTP detected - PWA requires HTTPS');
+
+    // Test 2: Manifest
+    fetch('/manifest.json')
+      .then(r => r.json())
+      .then(manifest => {
+        const valid = manifest.name && manifest.start_url && manifest.icons;
+        updateTest('test-manifest', valid, valid ? `Found: ${manifest.name}` : 'Manifest invalid');
+        log(`Manifest details: name="${manifest.name}", start_url="${manifest.start_url}"`);
+      })
+      .catch(err => {
+        updateTest('test-manifest', false, 'Manifest not found');
+        log(`Manifest error: ${err.message}`, 'error');
+      });
+
+    // Test 3: Service Worker
+    if ('serviceWorker' in navigator && isHTTPS) {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then(reg => {
+          updateTest('test-sw', true, `Registered at ${reg.scope}`);
+          return navigator.serviceWorker.ready;
+        })
+        .then(reg => {
+          log(`Service Worker active and ready`);
+        })
+        .catch(err => {
+          updateTest('test-sw', false, err.message);
+          log(`Service Worker error: ${err.message}`, 'error');
+        });
+    } else {
+      updateTest('test-sw', false, 'HTTPS required for Service Worker');
+    }
+
+    // Test 4: Install Prompt
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      log('PWA install prompt available!', 'success');
+      e.preventDefault();
+      deferredPrompt = e;
+      updateTest('test-install', true, 'Ready to install');
+      document.getElementById('install-btn').disabled = false;
+    });
+
+    // Install button
+    document.getElementById('install-btn').addEventListener('click', async () => {
+      if (!deferredPrompt) {
+        alert('Install prompt not available.\n\nTry:\n• Chrome menu → Add to Home screen\n• Chrome menu → Install app');
+        return;
+      }
+
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      log(`User ${outcome === 'accepted' ? 'accepted' : 'dismissed'} install`, outcome === 'accepted' ? 'success' : 'info');
+
+      if (outcome === 'accepted') {
+        document.getElementById('install-btn').textContent = '✅ Installed!';
+        document.getElementById('install-btn').disabled = true;
+      }
+
+      deferredPrompt = null;
+    });
+
+    // Check if already installed
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      log('PWA is already installed and running in standalone mode!', 'success');
+      document.getElementById('install-btn').textContent = '✅ Already Installed';
+      document.getElementById('install-btn').disabled = true;
+    }
+
+    // Timeout for install prompt
+    setTimeout(() => {
+      const installTest = document.getElementById('test-install');
+      if (installTest.querySelector('.status').textContent === 'Waiting...') {
+        updateTest('test-install', false, 'Timeout - may already be installed or conditions not met');
+        log('Install prompt did not appear within 3 seconds', 'error');
+        log('Try: Clear browser cache and revisit in incognito mode');
+      }
+    }, 3000);
+
+    log('PWA Test Page loaded');
+    log(`Current URL: ${window.location.href}`);
+  </script>
+</body>
+</html>
