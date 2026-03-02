@@ -4,43 +4,50 @@ import React, {
 import {
   Package, AlertCircle, Download, X,
   CheckCircle, XCircle, RefreshCw, Search,
-  Edit3, Save, Filter
+  Edit3, Save, Filter, Play, Clock, Timer
 } from "lucide-react";
 
-import { createPortal } from "react-dom";
-
-
-// Use your actual API service
+import { Bar } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale, LinearScale, BarElement, Tooltip,
+} from "chart.js";
 import api from "../../services/api";
 import useWs from "../../utils/wsConnect";
+import ErrorModal from "../../components/ErrorModal";
 import "./AssemblyProduction.css";
 
-// Error Modal Component
-const ErrorModal = ({ message, onClose }) => {
-  if (!message) return null;
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
-  return createPortal(
-    <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-red-100 rounded-full">
-            <AlertCircle className="w-6 h-6 text-red-600" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900">Error</h3>
-        </div>
-        <p className="text-gray-700 mb-6">{message}</p>
-        <div className="flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
+// Tab Component - Memoized for performance (Unified control-group pattern)
+const TabButton = React.memo(({ active, onClick, icon: Icon, label, badge }) => (
+  <button
+    onClick={onClick}
+    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3
+               font-medium text-sm rounded-md transition-colors duration-150
+               ${active
+                 ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
+                 : 'text-slate-500 hover:text-slate-700'
+               }`}
+  >
+    <Icon className="w-4 h-4" />
+    <span>{label}</span>
+    {badge !== undefined && badge > 0 && (
+      <span className={`px-2 py-0.5 text-xs font-bold rounded
+                       ${active ? 'bg-teal-100 text-teal-700' : 'bg-slate-200 text-slate-600'}`}>
+        {badge}
+      </span>
+    )}
+  </button>
+));
+
+// Format seconds to readable time
+const formatDuration = (seconds) => {
+  if (!seconds || seconds < 0) return '--';
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (mins === 0) return `${secs}s`;
+  return `${mins}m ${secs}s`;
 };
 
 
@@ -60,6 +67,27 @@ const pickArray = (d) => {
 };
 
 export default function AssemblyProduction() {
+  // Tab state: 'start' for first station, 'complete' for last station
+  const [activeTab, setActiveTab] = useState('complete');
+
+  // Start Timer state
+  const [startTimerSn, setStartTimerSn] = useState('');
+  const [startTimerBusy, setStartTimerBusy] = useState(false);
+  const [startTimerMsg, setStartTimerMsg] = useState('');
+  const [startTimerFlash, setStartTimerFlash] = useState('');
+  const [activeTimers, setActiveTimers] = useState([]);
+  const [lastProductionTime, setLastProductionTime] = useState(null);
+  const startTimerInputRef = useRef(null);
+
+  // Production time statistics
+  const [prodStats, setProdStats] = useState({
+    total_with_time: 0,
+    avg_seconds: 0,
+    min_seconds: 0,
+    max_seconds: 0
+  });
+  const [prodTimes, setProdTimes] = useState([]);
+
   // Core form state
   const emptyForm = useMemo(
     () => Object.fromEntries(fields.map(k => [k, ""])),
@@ -72,7 +100,6 @@ export default function AssemblyProduction() {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [autoSubmit, setAutoSubmit] = useState(false);
-  const [, setLastTs] = useState("");
   const [scannedCount, setScannedCount] = useState(0);
   const [lastProductLine, setLastProductLine] = useState(""); // "apower2" or "apowers"
 
@@ -268,6 +295,101 @@ export default function AssemblyProduction() {
   const ngInputRef = useRef(null);
   const submittingRef = useRef(false); 
   // API Calls
+  // Fetch active timers
+  const fetchActiveTimers = useCallback(async () => {
+    try {
+      const { data } = await api.get("assembly/active-timers");
+      if (data?.status === "success") {
+        setActiveTimers(data.timers || []);
+      }
+    } catch (error) {
+      console.error("Error fetching active timers:", error);
+    }
+  }, []);
+
+  // Fetch production time statistics + individual times
+  const fetchProdStats = useCallback(async () => {
+    try {
+      const [statsRes, timesRes] = await Promise.all([
+        api.get("assembly/production-stats"),
+        api.get("assembly/production-times?limit=50"),
+      ]);
+      if (statsRes.data?.status === "success") {
+        setProdStats({
+          total_with_time: statsRes.data.total_with_time || 0,
+          avg_seconds: statsRes.data.avg_seconds || 0,
+          min_seconds: statsRes.data.min_seconds || 0,
+          max_seconds: statsRes.data.max_seconds || 0
+        });
+      }
+      if (timesRes.data?.status === "success") {
+        setProdTimes(timesRes.data.items || []);
+      }
+    } catch (error) {
+      console.error("Error fetching production stats:", error);
+    }
+  }, []);
+
+  // Delete Timer function
+  const handleDeleteTimer = useCallback(async (sn) => {
+    if (!window.confirm(`Delete timer for "${sn}"?`)) return;
+    try {
+      const { data } = await api.delete(`assembly/timer/${encodeURIComponent(sn)}`);
+      if (data?.status === "success") {
+        setStartTimerMsg(`Deleted: ${sn}`);
+        setStartTimerFlash('success');
+        fetchActiveTimers();
+      } else {
+        setStartTimerMsg(data?.message || 'Not found');
+        setStartTimerFlash('error');
+      }
+    } catch (e) {
+      setStartTimerMsg(e.response?.data?.message || 'Failed to delete');
+      setStartTimerFlash('error');
+    }
+    setTimeout(() => setStartTimerFlash(''), 2500);
+  }, [fetchActiveTimers]);
+
+  // Start Timer function
+  const handleStartTimer = useCallback(async () => {
+    if (startTimerBusy) return;
+    const sn = startTimerSn.trim();
+    if (!sn) {
+      setStartTimerFlash('error');
+      setStartTimerMsg('Please scan or enter US SN');
+      setTimeout(() => setStartTimerFlash(''), 2500);
+      return;
+    }
+
+    setStartTimerBusy(true);
+    setStartTimerMsg('Starting timer...');
+
+    try {
+      const { data } = await api.post("assembly/start-timer", { us_sn: sn });
+
+      if (data?.status === "success") {
+        setStartTimerFlash('success');
+        setStartTimerMsg(`Started: ${sn}`);
+        setStartTimerSn('');
+        fetchActiveTimers();
+        setTimeout(() => startTimerInputRef.current?.focus(), 100);
+      } else {
+        setStartTimerFlash('error');
+        setStartTimerMsg(data?.message || 'Failed to start timer');
+      }
+    } catch (e) {
+      setStartTimerFlash('error');
+      if (e.response?.status === 403) {
+        setErrorMsg("You don't have permission to start timer");
+      } else {
+        setStartTimerMsg(e.response?.data?.message || e.message || 'Failed to start timer');
+      }
+    } finally {
+      setStartTimerBusy(false);
+      setTimeout(() => setStartTimerFlash(''), 2500);
+    }
+  }, [startTimerSn, startTimerBusy, fetchActiveTimers]);
+
   // FIX: make fetchDaily resilient to response shapes
   const fetchDaily = useCallback(async () => {
     try {
@@ -290,6 +412,11 @@ export default function AssemblyProduction() {
       console.error("Error fetching daily count:", error);
     }
   }, []);
+
+  // Composite refresh function for all stats
+  const refreshAllStats = useCallback(() => {
+    return Promise.all([fetchDaily(), fetchActiveTimers(), fetchProdStats()]);
+  }, [fetchDaily, fetchActiveTimers, fetchProdStats]);
 
   const fetchNgRows = useCallback(async () => {
     try {
@@ -340,20 +467,29 @@ export default function AssemblyProduction() {
 
       if (!data?.status || data.status === "success") {
         setFlash("success");
-        setMsg("Submitted successfully!");
+
+        // Check if production_seconds is included
+        const prodSeconds = data?.production_seconds;
+        if (prodSeconds !== undefined && prodSeconds !== null) {
+          setLastProductionTime(prodSeconds);
+          setMsg(`Submitted! Production time: ${formatDuration(prodSeconds)}`);
+        } else {
+          setMsg("Submitted successfully!");
+          setLastProductionTime(null);
+        }
 
         // Detect product line from US SN
         const usSn = form.us_sn || "";
-        if (usSn.startsWith("10050018") || usSn.startsWith("10050028")) {
+        if (usSn.startsWith("10050018") || usSn.startsWith("10050028") || usSn.startsWith("10050030")) {
           setLastProductLine("apower2");
-        } else if (usSn.startsWith("10050022")) {
+        } else if (usSn.startsWith("10050019") || usSn.startsWith("10050022")) {
           setLastProductLine("apowers");
         } else {
           setLastProductLine("");
         }
 
-        await fetchDaily();
-        setLastTs(`Last submit @ ${new Date().toLocaleString()}`);
+        // Refresh stats in parallel
+        await Promise.all([fetchDaily(), fetchActiveTimers()]);
         setForm(emptyForm);
         setCurIdx(0);
         setScannedCount(0);
@@ -375,7 +511,7 @@ export default function AssemblyProduction() {
       submittingRef.current = false;
       setTimeout(() => setFlash(""), 2500);
     }
-  }, [form, emptyForm, fetchDaily, busy]);
+  }, [form, emptyForm, fetchDaily, fetchActiveTimers, busy]);
 
 
   // Auto-advance with barcode detection
@@ -415,38 +551,42 @@ export default function AssemblyProduction() {
   }, [autoSubmit, submit]);
 
   // WebSocket connection
-  const ws = useWs("/ws/dashboard");
-  useEffect(() => {
-    if (!ws) return;
-    ws.onmessage = (e) => {
-      try {
-        const d = JSON.parse(e.data);
-        if (d.event === "assembly_updated") {
-          // FIX: update all counters if present; fallback to fetchDaily if none provided
-          let changed = false;
-          setDaily(prev => {
-            const next = {
-              count: d.count ?? prev.count,
-              ng: d.ng ?? prev.ng,
-              fixed: d.fixed ?? prev.fixed,
-            };
-            changed = (d.count !== undefined) || (d.ng !== undefined) || (d.fixed !== undefined);
-            return next;
-          });
-          if (!changed) {
-            // If backend didn't include counters, re-pull them
-            fetchDaily();
-          }
-        }
-      } catch {
-        /* ignore */
+  const handleWsMessage = useCallback((d) => {
+    if (d.event === "assembly_updated") {
+      let changed = false;
+      setDaily(prev => {
+        const next = {
+          count: d.count ?? prev.count,
+          ng: d.ng ?? prev.ng,
+          fixed: d.fixed ?? prev.fixed,
+        };
+        changed = (d.count !== undefined) || (d.ng !== undefined) || (d.fixed !== undefined);
+        return next;
+      });
+      if (!changed) {
+        fetchDaily();
       }
-    };
-  }, [ws, fetchDaily]);
+      if (d.production_seconds !== undefined) {
+        setLastProductionTime(d.production_seconds);
+      }
+      fetchActiveTimers();
+    }
+    if (d.event === "timer_started") {
+      fetchActiveTimers();
+    }
+  }, [fetchDaily, fetchActiveTimers]);
+  useWs("/realtime/dashboard", handleWsMessage);
 
   useEffect(() => {
-    fetchDaily();
-  }, [fetchDaily]);
+    refreshAllStats();
+  }, [refreshAllStats]);
+
+  // Auto-focus start timer input when tab is active
+  useEffect(() => {
+    if (activeTab === 'start') {
+      setTimeout(() => startTimerInputRef.current?.focus(), 150);
+    }
+  }, [activeTab]);
 
   // NG workflow helpers
   const fetchNgRecord = async (sn) => {
@@ -605,19 +745,19 @@ export default function AssemblyProduction() {
   };
 
   const FilterPanel = ({ onApply, onReset }) => (
-    <div className="bg-stone-50 rounded-lg p-3 border border-stone-200 space-y-3">
+    <div className="bg-slate-100 rounded-lg p-4 space-y-3">
       <div className="flex items-center gap-2">
-        <Filter className="w-4 h-4 text-stone-500" />
-        <span className="font-medium text-stone-700 text-sm uppercase tracking-wide">Filters</span>
+        <Filter className="w-4 h-4 text-slate-500" />
+        <span className="font-medium text-slate-700 text-sm">Filters</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div>
-          <label className="block text-sm font-medium text-stone-600 mb-1">Status</label>
+          <label className="block text-sm font-medium text-slate-600 mb-1">Status</label>
           <select
             value={filters.status}
             onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-            className="w-full px-3 py-2 bg-white border border-stone-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-stone-700"
+            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-slate-700"
           >
             <option value="all">All Status</option>
             <option value="ok">OK</option>
@@ -627,22 +767,22 @@ export default function AssemblyProduction() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-stone-600 mb-1">From Date</label>
+          <label className="block text-sm font-medium text-slate-600 mb-1">From Date</label>
           <input
             type="date"
             value={filters.fromDate}
             onChange={(e) => setFilters(prev => ({ ...prev, fromDate: e.target.value }))}
-            className="w-full px-3 py-2 bg-white border border-stone-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-stone-600 mb-1">To Date</label>
+          <label className="block text-sm font-medium text-slate-600 mb-1">To Date</label>
           <input
             type="date"
             value={filters.toDate}
             onChange={(e) => setFilters(prev => ({ ...prev, toDate: e.target.value }))}
-            className="w-full px-3 py-2 bg-white border border-stone-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
           />
         </div>
 
@@ -652,7 +792,7 @@ export default function AssemblyProduction() {
               onApply();
               fetchNgRows();
             }}
-            className="flex-1 px-4 py-2 bg-teal-700 hover:bg-teal-800 text-white font-medium rounded-md transition-colors"
+            className="flex-1 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-md transition-colors duration-150"
           >
             Apply
           </button>
@@ -666,7 +806,7 @@ export default function AssemblyProduction() {
               });
               onReset();
             }}
-            className="px-4 py-2 bg-stone-500 hover:bg-stone-600 text-white font-medium rounded-md transition-colors"
+            className="px-4 py-2 bg-slate-500 hover:bg-slate-600 text-white font-medium rounded-md transition-colors duration-150"
           >
             Reset
           </button>
@@ -683,12 +823,12 @@ export default function AssemblyProduction() {
 
       <div className="max-w-[1800px] mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-4 mb-3">
+        <div className="bg-white rounded-xl border border-slate-200/80 p-5 md:p-6 mb-5">
           {/* Title Bar */}
-          <div className="flex flex-wrap justify-between items-center gap-3 pb-4 mb-4 border-b border-stone-100">
-            <h1 className="text-2xl font-semibold text-stone-800 flex items-center gap-3">
-              <div className="p-2.5 bg-cyan-100 rounded-lg shadow-sm">
-                <Package className="w-6 h-6 text-cyan-700" />
+          <div className="flex flex-wrap justify-between items-center gap-3 pb-4 mb-4 border-b border-slate-100">
+            <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-3">
+              <div className="p-2.5 bg-teal-50 rounded-lg">
+                <Package className="w-5 h-5 text-teal-600" />
               </div>
               Assembly Line Production
             </h1>
@@ -730,66 +870,89 @@ export default function AssemblyProduction() {
             </div>
           </div>
 
+          {/* Tab Navigation - Control Group Pattern */}
+          <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-4">
+            <TabButton
+              active={activeTab === 'start'}
+              onClick={() => {
+                setActiveTab('start');
+                setTimeout(() => startTimerInputRef.current?.focus(), 100);
+              }}
+              icon={Play}
+              label="Start Assembly"
+              badge={activeTimers.length}
+            />
+            <TabButton
+              active={activeTab === 'complete'}
+              onClick={() => {
+                setActiveTab('complete');
+                setTimeout(() => inputs.current[0]?.focus(), 100);
+              }}
+              icon={CheckCircle}
+              label="Complete Assembly"
+            />
+          </div>
+
           {/* Export Panel (client-side CSV) */}
           {showExport && (
-            <div className="mb-4 p-3 bg-stone-50 rounded-lg border border-stone-200 space-y-3">
-              <div className="flex items-center gap-2 text-stone-700">
+            <div className="mb-4 p-4 bg-slate-100 rounded-lg space-y-3">
+              <div className="flex items-center gap-2 text-slate-700">
                 <Download className="w-4 h-4" />
-                <span className="font-medium text-sm uppercase tracking-wide">Export Options</span>
+                <span className="font-medium text-sm">Export Options</span>
               </div>
 
               {/* Modes */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <label className="flex items-center gap-2 p-3 bg-white border border-stone-200 rounded-md cursor-pointer hover:border-stone-300 transition-colors">
+                <label className="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-slate-300 transition-colors duration-150">
                   <input
                     type="radio"
                     name="exportMode"
                     value="raw"
                     checked={exportMode === "raw"}
                     onChange={() => setExportMode("raw")}
-                    className="text-teal-700 focus:ring-teal-600"
+                    className="text-teal-600 focus:ring-teal-500"
                   />
-                  <span className="text-stone-700 text-sm">All details</span>
+                  <span className="text-slate-700 text-sm">All details</span>
                 </label>
-                <label className="flex items-center gap-2 p-3 bg-white border border-stone-200 rounded-md cursor-pointer hover:border-stone-300 transition-colors">
+                <label className="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-slate-300 transition-colors duration-150">
                   <input
                     type="radio"
                     name="exportMode"
                     value="daily"
                     checked={exportMode === "daily"}
                     onChange={() => setExportMode("daily")}
-                    className="text-teal-700 focus:ring-teal-600"
+                    className="text-teal-600 focus:ring-teal-500"
                   />
-                  <span className="text-stone-700 text-sm">Units per day</span>
+                  <span className="text-slate-700 text-sm">Units per day</span>
                 </label>
-                <label className="flex items-center gap-2 p-3 bg-white border border-stone-200 rounded-md cursor-pointer hover:border-stone-300 transition-colors">
+                <label className="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-slate-300 transition-colors duration-150">
                   <input
                     type="radio"
                     name="exportMode"
                     value="hourly"
                     checked={exportMode === "hourly"}
                     onChange={() => setExportMode("hourly")}
-                    className="text-teal-700 focus:ring-teal-600"
+                    className="text-teal-600 focus:ring-teal-500"
                   />
-                  <span className="text-stone-700 text-sm">Units per hour</span>
+                  <span className="text-slate-700 text-sm">Units per hour</span>
                 </label>
               </div>
 
               {/* Conditions (range for all modes) */}
-              <div className="flex flex-wrap items-center gap-3 text-stone-700 text-sm">
+              <div className="flex flex-wrap items-center gap-3 text-slate-600 text-sm">
                 <span className="font-medium">Range:</span>
                 <input
                   type="date"
                   value={exportRange.from}
                   onChange={(e) => setExportRange(prev => ({ ...prev, from: e.target.value }))}
-                  className="px-3 py-2 bg-white border border-stone-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  className="px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                 />
-                <span className="text-stone-400">to</span>
+                <span className="text-slate-400">to</span>
                 <input
                   type="date"
                   value={exportRange.to}
                   onChange={(e) => setExportRange(prev => ({ ...prev, to: e.target.value }))}
-                  className="px-3 py-2 bg-white border border-stone-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  className="px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                 />
                 <div className="ml-auto flex items-center gap-2">
                   <span className="font-medium">Max rows:</span>
@@ -798,7 +961,7 @@ export default function AssemblyProduction() {
                     min={1}
                     value={exportLimit}
                     onChange={(e) => setExportLimit(parseInt(e.target.value || "1", 10))}
-                    className="w-24 px-3 py-2 bg-white border border-stone-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    className="w-24 px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                   />
                 </div>
               </div>
@@ -807,13 +970,13 @@ export default function AssemblyProduction() {
               <div className="pt-2 flex gap-2">
                 <button
                   onClick={exportClientCSV}
-                  className="px-5 py-2 bg-teal-700 hover:bg-teal-800 text-white font-medium rounded-md transition-colors"
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-md transition-colors duration-150"
                 >
                   Download CSV
                 </button>
                 <button
                   onClick={() => setShowExport(false)}
-                  className="px-4 py-2 bg-white hover:bg-stone-50 text-stone-600 font-medium rounded-md transition-colors border border-stone-300"
+                  className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-600 font-medium rounded-md transition-colors duration-150 border border-slate-200"
                 >
                   Close
                 </button>
@@ -821,6 +984,171 @@ export default function AssemblyProduction() {
             </div>
           )}
 
+          {/* ========== START TIMER TAB ========== */}
+          {activeTab === 'start' && (
+            <div className="space-y-4">
+              {/* Start Timer Form */}
+              <div
+                className="bg-gradient-to-br from-teal-50 via-white to-cyan-50 rounded-xl p-5 border border-teal-100"
+                onClick={() => { if (activeTab === 'start' && !startTimerBusy) startTimerInputRef.current?.focus(); }}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2.5 bg-teal-100 rounded-lg">
+                    <Play className="w-6 h-6 text-teal-700" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold text-stone-800">Start Assembly</h2>
+                    <p className="text-sm text-stone-500">First station: Scan US SN to begin</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-stone-600 mb-2">
+                      US Serial Number
+                    </label>
+                    <input
+                      ref={startTimerInputRef}
+                      value={startTimerSn}
+                      onChange={(e) => {
+                        // Strip leading non-digit chars (IME/autocorrect artifacts like "I'm")
+                        // US SNs always start with digits (e.g. 1005...)
+                        const raw = e.target.value.replace(/[^a-zA-Z0-9]/g, '');
+                        setStartTimerSn(raw.replace(/^[a-zA-Z]+/, ''));
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleStartTimer();
+                        }
+                      }}
+                      disabled={startTimerBusy}
+                      autoFocus={activeTab === 'start'}
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck="false"
+                      inputMode="text"
+                      placeholder="Scan or enter US SN"
+                      className={`w-full px-4 py-4 md:py-3 bg-white border-2 rounded-lg text-lg
+                               focus:ring-2 focus:ring-teal-500 focus:border-teal-500
+                               disabled:opacity-50 disabled:cursor-not-allowed
+                               transition-colors duration-150
+                               ${startTimerFlash === 'success' ? 'border-emerald-400 bg-emerald-50' : ''}
+                               ${startTimerFlash === 'error' ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleStartTimer}
+                    disabled={startTimerBusy}
+                    className="w-full px-6 py-4 md:py-3 bg-teal-600 hover:bg-teal-700 active:bg-teal-800
+                             text-white font-bold text-base rounded-lg transition-colors duration-150
+                             disabled:opacity-50 disabled:cursor-not-allowed shadow-lg active:scale-95
+                             flex items-center justify-center gap-2"
+                  >
+                    {startTimerBusy ? (
+                      <>
+                        <RefreshCw className="w-5 h-5 animate-spin" />
+                        Starting...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-5 h-5" />
+                        Start
+                      </>
+                    )}
+                  </button>
+
+                  {/* Message */}
+                  {startTimerMsg && (
+                    <div className={`p-3 rounded-lg text-center text-sm font-medium
+                      ${startTimerFlash === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : ''}
+                      ${startTimerFlash === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : ''}`}>
+                      {startTimerMsg}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Active Timers List */}
+              <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+                <div className="px-4 py-3 bg-stone-50 border-b border-stone-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-stone-500" />
+                    <span className="font-semibold text-stone-700 text-sm uppercase tracking-wide">
+                      In Progress
+                    </span>
+                    <span className="px-2 py-0.5 bg-teal-100 text-teal-700 text-xs font-bold rounded-md">
+                      {activeTimers.length}
+                    </span>
+                  </div>
+                  <button
+                    onClick={fetchActiveTimers}
+                    className="p-1.5 hover:bg-stone-200 rounded-md transition-colors"
+                    title="Refresh"
+                  >
+                    <RefreshCw className="w-4 h-4 text-stone-500" />
+                  </button>
+                </div>
+
+                <div className="divide-y divide-stone-100 max-h-[300px] overflow-y-auto">
+                  {activeTimers.length > 0 ? (
+                    activeTimers.map((timer, idx) => (
+                      <div key={timer.us_sn || idx} className="px-4 py-3 flex items-center justify-between hover:bg-stone-50">
+                        <div>
+                          <span className="font-medium text-stone-800">{timer.us_sn}</span>
+                          <p className="text-xs text-stone-500 mt-0.5">Started: {timer.start_time}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-md">
+                            In Progress
+                          </span>
+                          <button
+                            onClick={() => handleDeleteTimer(timer.us_sn)}
+                            className="p-1.5 text-stone-300 hover:text-red-600 transition-colors"
+                            title="Delete timer"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="px-4 py-8 text-center text-stone-500">
+                      <Clock className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      <p>No items in progress</p>
+                      <p className="text-xs mt-1">Scan a US SN to start</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Today's Stats Summary */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-white rounded-lg border border-stone-200 p-4 text-center">
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Today's Total</p>
+                  <p className="text-2xl font-bold text-stone-800 mt-1">{daily.count}</p>
+                </div>
+                <div className="bg-white rounded-lg border border-stone-200 p-4 text-center">
+                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">In Progress</p>
+                  <p className="text-2xl font-bold text-teal-600 mt-1">{activeTimers.length}</p>
+                </div>
+                <div className="bg-white rounded-lg border border-amber-200 p-4 text-center">
+                  <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">NG Records</p>
+                  <p className="text-2xl font-bold text-amber-600 mt-1">{daily.ng}</p>
+                </div>
+                <div className="bg-white rounded-lg border border-emerald-200 p-4 text-center">
+                  <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Fixed</p>
+                  <p className="text-2xl font-bold text-emerald-600 mt-1">{daily.fixed}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ========== COMPLETE ASSEMBLY TAB ========== */}
+          {activeTab === 'complete' && (
+            <>
           {/* Production Stats - Professional Design */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             {/* Main Production Card */}
@@ -963,7 +1291,139 @@ export default function AssemblyProduction() {
                 </div>
               </div>
             )}
+
+            {/* Last Production Time Display */}
+            {lastProductionTime !== null && (
+              <div className="mt-3 text-center">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-50 border border-cyan-200 rounded-lg">
+                  <Timer className="w-4 h-4 text-cyan-600" />
+                  <span className="text-sm font-medium text-cyan-700">
+                    Production Time: {formatDuration(lastProductionTime)}
+                  </span>
+                </div>
+              </div>
+            )}
           </form>
+
+          {/* Production Time Bar Chart + Stats */}
+          {prodStats.total_with_time > 0 && (
+            <div className="mt-4 bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+              {/* Header */}
+              <div className="px-4 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-cyan-50 flex items-center justify-center">
+                    <Timer className="w-3.5 h-3.5 text-cyan-600" />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-slate-800 text-sm uppercase tracking-wide">
+                      Production Time
+                    </span>
+                    <span className="text-[11px] text-slate-400 ml-2">Today</span>
+                  </div>
+                </div>
+                <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                  {prodStats.total_with_time} units
+                </span>
+              </div>
+
+              {/* Mini stats row */}
+              <div className="grid grid-cols-3 divide-x divide-slate-100 bg-slate-50/60">
+                <div className="px-3 py-2.5 text-center">
+                  <p className="text-[10px] font-semibold text-cyan-600 uppercase tracking-wider">Avg</p>
+                  <p className="text-sm font-bold text-cyan-700 tabular-nums">{formatDuration(Math.round(prodStats.avg_seconds))}</p>
+                </div>
+                <div className="px-3 py-2.5 text-center">
+                  <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">Fastest</p>
+                  <p className="text-sm font-bold text-emerald-700 tabular-nums">{formatDuration(prodStats.min_seconds)}</p>
+                </div>
+                <div className="px-3 py-2.5 text-center">
+                  <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">Slowest</p>
+                  <p className="text-sm font-bold text-amber-700 tabular-nums">{formatDuration(prodStats.max_seconds)}</p>
+                </div>
+              </div>
+
+              {/* Bar Chart */}
+              {prodTimes.length > 0 && (
+                <div className="px-3 pt-3 pb-2" style={{ height: Math.max(180, Math.min(260, prodTimes.length * 6 + 80)) }}>
+                  <Bar
+                    data={{
+                      labels: prodTimes.map((_, i) => `#${i + 1}`),
+                      datasets: [{
+                        data: prodTimes.map(t => t.seconds),
+                        backgroundColor: prodTimes.map(t => {
+                          const avg = prodStats.avg_seconds;
+                          if (t.seconds <= avg * 0.8) return 'rgba(16, 185, 129, 0.7)';   // fast → emerald
+                          if (t.seconds >= avg * 1.3) return 'rgba(245, 158, 11, 0.7)';   // slow → amber
+                          return 'rgba(8, 145, 178, 0.65)';                                 // normal → cyan
+                        }),
+                        borderRadius: 2,
+                        barPercentage: 0.85,
+                        categoryPercentage: 0.92,
+                      }],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      animation: { duration: 400 },
+                      plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                          backgroundColor: '#1e293b',
+                          titleFont: { size: 11, weight: 'bold' },
+                          bodyFont: { size: 12, family: "'Inter', sans-serif" },
+                          padding: { x: 10, y: 8 },
+                          cornerRadius: 8,
+                          displayColors: false,
+                          callbacks: {
+                            title: (items) => {
+                              const idx = items[0].dataIndex;
+                              const t = prodTimes[idx];
+                              return t?.sn ? `SN: ${t.sn}` : `Unit #${idx + 1}`;
+                            },
+                            label: (item) => {
+                              const secs = item.raw;
+                              const m = Math.floor(secs / 60);
+                              const s = secs % 60;
+                              return m > 0 ? `${m}m ${s}s` : `${s}s`;
+                            },
+                          },
+                        },
+                      },
+                      scales: {
+                        x: {
+                          display: false,
+                        },
+                        y: {
+                          beginAtZero: true,
+                          grid: { color: '#f1f5f9', drawBorder: false },
+                          border: { display: false },
+                          ticks: {
+                            font: { size: 10, family: "'Inter', sans-serif" },
+                            color: '#94a3b8',
+                            callback: (v) => {
+                              const m = Math.floor(v / 60);
+                              return m > 0 ? `${m}m` : `${v}s`;
+                            },
+                            maxTicksLimit: 5,
+                          },
+                        },
+                      },
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* Last production footer */}
+              {lastProductionTime !== null && (
+                <div className="px-4 py-2.5 border-t border-slate-100 flex items-center justify-between bg-slate-50/40">
+                  <span className="text-xs text-slate-500">Last Completed</span>
+                  <span className="text-xs font-bold text-cyan-700 tabular-nums">{formatDuration(lastProductionTime)}</span>
+                </div>
+              )}
+            </div>
+          )}
+            </>
+          )}
         </div>
       </div>
 

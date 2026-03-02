@@ -3,46 +3,46 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   LineChart, Line, BarChart, Bar, Area, AreaChart,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, ComposedChart, PieChart, Pie, Cell, LabelList, ReferenceLine
+  ResponsiveContainer, ComposedChart, Cell, LabelList, ReferenceLine,
+  Brush
 } from "recharts";
 import {
-  Calendar, TrendingUp, BarChart3, Factory,
-  ArrowUpRight, ArrowDownRight, Target, Activity,
-  Package, AlertCircle, Info
+  Calendar, Factory, ArrowUpRight, ArrowDownRight,
+  Activity, Package, AlertCircle, TrendingUp
 } from "lucide-react";
 import { format, parseISO, eachDayOfInterval } from "date-fns";
 import axios from "../../services/api";
 import { motion, AnimatePresence } from "framer-motion";
 
 /* ─────────────────── UI constants ─────────────────── */
-const TICK_FS = 13;
-const LEGEND_FS = 14;
-const LABEL_FS = 12;
-const CHART_H = 420;
-const GRID_COLOR = "#e2e8f0";
-const CARD_SURFACE = "bg-white border border-slate-200 rounded-xl shadow-sm";
-const CHART_CARD = `${CARD_SURFACE} p-6 md:p-8`;
+const TICK_FS = 11;
+const LEGEND_FS = 11;
+const LABEL_FS = 10;
+const CHART_H = 380;
+const GRID_COLOR = "#f1f5f9";
+const CARD_SURFACE = "bg-white border border-slate-200/80 rounded-xl";
+const CHART_CARD = `${CARD_SURFACE} p-5 md:p-6`;
 
-/* ─────────────────── Animations ─────────────────── */
+/* ─────────────────── Animations (subtle) ─────────────────── */
 const pageTransition = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -20 },
-  transition: { duration: 0.3 }
-};
-const cardTransition = {
-  initial: { scale: 0.98, opacity: 0 },
-  animate: { scale: 1, opacity: 1 },
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
   transition: { duration: 0.2 }
 };
+const cardTransition = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  transition: { duration: 0.15 }
+};
 
-/* ─────────────────── Colors ─────────────────── */
+/* ─────────────────── Colors (Teal/Cyan primary) ─────────────────── */
 const COLORS = {
-  success: "#10b981",
+  success: "#0d9488",
   danger: "#ef4444",
   warning: "#f59e0b",
-  info: "#3b82f6",
-  pieColors: ["#3b82f6", "#06b6d4", "#10b981", "#f59e0b", "#64748b", "#ef4444"]
+  info: "#0891b2",
+  pieColors: ["#0d9488", "#0891b2", "#f59e0b", "#64748b", "#ef4444", "#06b6d4"]
 };
 
 /* ─────────────────── Timezone helpers ─────────────────── */
@@ -61,36 +61,12 @@ const todayInTZ = (tz = "America/Los_Angeles") => {
 };
 
 /* ─────────────────── NG Reasons utilities ─────────────────── */
-const normalizeReason = (raw = "") => {
-  let s = String(raw).trim().replace(/\s+/g, " ");
-  const lower = s.toLowerCase();
-
-  if (/air leak/.test(lower)) {
-    if (/low/.test(lower)) return "Air Leak (Low)";
-    if (/high/.test(lower)) return "Air Leak (High)";
-    return "Air Leak";
-  }
-  if (/wt333e.*charging.*l1.*power/.test(lower)) return "WT333E Read Charging L1 - Power";
-  if (/broken.*thread.*side.*screw.*top/.test(lower)) return "Broken Thread Side Screw (Top)";
-  if (/broken.*thread.*on.*screw/.test(lower)) return "Broken Thread on Screw";
-  if (/broken.*thread.*screw/.test(lower)) return "Broken Thread Screw";
-  if (/misthread/.test(lower)) return "Misthread Screw";
-  if (/waterproof.*lock.*head/.test(lower)) return "Waterproof Lock Head";
-  if (/apower.*split/.test(lower)) return "aPower Split";
-  if (/screws?\s*hole\s*25.*26.*blocked/.test(lower)) return "Screw holes 25 & 26 blocked";
-  if (/red.*object.*l1/.test(lower)) return "Red Object L1";
-  if (/pe.*write.*station/.test(lower)) return "PE Write Station";
-  if (/connector.*switch.*broken/.test(lower)) return "Connector Switch Broken";
-  if (/bms.*write.*sn/.test(lower)) return "BMS Write SN";
-
-  s = s.replace(/\b\w/g, (m) => m.toUpperCase());
-  return s;
-};
+// normalizeReason / cleanNgReasons removed — backend is now the single source of truth
 const cleanNgReasons = (list = []) => {
+  // Backend already returns normalized reasons, just aggregate counts
   const map = new Map();
   for (const item of list) {
-    const reasonRaw = item?.reason ?? item?.name ?? "";
-    const reason = normalizeReason(reasonRaw);
+    const reason = item?.reason ?? item?.name ?? "";
     const count = Number(item?.count);
     const percent = Number(item?.percent);
 
@@ -144,7 +120,7 @@ const groupNgReasonsByCategory = (items = []) => {
       add("Broken Thread", sub, v);
       continue;
     }
-    add(normalizeReason(reason), "—", v);
+    add(reason, "—", v);
   }
 
   let categories = Array.from(cat, ([name, value]) => ({ name, value }));
@@ -247,16 +223,16 @@ const CustomTooltip = ({ active, payload, label }) => {
   if (!clean.length) return null;
 
   return (
-    <div className="bg-white/95 backdrop-blur-sm p-3 rounded-lg border border-slate-200 shadow-md">
-      <p className="text-sm font-semibold text-slate-900 mb-1">{label}</p>
+    <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-lg">
+      <p className="text-xs font-semibold text-slate-900 mb-1.5">{label}</p>
       {clean.map((entry, idx) => {
         const { name, value } = entry;
         const swatch = entry.color || entry.fill || entry.payload?.fill;
         return (
-          <div key={idx} className="flex items-center gap-2 text-sm text-slate-800">
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ backgroundColor: swatch }} />
+          <div key={idx} className="flex items-center gap-2 text-xs text-slate-700">
+            <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: swatch }} />
             <span className="font-medium">{name}</span>
-            <span className="tabular-nums">{(value ?? 0).toLocaleString()}</span>
+            <span className="tabular-nums ml-auto font-semibold">{(value ?? 0).toLocaleString()}</span>
           </div>
         );
       })}
@@ -301,6 +277,10 @@ export default function ProductionCharts() {
   const [trendData, setTrendData] = useState(null);
   const [comparisonData, setComparisonData] = useState(null);
   const [hourlyData, setHourlyData] = useState(null);
+  const [ngTimelineData, setNgTimelineData] = useState(null);
+  const [heatmapData, setHeatmapData] = useState(null);
+  const [drillDownDate, setDrillDownDate] = useState(null);
+  const [drillDownData, setDrillDownData] = useState(null);
 
   const loadProductionData = useCallback(async () => {
     setLoading(true);
@@ -327,6 +307,15 @@ export default function ProductionCharts() {
       setAssemblyData(assembly.data);
       setTrendData(trend.data);
       setHourlyData(hourly.data);
+
+      // Load new chart data in parallel (non-blocking)
+      Promise.all([
+        axios.get("production-charts/ng-timeline", { params: { days: 30 } }),
+        axios.get("production-charts/hourly-heatmap", { params: { line_type: activeLine, days: 30 } }),
+      ]).then(([ngTl, hm]) => {
+        setNgTimelineData(ngTl.data);
+        setHeatmapData(hm.data);
+      }).catch(e => console.warn("Extra charts load error:", e));
 
       let comparisonStartDate, comparisonEndDate;
       if (period === "daily") {
@@ -403,44 +392,32 @@ export default function ProductionCharts() {
     });
   };
 
-  /* Stat card */
-  const StatCard = ({ title, value, icon, trend, color = "blue", delay = 0 }) => {
-    const accents = {
-      blue: { bar: "bg-sky-500", icon: "bg-sky-50 text-sky-700" },
-      cyan: { bar: "bg-cyan-500", icon: "bg-cyan-50 text-cyan-700" },
-      teal: { bar: "bg-teal-500", icon: "bg-teal-50 text-teal-700" },
-      green: { bar: "bg-emerald-500", icon: "bg-emerald-50 text-emerald-700" },
-      red: { bar: "bg-rose-500", icon: "bg-rose-50 text-rose-700" }
+  /* Mini metric card (for Bento side slots) */
+  const MiniMetric = ({ label, value, sub, trend, accent = "teal", children }) => {
+    const colors = {
+      teal: "text-teal-600",
+      cyan: "text-cyan-600",
+      red: "text-red-600",
+      amber: "text-amber-600",
     };
-    const accent = accents[color] || accents.blue;
     return (
-      <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.3, delay }}
-        whileHover={{ scale: 1.01 }}
-        className={`relative overflow-hidden ${CARD_SURFACE} p-5 transition-all`}
-      >
-        <span className={`absolute inset-x-4 top-2 h-1 rounded-full ${accent.bar}`} />
-        <div className="relative z-10 flex items-start gap-4">
-          <motion.div initial={{ rotate: -180 }} animate={{ rotate: 0 }} transition={{ duration: 0.5, delay: delay + 0.2 }} className={`p-3 rounded-lg border border-slate-200 ${accent.icon}`}>
-            {icon}
-          </motion.div>
-          <div className="flex-1">
-            <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">{title}</p>
-            <motion.p initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.3, delay: delay + 0.3 }} className="text-3xl font-semibold text-slate-900">
+      <div className={`${CARD_SURFACE} p-4 flex flex-col justify-between h-full`}>
+        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{label}</p>
+        <div className="mt-auto">
+          {children || (
+            <p className={`text-3xl md:text-4xl font-extrabold tabular-nums tracking-tight ${colors[accent] || "text-slate-900"}`}>
               {typeof value === "number" ? value.toLocaleString() : value}
-            </motion.p>
-            {trend != null && (
-              <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3, delay: delay + 0.4 }}
-                className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${trend >= 0 ? "text-emerald-700 bg-emerald-50" : "text-rose-700 bg-rose-50"}`}>
-                {trend >= 0 ? <ArrowUpRight size={14}/> : <ArrowDownRight size={14}/>}
-                <span>{Math.abs(trend)}%</span>
-              </motion.div>
-            )}
-          </div>
+            </p>
+          )}
+          {sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
+          {trend != null && (
+            <div className={`inline-flex items-center gap-0.5 mt-1 text-xs font-semibold ${trend >= 0 ? "text-teal-600" : "text-red-600"}`}>
+              {trend >= 0 ? <ArrowUpRight size={11}/> : <ArrowDownRight size={11}/>}
+              <span>{Math.abs(trend)}%</span>
+            </div>
+          )}
         </div>
-      </motion.div>
+      </div>
     );
   };
 
@@ -481,7 +458,6 @@ const renderModuleCharts = () => {
 
   const cleanedModuleReasons = cleanNgReasons(ng_reasons || []);
   const { categories: moduleNgCategories } = groupNgReasonsByCategory(cleanedModuleReasons);
-  const topModuleNgReasons = moduleNgCategories.slice(0, 5);
 
   const moduleYieldData =
     period === "daily"
@@ -509,34 +485,34 @@ const renderModuleCharts = () => {
     const ng = Number(row.ng_count ?? row.ng ?? 0);
 
     return (
-      <div className="bg-white/95 backdrop-blur-sm p-3 rounded-lg border border-slate-200 shadow-md">
-        <p className="text-sm font-semibold text-slate-900 mb-1">{dateLabel}</p>
-        <div className="space-y-1 text-sm text-slate-800">
+      <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-lg">
+        <p className="text-xs font-semibold text-slate-900 mb-1.5">{dateLabel}</p>
+        <div className="space-y-1 text-xs text-slate-700">
           <div className="flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: "#d1d5db" }} />
-            <span className="font-medium">Plan Total</span>
-            <span className="tabular-nums">{plan.toLocaleString()}</span>
+            <span className="inline-block w-2 h-2 rounded-sm" style={{ background: "#cbd5e1" }} />
+            <span className="font-medium">Plan</span>
+            <span className="tabular-nums ml-auto font-semibold">{plan.toLocaleString()}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: "#fb923c" }} />
-            <span className="font-medium">Actual A</span>
-            <span className="tabular-nums">{a.toLocaleString()}</span>
+            <span className="inline-block w-2 h-2 rounded-sm" style={{ background: "#0d9488" }} />
+            <span className="font-medium">A</span>
+            <span className="tabular-nums ml-auto font-semibold">{a.toLocaleString()}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: "#10b981" }} />
-            <span className="font-medium">Actual B</span>
-            <span className="tabular-nums">{b.toLocaleString()}</span>
+            <span className="inline-block w-2 h-2 rounded-sm" style={{ background: "#f97316" }} />
+            <span className="font-medium">B</span>
+            <span className="tabular-nums ml-auto font-semibold">{b.toLocaleString()}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: "#60a5fa" }} />
-            <span className="font-medium">Actual Total</span>
-            <span className="tabular-nums">{total.toLocaleString()}</span>
+            <span className="inline-block w-2 h-2 rounded-sm" style={{ background: "#0891b2" }} />
+            <span className="font-medium">Total</span>
+            <span className="tabular-nums ml-auto font-semibold">{total.toLocaleString()}</span>
           </div>
           {ng > 0 && (
             <div className="flex items-center gap-2">
-              <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: "#ef4444" }} />
+              <span className="inline-block w-2 h-2 rounded-sm" style={{ background: "#ef4444" }} />
               <span className="font-medium">NG</span>
-              <span className="tabular-nums">{ng.toLocaleString()}</span>
+              <span className="tabular-nums ml-auto font-semibold">{ng.toLocaleString()}</span>
             </div>
           )}
         </div>
@@ -544,115 +520,75 @@ const renderModuleCharts = () => {
     );
   };
 
+  const totalA = summary.total_a || 0;
+  const totalB = summary.total_b || 0;
+  const abTotal = totalA + totalB || 1;
+  const ngCount = summary.ng_count ?? chartData.reduce((s, d) => s + (Number(d.ng_count) || 0), 0);
+
   return (
     <AnimatePresence mode="wait">
-      <motion.div key="module" {...pageTransition} className="space-y-6">
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard title="Total Output" value={summary.total} icon={<Factory size={24} className="text-blue-600" />} trend={summary.trend} color="blue" delay={0} />
-          <StatCard title="Type A" value={summary.total_a} icon={<BarChart3 size={24} className="text-cyan-600" />} color="cyan" delay={0.1} />
-          <StatCard title="Type B" value={summary.total_b} icon={<BarChart3 size={24} className="text-teal-600" />} color="teal" delay={0.2} />
-          <StatCard title="Yield Rate" value={`${summary.yield_rate || 100}%`} icon={<TrendingUp size={24} className="text-green-600" />} trend={summary.yield_trend} color="green" delay={0.3} />
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-          {/* Production Trend */}
-          <motion.div {...cardTransition} className="xl:col-span-2">
+      <motion.div key="module" {...pageTransition} className="space-y-5">
+        {/* ─── Bento Row 1: Hero + Mini Metrics ─── */}
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+          {/* Hero: Production Trend */}
+          <motion.div {...cardTransition} className="xl:col-span-3">
             <div className={`${CHART_CARD} h-full`}>
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-slate-900">Production Trend</h3>
-                <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full border border-slate-200">
-                  <Info size={16} className="text-slate-600" />
-                  <span className="text-xs font-semibold text-slate-700">
-                    {period === "daily" ? "Hourly View" : `${period.charAt(0).toUpperCase() + period.slice(1)} View`}
-                  </span>
-                </div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-slate-800">Production Trend</h3>
+                <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                  {period === "daily" ? "Hourly" : period}
+                </span>
               </div>
-
               <ResponsiveContainer width="100%" height={CHART_H}>
                 {period === "daily" ? (
-                  <LineChart data={chartData} margin={{ top: 10, right: 30, left: 20, bottom: 20 }}>
-                    <defs>
-                      <linearGradient id="lineGradientA" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#fb923c" stopOpacity={0.85} />
-                        <stop offset="100%" stopColor="#fb923c" stopOpacity={0.25} />
-                      </linearGradient>
-                      <linearGradient id="lineGradientB" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.85} />
-                        <stop offset="100%" stopColor="#10b981" stopOpacity={0.25} />
-                      </linearGradient>
-                      <linearGradient id="lineGradientTotal" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#60a5fa" stopOpacity={0.85} />
-                        <stop offset="100%" stopColor="#60a5fa" stopOpacity={0.25} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="6 3" stroke={GRID_COLOR} strokeOpacity={0.7} />
-                    <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} />
-                    <YAxis stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} domain={[0, () => yMaxModuleDaily]} />
-                    <Legend wrapperStyle={{ paddingTop: "14px" }} iconType="circle"
-                            formatter={(v) => <span style={{ color: "#111827", fontWeight: 600, fontSize: LEGEND_FS }}>{v}</span>} />
+                  <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
+                    <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                    <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} domain={[0, () => yMaxModuleDaily]} />
+                    <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="circle" iconSize={8}
+                            formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Line type="monotone" dataKey="count_a" name="Type A" stroke="url(#lineGradientA)" strokeWidth={3}
-                          dot={{ r: 4, fill: "#fb923c", strokeWidth: 2, stroke: "#fff" }}
-                          activeDot={{ r: 6, stroke: "#fb923c", strokeWidth: 2, fill: "#fff" }} />
-                    <Line type="monotone" dataKey="count_b" name="Type B" stroke="url(#lineGradientB)" strokeWidth={3}
-                          dot={{ r: 4, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }}
-                          activeDot={{ r: 6, stroke: "#10b981", strokeWidth: 2, fill: "#fff" }} />
-                    <Line type="monotone" dataKey="total" name="Total" stroke="url(#lineGradientTotal)" strokeWidth={2.5}
-                          strokeDasharray="8 4" dot={{ r: 3, fill: "#60a5fa" }}
-                          activeDot={{ r: 5, stroke: "#60a5fa", strokeWidth: 2, fill: "#fff" }} />
+                    <Line type="monotone" dataKey="count_a" name="Type A" stroke="#0d9488" strokeWidth={2}
+                          dot={{ r: 3, fill: "#0d9488", strokeWidth: 0 }}
+                          activeDot={{ r: 5, stroke: "#0d9488", strokeWidth: 2, fill: "#fff" }} />
+                    <Line type="monotone" dataKey="count_b" name="Type B" stroke="#f97316" strokeWidth={2}
+                          dot={{ r: 3, fill: "#f97316", strokeWidth: 0 }}
+                          activeDot={{ r: 5, stroke: "#f97316", strokeWidth: 2, fill: "#fff" }} />
+                    <Line type="monotone" dataKey="total" name="Total" stroke="#94a3b8" strokeWidth={1.5}
+                          strokeDasharray="4 3" dot={false}
+                          activeDot={{ r: 4, stroke: "#94a3b8", strokeWidth: 2, fill: "#fff" }} />
                   </LineChart>
                 ) : (
-                  <BarChart data={chartDataStacked} barGap={8} margin={{ top: 10, right: 30, left: 20, bottom: 20 }}>
-                    <defs>
-                      <linearGradient id="barGradientA" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#fb923c" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.9} />
-                      </linearGradient>
-                      <linearGradient id="barGradientB" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#059669" stopOpacity={0.9} />
-                      </linearGradient>
-                      <linearGradient id="planGrayA" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#d1d5db" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#9ca3af" stopOpacity={0.95} />
-                      </linearGradient>
-                      <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                        <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.12" />
-                      </filter>
-                    </defs>
-
-                    <CartesianGrid strokeDasharray="6 3" stroke={GRID_COLOR} strokeOpacity={0.7} />
-                    {/* ?????? dateLabel??????????? date */}
-                    <XAxis dataKey={(d) => d.dateLabel || d.date} stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} />
-                    <YAxis stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} domain={[0, () => yMaxModuleMixed]} />
-                    <Legend wrapperStyle={{ paddingTop: "14px" }} iconType="rect"
-                            formatter={(v) => <span style={{ color: "#111827", fontWeight: 600, fontSize: LEGEND_FS }}>{v}</span>} />
+                  <BarChart data={chartDataStacked} barGap={4} margin={{ top: 20, right: 20, left: 10, bottom: 10 }}
+                           onClick={(e) => { if (e?.activePayload?.[0]?.payload?.fullDate) handleDrillDown(e.activePayload[0].payload.fullDate); }}
+                           style={{ cursor: "pointer" }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
+                    <XAxis dataKey={(d) => d.dateLabel || d.date} stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                    <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} domain={[0, () => yMaxModuleMixed]} />
+                    <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="rect" iconSize={10}
+                            formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
                     <Tooltip content={<ModuleAggTooltip />} />
 
                     {hasPlanA && hasPlanB ? (
                       <>
-                        <Bar dataKey="plan_a" name="Plan A" fill="url(#planGrayA)" stackId="planned" />
-                        <Bar dataKey="plan_b" name="Plan B" fill="url(#planGrayA)" stackId="planned" />
+                        <Bar dataKey="plan_a" name="Plan A" fill="#e2e8f0" stackId="planned" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="plan_b" name="Plan B" fill="#e2e8f0" stackId="planned" radius={[4, 4, 0, 0]} />
                       </>
                     ) : (
-                      <Bar dataKey={(d) => Number(d._planTotal ?? 0)} name="Plan Total" fill="url(#planGrayA)" radius={[12, 12, 0, 0]} stackId="planned" />
+                      <Bar dataKey={(d) => Number(d._planTotal ?? 0)} name="Plan" fill="#e2e8f0" radius={[4, 4, 0, 0]} stackId="planned" />
                     )}
 
-                    <Bar dataKey="count_a" name="Actual A" fill="url(#barGradientA)" stackId="actual" filter="url(#shadow)" />
-                    <Bar dataKey="count_b" name="Actual B" fill="url(#barGradientB)" stackId="actual" radius={[12, 12, 0, 0]}>
+                    <Bar dataKey="count_a" name="A" fill="#0d9488" stackId="actual" />
+                    <Bar dataKey="count_b" name="B" fill="#f97316" stackId="actual" radius={[4, 4, 0, 0]}>
                       {chartDataStacked.map((row, idx) => (
-                        <Cell key={idx} stroke={row._miss ? COLORS.danger : undefined} strokeWidth={row._miss ? 1.25 : 0} />
+                        <Cell key={idx} stroke={row._miss ? COLORS.danger : undefined} strokeWidth={row._miss ? 1.5 : 0} />
                       ))}
                     </Bar>
 
                     <Bar dataKey="stack_total" name="" fill="transparent" isAnimationActive={false} legendType="none">
-                      <LabelList
-                        dataKey="stack_total"
-                        position="top"
+                      <LabelList dataKey="stack_total" position="top"
                         formatter={(v) => (v ? v.toLocaleString() : "")}
-                        style={{ fill: "#111827", fontWeight: 700, fontSize: LABEL_FS }}
-                      />
+                        style={{ fill: "#1e293b", fontWeight: 600, fontSize: LABEL_FS }} />
                     </Bar>
                   </BarChart>
                 )}
@@ -660,136 +596,110 @@ const renderModuleCharts = () => {
             </div>
           </motion.div>
 
-          {/* Daily NG Units */}
-          <motion.div {...cardTransition}>
-            <div className={`${CHART_CARD} h-full`}>
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-slate-900">Daily NG Units</h3>
-                <p className="text-sm text-slate-500">Number of NG units recorded per day</p>
+          {/* Right side: 2x2 Mini Metrics */}
+          <div className="xl:col-span-2 grid grid-cols-2 gap-4">
+            <MiniMetric label="Total Output" value={summary.total} trend={summary.trend} accent="teal" />
+            <MiniMetric label="Yield" accent="cyan">
+              <p className="text-2xl font-bold tabular-nums text-cyan-600">{summary.yield_rate || 100}%</p>
+              <div className="mt-1.5 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-cyan-500" style={{ width: `${summary.yield_rate || 100}%` }} />
               </div>
-              <ResponsiveContainer width="100%" height={CHART_H}>
-                <BarChart data={chartDataStacked}>
-                  <CartesianGrid strokeDasharray="6 3" stroke={GRID_COLOR} />
-                  {/* ?????? dateLabel?????? date */}
-                  <XAxis dataKey={(d) => d.dateLabel || d.date} stroke="#6b7280" tick={{ fontSize: TICK_FS }} />
-                  <YAxis stroke="#6b7280" tick={{ fontSize: TICK_FS }} domain={[0, (m) => Math.max(10, Math.ceil(m * 1.2))]} />
-                  <Tooltip formatter={(v) => [`${v}`, "NG Units"]} />
-                  <Bar dataKey="ng_count" name="NG Units" fill="#ef4444" radius={[6, 6, 0, 0]}>
-                    <LabelList
-                      dataKey="ng_count"
-                      position="top"
-                      style={{ fill: "#ef4444", fontWeight: 700, fontSize: LABEL_FS }}
-                    />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </motion.div>
+            </MiniMetric>
+            <MiniMetric label="NG Count" value={ngCount} accent="red" sub={ngCount > 0 ? `${((ngCount / (summary.total || 1)) * 100).toFixed(1)}% rate` : "No defects"} />
+            <MiniMetric label="A / B Split" accent="teal">
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-bold text-teal-600 tabular-nums">{totalA.toLocaleString()}</span>
+                <span className="text-slate-300">/</span>
+                <span className="text-lg font-bold text-orange-500 tabular-nums">{totalB.toLocaleString()}</span>
+              </div>
+              <div className="mt-1.5 flex h-1.5 rounded-full overflow-hidden bg-slate-100">
+                <div className="h-full bg-teal-500" style={{ width: `${(totalA / abTotal) * 100}%` }} />
+                <div className="h-full bg-orange-400" style={{ width: `${(totalB / abTotal) * 100}%` }} />
+              </div>
+            </MiniMetric>
+          </div>
+        </div>
 
+        {/* ─── Bento Row 2: NG Analysis + Yield/NG Detail ─── */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          {/* NG Reasons - Horizontal Bar */}
           {moduleNgCategories.length > 0 && (
-            <motion.div {...cardTransition} className="xl:col-span-2">
-              <div className={`${CHART_CARD} h-full`}>
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-                  <div>
-                    <h3 className="text-xl font-semibold text-slate-900">NG Reasons (Normalized)</h3>
-                    <p className="text-sm text-slate-500">Percentage share after normalization</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                  <div className="lg:col-span-2 bg-slate-50 rounded-xl p-4 border border-slate-200">
-                    <ResponsiveContainer width="100%" height={320}>
-                      <PieChart>
-                        <Tooltip
-                          formatter={(v, n) => [`${v}%`, n]}
-                          contentStyle={{ backgroundColor: "rgba(255,255,255,0.98)", border: "none", borderRadius: 12, boxShadow: "0 10px 40px rgba(0,0,0,0.12)" }}
-                          itemStyle={{ color: "#111827", fontSize: 13 }}
-                        />
-                        <Legend
-                          verticalAlign="bottom"
-                          wrapperStyle={{ paddingTop: 12 }}
-                          formatter={(v) => <span style={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>{v}</span>}
-                        />
-                        <Pie
-                          data={moduleNgCategories}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={70}
-                          outerRadius={110}
-                          paddingAngle={2}
-                        >
-                          {moduleNgCategories.map((_, idx) => (
-                            <Cell key={idx} fill={COLORS.pieColors[idx % COLORS.pieColors.length]} stroke="#fff" strokeWidth={2} />
-                          ))}
-                          <LabelList
-                            dataKey="value"
-                            position="outside"
-                            formatter={(v) => (v ? `${v}%` : "")}
-                            style={{ fill: "#111827", fontWeight: 600, fontSize: 12 }}
-                          />
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  <div className="w-full space-y-3">
-                    <div className="text-sm font-semibold text-slate-700">Top reasons</div>
-                    {topModuleNgReasons.map((item, idx) => {
-                      const color = COLORS.pieColors[idx % COLORS.pieColors.length];
-                      const value = Number(item.value) || 0;
-                      return (
-                        <div key={item.name} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                          <div className="flex items-center justify-between text-sm font-medium text-slate-800 mb-2">
-                            <span className="flex items-center gap-2">
-                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                              <span className="truncate">{item.name}</span>
-                            </span>
-                            <span className="text-slate-600">{value}%</span>
-                          </div>
-                          <div className="h-2.5 bg-white rounded-full overflow-hidden border border-slate-100">
-                            <div
-                              className="h-full rounded-full"
-                              style={{ width: `${Math.min(value, 100)}%`, backgroundColor: color }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {period !== "daily" && moduleYieldData.length > 0 && (
             <motion.div {...cardTransition}>
               <div className={`${CHART_CARD} h-full`}>
-                <div className="mb-6">
-                  <h3 className="text-xl font-semibold text-slate-900">Yield Trend Analysis</h3>
-                  <p className="text-sm text-slate-500 mt-1">Production quality performance over time</p>
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-slate-800">NG Reasons</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Normalized percentage share</p>
                 </div>
-                <ResponsiveContainer width="100%" height={360}>
-                  <AreaChart data={moduleYieldData}>
-                    <defs>
-                      <linearGradient id="moduleYieldGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.05} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="6 3" stroke={GRID_COLOR} strokeOpacity={0.7} />
-                    <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} />
-                    <YAxis stroke="#6b7280" unit="%" domain={[Math.max(70, minModuleYield - 5), 100]} tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend wrapperStyle={{ paddingTop: "14px" }} iconType="rect"
-                            formatter={(v) => <span style={{ color: "#111827", fontWeight: 600, fontSize: LEGEND_FS }}>{v}</span>} />
-                    <Area type="monotone" dataKey="yield" stroke="#10b981" strokeWidth={3} fill="url(#moduleYieldGradient)" name="Yield %"
-                          dot={{ r: 5, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }}
-                          activeDot={{ r: 7, stroke: "#10b981", strokeWidth: 2, fill: "#fff" }} />
-                    <Line type="monotone" dataKey={() => 95} name="Target" stroke="#ef4444" strokeWidth={2.5} strokeDasharray="10 5" dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <div className="space-y-2.5">
+                  {moduleNgCategories.slice(0, 6).map((item, idx) => {
+                    const color = COLORS.pieColors[idx % COLORS.pieColors.length];
+                    const value = Number(item.value) || 0;
+                    return (
+                      <div key={item.name}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-slate-700 truncate max-w-[70%]">{item.name}</span>
+                          <span className="text-xs font-semibold text-slate-900 tabular-nums">{value}%</span>
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-300" style={{ width: `${Math.min(value, 100)}%`, backgroundColor: color }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </motion.div>
           )}
+
+          {/* Right: Yield Trend (weekly/monthly) or NG Bar (daily) */}
+          <motion.div {...cardTransition}>
+            <div className={`${CHART_CARD} h-full`}>
+              {period !== "daily" && moduleYieldData.length > 0 ? (
+                <>
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-slate-800">Yield Trend</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Quality over time</p>
+                  </div>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={moduleYieldData}>
+                      <defs>
+                        <linearGradient id="modYieldGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0d9488" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#0d9488" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
+                      <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                      <YAxis stroke="#94a3b8" unit="%" domain={[Math.max(70, minModuleYield - 5), 100]} tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area type="monotone" dataKey="yield" stroke="#0d9488" strokeWidth={2} fill="url(#modYieldGrad)" name="Yield %"
+                            dot={{ r: 3, fill: "#0d9488", strokeWidth: 0 }}
+                            activeDot={{ r: 5, stroke: "#0d9488", strokeWidth: 2, fill: "#fff" }} />
+                      <Line type="monotone" dataKey={() => 95} name="Target" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="6 4" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </>
+              ) : (
+                <>
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-slate-800">NG Distribution</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">NG units by time</p>
+                  </div>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={chartDataStacked}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
+                      <XAxis dataKey={(d) => d.dateLabel || d.date} stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                      <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} domain={[0, (m) => Math.max(10, Math.ceil(m * 1.2))]} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="ng_count" name="NG" fill="#ef4444" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="ng_count" position="top" style={{ fill: "#ef4444", fontWeight: 600, fontSize: LABEL_FS }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </>
+              )}
+            </div>
+          </motion.div>
         </div>
       </motion.div>
     </AnimatePresence>
@@ -835,145 +745,82 @@ const renderAssemblyCharts = () => {
 
   const cleanedNgReasons = cleanNgReasons(ng_reasons || []);
   const { categories: ngCategories } = groupNgReasonsByCategory(cleanedNgReasons);
-  const topNgReasons = ngCategories.slice(0, 5);
+
+  const assyYieldData = period === "daily" ? [] :
+    chartData.filter((d) => d.total && d.total > 0)
+      .map((d) => ({ ...d, yield: Math.round((d.ok_count / d.total) * 100) }));
 
   return (
     <AnimatePresence mode="wait">
-      <motion.div key="assembly" {...pageTransition} className="space-y-6">
-        {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            title="Total Output"
-            value={summary.total}
-            icon={<Factory size={24} className="text-blue-600" />}
-            trend={summary.trend}
-            color="blue"
-            delay={0}
-          />
-          <StatCard
-            title="OK Units"
-            value={summary.ok_count}
-            icon={<Target size={24} className="text-green-600" />}
-            color="green"
-            delay={0.1}
-          />
-          <StatCard
-            title="NG Units"
-            value={`${summary.ng_count}${summary.fixed_count > 0 ? ` (${summary.fixed_count} Fixed)` : ""}`}
-            icon={<AlertCircle size={24} className="text-red-600" />}
-            color="red"
-            delay={0.2}
-          />
-          <StatCard
-            title="Yield Rate"
-            value={`${summary.yield_rate}%`}
-            icon={<TrendingUp size={24} className="text-cyan-600" />}
-            trend={summary.yield_trend}
-            color="cyan"
-            delay={0.3}
-          />
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
-          {/* Production Trend */}
-          <motion.div {...cardTransition} className="xl:col-span-2">
+      <motion.div key="assembly" {...pageTransition} className="space-y-5">
+        {/* ─── Bento Row 1: Hero + Mini Metrics ─── */}
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+          {/* Hero: Production Trend */}
+          <motion.div {...cardTransition} className="xl:col-span-3">
             <div className={`${CHART_CARD} h-full`}>
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h3 className="text-xl font-semibold text-slate-900">Production Trend</h3>
-                  <p className="text-sm text-slate-500 mt-1">Production performance monitoring</p>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-full border border-slate-200">
-                  <Info size={16} className="text-slate-600" />
-                  <span className="text-xs font-semibold text-slate-800">
-                    {period === "daily" ? "Hourly View" : `${period.charAt(0).toUpperCase() + period.slice(1)} View`}
-                  </span>
-                </div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-slate-800">Production Trend</h3>
+                <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                  {period === "daily" ? "Hourly" : period}
+                </span>
               </div>
-
               <ResponsiveContainer width="100%" height={CHART_H}>
                 {period === "daily" ? (
-                  <LineChart data={chartData} margin={{ top: 10, right: 30, left: 20, bottom: 20 }}>
-                    <defs>
-                      <linearGradient id="okGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.85} />
-                        <stop offset="100%" stopColor="#10b981" stopOpacity={0.25} />
-                      </linearGradient>
-                      <linearGradient id="ngGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.85} />
-                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.25} />
-                      </linearGradient>
-                      <linearGradient id="totalGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.85} />
-                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.25} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="6 3" stroke={GRID_COLOR} strokeOpacity={0.7} />
-                    <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} />
-                    <YAxis stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} domain={[0, () => yMaxAssyDaily]} />
-                    <Legend wrapperStyle={{ paddingTop: "14px" }} iconType="circle"
-                            formatter={(v) => <span style={{ color: "#111827", fontWeight: 600, fontSize: LEGEND_FS }}>{v}</span>} />
+                  <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
+                    <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                    <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} domain={[0, () => yMaxAssyDaily]} />
+                    <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="circle" iconSize={8}
+                            formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
                     <Tooltip content={<CustomTooltip />} />
-                    <Line type="monotone" dataKey="ok_count" name="OK Units" stroke="url(#okGradient)" strokeWidth={3}
-                          dot={{ r: 5, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }}
-                          activeDot={{ r: 7, stroke: "#10b981", strokeWidth: 2, fill: "#fff" }} />
-                    <Line type="monotone" dataKey="ng_count" name="NG Units" stroke="url(#ngGradient)" strokeWidth={3}
-                          dot={{ r: 5, fill: "#ef4444", strokeWidth: 2, stroke: "#fff" }}
-                          activeDot={{ r: 7, stroke: "#ef4444", strokeWidth: 2, fill: "#fff" }} />
-                    <Line type="monotone" dataKey="total" name="Total" stroke="url(#totalGradient)" strokeWidth={2.5}
-                          strokeDasharray="8 4" dot={{ r: 4, fill: "#3b82f6" }}
-                          activeDot={{ r: 6, stroke: "#3b82f6", strokeWidth: 2, fill: "#fff" }} />
+                    <Line type="monotone" dataKey="ok_count" name="OK" stroke="#0d9488" strokeWidth={2}
+                          dot={{ r: 3, fill: "#0d9488", strokeWidth: 0 }}
+                          activeDot={{ r: 5, stroke: "#0d9488", strokeWidth: 2, fill: "#fff" }} />
+                    <Line type="monotone" dataKey="ng_count" name="NG" stroke="#ef4444" strokeWidth={2}
+                          dot={{ r: 3, fill: "#ef4444", strokeWidth: 0 }}
+                          activeDot={{ r: 5, stroke: "#ef4444", strokeWidth: 2, fill: "#fff" }} />
+                    <Line type="monotone" dataKey="total" name="Total" stroke="#94a3b8" strokeWidth={1.5}
+                          strokeDasharray="4 3" dot={false}
+                          activeDot={{ r: 4, stroke: "#94a3b8", strokeWidth: 2, fill: "#fff" }} />
                   </LineChart>
                 ) : (
-                  <BarChart data={chartData} barGap={8} margin={{ top: 10, right: 30, left: 20, bottom: 20 }}>
-                    <defs>
-                      <linearGradient id="actualGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#06b6d4" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.8} />
-                      </linearGradient>
-                      <pattern id="plannedPatternGray" patternUnits="userSpaceOnUse" width="6" height="6">
-                        <rect width="6" height="6" fill="#e2e8f0" />
-                        <path d="M0,6 L6,0" stroke="#cbd5e1" strokeWidth="1.5" opacity="0.55" />
-                      </pattern>
-                    </defs>
-
-                    <CartesianGrid strokeDasharray="6 3" stroke={GRID_COLOR} strokeOpacity={0.7} />
-                    <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} />
-                    <YAxis stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} domain={[0, () => yMaxAssyMixed]} />
-                    <Legend wrapperStyle={{ paddingTop: "14px" }} iconType="rect"
-                            formatter={(v) => <span style={{ color: "#111827", fontWeight: 600, fontSize: LEGEND_FS }}>{v}</span>} />
+                  <BarChart data={chartData} barGap={4} margin={{ top: 20, right: 20, left: 10, bottom: 10 }}
+                           onClick={(e) => { if (e?.activePayload?.[0]?.payload?.fullDate) handleDrillDown(e.activePayload[0].payload.fullDate); }}
+                           style={{ cursor: "pointer" }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
+                    <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                    <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} domain={[0, () => yMaxAssyMixed]} />
+                    <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="rect" iconSize={10}
+                            formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
                     <Tooltip content={<CustomTooltip />} />
 
-                    <Bar dataKey="planned" name="Planned" fill="url(#plannedPatternGray)" radius={[10, 10, 0, 0]}>
+                    <Bar dataKey="planned" name="Planned" fill="#e2e8f0" radius={[4, 4, 0, 0]}>
                       <LabelList dataKey="planned" position="top"
                                 formatter={(v) => (v ? v.toLocaleString() : "")}
-                                style={{ fill: "#475569", fontWeight: 600, fontSize: LABEL_FS }} />
+                                style={{ fill: "#64748b", fontWeight: 600, fontSize: LABEL_FS }} />
                     </Bar>
 
-                    <Bar dataKey="actual" name="Actual" fill="url(#actualGradient)" radius={[10, 10, 0, 0]}>
+                    <Bar dataKey="actual" name="Actual" fill="#0891b2" radius={[4, 4, 0, 0]}>
                       {chartData.map((row, idx) => (
-                        <Cell key={idx} stroke={row._miss ? COLORS.danger : undefined} strokeWidth={row._miss ? 1.25 : 0} />
+                        <Cell key={idx} stroke={row._miss ? COLORS.danger : undefined} strokeWidth={row._miss ? 1.5 : 0} />
                       ))}
                       <LabelList dataKey="actual" position="top"
                                 formatter={(v) => (v ? v.toLocaleString() : "")}
-                                style={{ fill: "#111827", fontWeight: 700, fontSize: LABEL_FS }} />
+                                style={{ fill: "#1e293b", fontWeight: 600, fontSize: LABEL_FS }} />
                     </Bar>
 
                     <Bar dataKey="anchorMax" name="" fill="transparent" legendType="none" isAnimationActive={false}>
-                      <LabelList
-                        position="top"
-                        content={(props) => {
-                          const { x = 0, y = 0, width = 0, payload } = props || {};
-                          const ng = Number(payload?.ng_count ?? payload?.ng ?? 0);
-                          if (!Number.isFinite(ng) || ng <= 0) return null;
-                          return (
-                            <text x={x + width / 2} y={(Number.isFinite(y) ? y : 0) - 18}
-                                  textAnchor="middle" style={{ fill: "#ef4444", fontWeight: 700, fontSize: LABEL_FS }}>
-                              {ng.toLocaleString()}
-                            </text>
-                          );
-                        }}
-                      />
+                      <LabelList position="top" content={(props) => {
+                        const { x = 0, y = 0, width = 0, payload } = props || {};
+                        const ng = Number(payload?.ng_count ?? payload?.ng ?? 0);
+                        if (!Number.isFinite(ng) || ng <= 0) return null;
+                        return (
+                          <text x={x + width / 2} y={(Number.isFinite(y) ? y : 0) - 18}
+                                textAnchor="middle" style={{ fill: "#ef4444", fontWeight: 700, fontSize: LABEL_FS }}>
+                            {ng.toLocaleString()}
+                          </text>
+                        );
+                      }} />
                     </Bar>
                   </BarChart>
                 )}
@@ -981,135 +828,105 @@ const renderAssemblyCharts = () => {
             </div>
           </motion.div>
 
-          {/* Daily NG Units */}
-          <motion.div {...cardTransition}>
-            <div className={`${CHART_CARD} h-full`}>
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-semibold text-slate-900">Daily NG Units</h3>
-                <p className="text-sm text-slate-500">Number of NG units recorded per day</p>
+          {/* Right side: 2x2 Mini Metrics */}
+          <div className="xl:col-span-2 grid grid-cols-2 gap-4">
+            <MiniMetric label="Total Output" value={summary.total} trend={summary.trend} accent="teal" />
+            <MiniMetric label="Yield" accent="cyan">
+              <p className="text-2xl font-bold tabular-nums text-cyan-600">{summary.yield_rate}%</p>
+              <div className="mt-1.5 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-cyan-500" style={{ width: `${summary.yield_rate}%` }} />
               </div>
-              <ResponsiveContainer width="100%" height={CHART_H}>
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="6 3" stroke={GRID_COLOR} />
-                  <XAxis dataKey={period === "daily" ? "date" : "date"} stroke="#6b7280" tick={{ fontSize: TICK_FS }} />
-                  <YAxis stroke="#6b7280" tick={{ fontSize: TICK_FS }} domain={[0, (m) => Math.max(10, Math.ceil(m * 1.2))]} />
-                  <Tooltip formatter={(v) => [`${v}`, "NG Units"]} />
-                  <Bar dataKey="ng_count" name="NG Units" fill="#ef4444" radius={[6, 6, 0, 0]}>
-                    <LabelList dataKey="ng_count" position="top" style={{ fill: "#ef4444", fontWeight: 700, fontSize: LABEL_FS }} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </motion.div>
+            </MiniMetric>
+            <MiniMetric label="NG Units" accent="red">
+              <p className="text-2xl font-bold tabular-nums text-red-600">{summary.ng_count}</p>
+              {summary.fixed_count > 0 && (
+                <p className="text-xs text-emerald-600 font-medium mt-0.5">{summary.fixed_count} Fixed</p>
+              )}
+            </MiniMetric>
+            <MiniMetric label="OK Units" value={summary.ok_count} accent="teal" sub={`${((summary.ok_count / (summary.total || 1)) * 100).toFixed(1)}% pass`} />
+          </div>
+        </div>
 
+        {/* ─── Bento Row 2: NG Analysis + Yield/NG Detail ─── */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          {/* NG Reasons - Horizontal Bar */}
           {ngCategories.length > 0 && (
-            <motion.div {...cardTransition} className="xl:col-span-2">
-              <div className={`${CHART_CARD} h-full`}>
-                <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-                  <div>
-                    <h3 className="text-xl font-semibold text-slate-900">NG Reasons (Normalized)</h3>
-                    <p className="text-sm text-slate-500">Percentage share after normalization</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-                  <div className="lg:col-span-2 bg-slate-50 rounded-xl p-4 border border-slate-200">
-                    <ResponsiveContainer width="100%" height={320}>
-                      <PieChart>
-                        <Tooltip
-                          formatter={(v, n) => [`${v}%`, n]}
-                          contentStyle={{ backgroundColor: "rgba(255,255,255,0.98)", border: "none", borderRadius: 12, boxShadow: "0 10px 40px rgba(0,0,0,0.12)" }}
-                          itemStyle={{ color: "#111827", fontSize: 13 }}
-                        />
-                        <Legend
-                          verticalAlign="bottom"
-                          wrapperStyle={{ paddingTop: 12 }}
-                          formatter={(v) => <span style={{ color: "#111827", fontWeight: 600, fontSize: 14 }}>{v}</span>}
-                        />
-                        <Pie
-                          data={ngCategories}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={70}
-                          outerRadius={110}
-                          paddingAngle={2}
-                        >
-                          {ngCategories.map((_, idx) => (
-                            <Cell key={idx} fill={COLORS.pieColors[idx % COLORS.pieColors.length]} stroke="#fff" strokeWidth={2} />
-                          ))}
-                          <LabelList
-                            dataKey="value"
-                            position="outside"
-                            formatter={(v) => (v ? `${v}%` : "")}
-                            style={{ fill: "#111827", fontWeight: 600, fontSize: 12 }}
-                          />
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  <div className="w-full space-y-3">
-                    <div className="text-sm font-semibold text-slate-700">Top reasons</div>
-                    {topNgReasons.map((item, idx) => {
-                      const color = COLORS.pieColors[idx % COLORS.pieColors.length];
-                      const value = Number(item.value) || 0;
-                      return (
-                        <div key={item.name} className="bg-slate-50 border border-slate-200 rounded-lg p-3">
-                          <div className="flex items-center justify-between text-sm font-medium text-slate-800 mb-2">
-                            <span className="flex items-center gap-2">
-                              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                              <span className="truncate">{item.name}</span>
-                            </span>
-                            <span className="text-slate-600">{value}%</span>
-                          </div>
-                          <div className="h-2.5 bg-white rounded-full overflow-hidden border border-slate-100">
-                            <div
-                              className="h-full rounded-full"
-                              style={{ width: `${Math.min(value, 100)}%`, backgroundColor: color }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {period !== "daily" && (
             <motion.div {...cardTransition}>
               <div className={`${CHART_CARD} h-full`}>
-                <div className="mb-6">
-                  <h3 className="text-xl font-semibold text-slate-900">Yield Trend Analysis</h3>
-                  <p className="text-sm text-slate-500 mt-1">Production quality performance over time</p>
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-slate-800">NG Reasons</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Normalized percentage share</p>
                 </div>
-                <ResponsiveContainer width="100%" height={360}>
-                  <AreaChart
-                    data={chartData
-                      .filter((d) => d.total && d.total > 0)
-                      .map((d) => ({ ...d, yield: Math.round((d.ok_count / d.total) * 100) }))}
-                  >
-                    <defs>
-                      <linearGradient id="yieldGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0.05} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="6 3" stroke={GRID_COLOR} strokeOpacity={0.7} />
-                    <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} />
-                    <YAxis stroke="#6b7280" unit="%" domain={[80, 100]} tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend wrapperStyle={{ paddingTop: "14px" }} iconType="rect"
-                            formatter={(v) => <span style={{ color: "#111827", fontWeight: 600, fontSize: LEGEND_FS }}>{v}</span>} />
-                    <Area type="monotone" dataKey="yield" stroke="#10b981" strokeWidth={3} fill="url(#yieldGradient)" name="Yield %"
-                          dot={{ r: 5, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }}
-                          activeDot={{ r: 7, stroke: "#10b981", strokeWidth: 2, fill: "#fff" }} />
-                    <Line type="monotone" dataKey={() => 95} name="Target" stroke="#ef4444" strokeWidth={2.5} strokeDasharray="10 5" dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
+                <div className="space-y-2.5">
+                  {ngCategories.slice(0, 6).map((item, idx) => {
+                    const color = COLORS.pieColors[idx % COLORS.pieColors.length];
+                    const value = Number(item.value) || 0;
+                    return (
+                      <div key={item.name}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium text-slate-700 truncate max-w-[70%]">{item.name}</span>
+                          <span className="text-xs font-semibold text-slate-900 tabular-nums">{value}%</span>
+                        </div>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-300" style={{ width: `${Math.min(value, 100)}%`, backgroundColor: color }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </motion.div>
           )}
+
+          {/* Right: Yield Trend (weekly/monthly) or NG Bar (daily) */}
+          <motion.div {...cardTransition}>
+            <div className={`${CHART_CARD} h-full`}>
+              {period !== "daily" && assyYieldData.length > 0 ? (
+                <>
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-slate-800">Yield Trend</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Quality over time</p>
+                  </div>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={assyYieldData}>
+                      <defs>
+                        <linearGradient id="assyYieldGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0d9488" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#0d9488" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
+                      <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                      <YAxis stroke="#94a3b8" unit="%" domain={[80, 100]} tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Area type="monotone" dataKey="yield" stroke="#0d9488" strokeWidth={2} fill="url(#assyYieldGrad)" name="Yield %"
+                            dot={{ r: 3, fill: "#0d9488", strokeWidth: 0 }}
+                            activeDot={{ r: 5, stroke: "#0d9488", strokeWidth: 2, fill: "#fff" }} />
+                      <Line type="monotone" dataKey={() => 95} name="Target" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="6 4" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </>
+              ) : (
+                <>
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-slate-800">NG Distribution</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">NG units by time</p>
+                  </div>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
+                      <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                      <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} domain={[0, (m) => Math.max(10, Math.ceil(m * 1.2))]} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar dataKey="ng_count" name="NG" fill="#ef4444" radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="ng_count" position="top" style={{ fill: "#ef4444", fontWeight: 600, fontSize: LABEL_FS }} />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </>
+              )}
+            </div>
+          </motion.div>
         </div>
       </motion.div>
     </AnimatePresence>
@@ -1118,9 +935,9 @@ const renderAssemblyCharts = () => {
 
 const renderTrendAnalysis = () => {
     if (!trendData) return null;
-    const { trend_data } = trendData;
+    const { trend_data, prediction } = trendData;
 
-    // 只取到目標日（含），不做任何 Tgt 欄/參考線
+    // 只取到目標日（含）
     const filtered = (trend_data || [])
       .filter(i => parseISO(i.production_date) <= parseISO(targetDate))
       .map(i => ({
@@ -1129,39 +946,52 @@ const renderTrendAnalysis = () => {
         ...i
       }));
 
+    // Append prediction data
+    const predictionEntries = (prediction || []).map(p => ({
+      date: format(parseISO(p.date), "MM/dd"),
+      production_date: p.date,
+      predicted_total: p.predicted_total,
+      total: null,
+    }));
+    const chartDataWithPrediction = [...filtered, ...predictionEntries];
+
     return (
       <motion.div {...cardTransition} className={CHART_CARD}>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-xl font-semibold text-slate-900">Production Trend (Last 30 Days)</h3>
-            <p className="text-sm text-slate-500 mt-1">Long-term production performance insights</p>
+            <h3 className="text-sm font-semibold text-slate-800">Production Trend (Last 30 Days)</h3>
+            <p className="text-sm text-slate-500 mt-1">Long-term performance + 5-day forecast</p>
           </div>
+          {prediction?.length > 0 && (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-cyan-50 border border-cyan-200 rounded-lg">
+              <TrendingUp size={12} className="text-cyan-600" />
+              <span className="text-[11px] font-medium text-cyan-700">Forecast: {prediction[prediction.length - 1]?.predicted_total}</span>
+            </div>
+          )}
         </div>
 
-        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-          <ResponsiveContainer width="100%" height={CHART_H}>
-            <ComposedChart data={filtered} margin={{ top: 10, right: 30, left: 20, bottom: 20 }}>
-              <defs>
-                <linearGradient id="totalGradientClean" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="0" stroke={GRID_COLOR} vertical={false}/>
-              <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} />
-              <YAxis stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} tickFormatter={(v) => v.toLocaleString()} />
-              <Tooltip contentStyle={{ backgroundColor: "rgba(255,255,255,0.98)", border: "none", borderRadius: "12px", boxShadow: "0 10px 40px rgba(0,0,0,0.12)" }}
-                      labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 8 }}
-                      itemStyle={{ color: "#111827", fontSize: 13 }} />
-              <Legend wrapperStyle={{ paddingTop: "18px" }} iconType="line" iconSize={18}
-                      formatter={(v) => <span style={{ color: "#111827", fontWeight: 600, fontSize: LEGEND_FS }}>{v}</span>} />
+        <ResponsiveContainer width="100%" height={CHART_H + 40}>
+          <ComposedChart data={chartDataWithPrediction} margin={{ top: 10, right: 20, left: 10, bottom: 40 }}>
+            <defs>
+              <linearGradient id="trendAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#0891b2" stopOpacity={0.12}/>
+                <stop offset="95%" stopColor="#0891b2" stopOpacity={0.02}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false}/>
+            <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+            <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} tickFormatter={(v) => v.toLocaleString()} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="line" iconSize={14}
+                    formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
 
-              <Area type="monotone" dataKey="total" name="Daily Output" stroke="#3b82f6" fill="url(#totalGradientClean)" strokeWidth={3} dot={false} />
-              {filtered.some(d => d.moving_avg) && <Line type="monotone" dataKey="moving_avg" name="7-Day Average" stroke="#f59e0b" strokeWidth={2.5} dot={false} opacity={0.9} />}
-              {filtered.some(d => d.trend_line) && <Line type="monotone" dataKey="trend_line" name="Trend Line" stroke="#6b7280" strokeWidth={2} strokeDasharray="8 6" dot={false} opacity={0.6} />}
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+            <Area type="monotone" dataKey="total" name="Daily Output" stroke="#0891b2" fill="url(#trendAreaGrad)" strokeWidth={2} dot={false} connectNulls={false} />
+            {filtered.some(d => d.moving_avg) && <Line type="monotone" dataKey="moving_avg" name="7-Day Average" stroke="#f59e0b" strokeWidth={2} dot={false} opacity={0.9} />}
+            {predictionEntries.length > 0 && <Line type="monotone" dataKey="predicted_total" name="Prediction" stroke={COLORS.info} strokeWidth={2} strokeDasharray="5 5" dot={false} connectNulls />}
+            <Brush dataKey="date" height={26} stroke={COLORS.success}
+                   startIndex={Math.max(0, chartDataWithPrediction.length - 14)} />
+          </ComposedChart>
+        </ResponsiveContainer>
       </motion.div>
     );
   };
@@ -1178,68 +1008,49 @@ const renderTrendAnalysis = () => {
       <motion.div {...cardTransition} className={CHART_CARD}>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-xl font-semibold text-slate-900">Hourly Production Pattern</h3>
-            <p className="text-sm text-slate-500 mt-1">24-hour production distribution analysis</p>
+            <h3 className="text-sm font-semibold text-slate-800">Hourly Production Pattern</h3>
+            <p className="text-sm text-slate-500 mt-1">24-hour distribution</p>
           </div>
           {summary && (
-            <div className="flex items-center gap-4">
-              <div className="px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg">
-                <span className="text-xs text-slate-500 block">Peak Hour</span>
+            <div className="flex items-center gap-3">
+              <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
+                <span className="text-xs text-slate-400 block">Peak</span>
                 <span className="text-sm font-semibold text-slate-900">{summary.peak_hour}</span>
               </div>
-              <div className="px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg">
-                <span className="text-xs text-slate-500 block">Total Output</span>
+              <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
+                <span className="text-xs text-slate-400 block">Total</span>
                 <span className="text-sm font-semibold text-slate-900">{summary.total_production?.toLocaleString()}</span>
               </div>
             </div>
           )}
         </div>
 
-        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-          <ResponsiveContainer width="100%" height={360}>
-            <BarChart data={distribution_data} margin={{ top: 10, right: 30, left: 20, bottom: 50 }}>
-              <defs>
-                <linearGradient id="barGradientHourly" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.7} />
-                </linearGradient>
-                <linearGradient id="barGradientPeak" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity={0.7} />
-                </linearGradient>
-                <linearGradient id="barGradientLow" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#e2e8f0" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#e2e8f0" stopOpacity={0.85} />
-                </linearGradient>
-              </defs>
+        <ResponsiveContainer width="100%" height={360}>
+          <BarChart data={distribution_data} margin={{ top: 10, right: 20, left: 10, bottom: 40 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
+            <XAxis dataKey="hour" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false}
+                   label={{ value: "Hour", position: "insideBottom", offset: -25, style: { fill: "#94a3b8", fontSize: 11, fontWeight: 500 } }} />
+            <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false}
+                   tickFormatter={(v) => v.toLocaleString()} />
+            <Tooltip content={<CustomTooltip />} />
 
-              <CartesianGrid strokeDasharray="0" stroke={GRID_COLOR} vertical={false} />
-              <XAxis dataKey="hour" stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }}
-                     label={{ value: "Hour of Day", position: "insideBottom", offset: -35, style: { fill: "#6b7280", fontSize: 12, fontWeight: 500 } }} />
-              <YAxis stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }}
-                     tickFormatter={(v) => v.toLocaleString()}
-                     label={{ value: "Average Output", angle: -90, position: "insideLeft", style: { fill: "#6b7280", fontSize: 12, fontWeight: 500 } }} />
-              <Tooltip contentStyle={{ backgroundColor: "rgba(255,255,255,0.98)", border: "none", borderRadius: "12px", boxShadow: "0 10px 40px rgba(0,0,0,0.12)" }}
-                       labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 8 }} itemStyle={{ color: "#111827", fontSize: 13 }} />
+            <ReferenceLine y={avgValue} stroke="#f59e0b" strokeDasharray="6 4" strokeWidth={1.5}
+              label={{ value: `Avg: ${Math.round(avgValue).toLocaleString()}`, position: "right", style: { fill: "#f59e0b", fontWeight: 600, fontSize: LABEL_FS } }} />
 
-              <ReferenceLine y={avgValue} stroke="#f59e0b" strokeDasharray="8 4" strokeWidth={2}
-                label={{ value: `Avg: ${Math.round(avgValue).toLocaleString()}`, position: "right", style: { fill: "#f59e0b", fontWeight: 600, fontSize: LABEL_FS } }} />
-
-              <Bar dataKey="average" name="Avg Output" radius={[8, 8, 0, 0]}>
-                {distribution_data.map((entry, idx) => {
-                  const isMax = entry.average === maxValue;
-                  const isLow = entry.average < avgValue * 0.5;
-                  return (
-                    <Cell key={idx} fill={isMax ? "url(#barGradientPeak)" : isLow ? "url(#barGradientLow)" : entry.average > 0 ? "url(#barGradientHourly)" : "#f3f4f6"} />
-                  );
-                })}
-                <LabelList dataKey="average" position="top"
-                           formatter={(v) => (v >= avgValue ? v.toLocaleString() : "")}
-                           style={{ fill: "#111827", fontSize: 11, fontWeight: 600 }} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+            <Bar dataKey="average" name="Avg Output" radius={[4, 4, 0, 0]}>
+              {distribution_data.map((entry, idx) => {
+                const isMax = entry.average === maxValue;
+                const isLow = entry.average < avgValue * 0.5;
+                return (
+                  <Cell key={idx} fill={isMax ? "#0d9488" : isLow ? "#e2e8f0" : entry.average > 0 ? "#0891b2" : "#f1f5f9"} />
+                );
+              })}
+              <LabelList dataKey="average" position="top"
+                         formatter={(v) => (v >= avgValue ? v.toLocaleString() : "")}
+                         style={{ fill: "#334155", fontSize: LABEL_FS, fontWeight: 600 }} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </motion.div>
     );
   };
@@ -1247,82 +1058,319 @@ const renderTrendAnalysis = () => {
   /* ─────────────────── Module vs Assembly Comparison ─────────────────── */
   const renderComparisonAnalysis = () => {
     if (!comparisonData) return null;
-    const { comparison_data, statistics } = comparisonData;
+    const { comparison_data, statistics: stats } = comparisonData;
     const data = comparison_data.map(i => ({ date: format(parseISO(i.date), "MM/dd"), ...i }));
 
     const maxEfficiency = Math.max(...data.map(d => d.efficiency || 0));
     const minEfficiency = Math.min(...data.map(d => d.efficiency || 0));
-
     const targetLabel = format(parseISO(targetDate), "MM/dd");
+
+    // P2-3: Semantic correlation indicator
+    const corr = stats.correlation;
+    const corrColor = corr > 0.7 ? "text-emerald-600" : corr > 0.3 ? "text-amber-600" : "text-red-600";
+    const corrLabel = corr > 0.7 ? "Strong" : corr > 0.3 ? "Moderate" : "Weak";
+    const corrBg = corr > 0.7 ? "bg-emerald-50 border-emerald-200" : corr > 0.3 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200";
+
+    return (
+      <div className="space-y-5">
+        <motion.div {...cardTransition} className={CHART_CARD}>
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800">Module vs Assembly</h3>
+              <p className="text-sm text-slate-500 mt-1">Line synchronization</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Semantic correlation badge */}
+              <div className={`px-3 py-1.5 border rounded-lg ${corrBg}`}>
+                <span className="text-xs text-slate-400 block">Correlation</span>
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-sm font-bold tabular-nums ${corrColor}`}>{corr.toFixed(3)}</span>
+                  <span className={`text-[10px] font-semibold uppercase tracking-wide ${corrColor}`}>{corrLabel}</span>
+                </div>
+              </div>
+              <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
+                <span className="text-xs text-slate-400 block">Avg Efficiency</span>
+                <span className="text-sm font-semibold text-slate-900">{stats.avg_efficiency}%</span>
+              </div>
+            </div>
+          </div>
+
+          <ResponsiveContainer width="100%" height={CHART_H - 40}>
+            <ComposedChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false}/>
+              <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="left" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false}
+                     tickFormatter={(v) => v.toLocaleString()} />
+              <YAxis yAxisId="right" orientation="right" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false}
+                     domain={[Math.min(80, minEfficiency - 5), Math.max(100, maxEfficiency + 5)]} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="rect" iconSize={10}
+                      formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
+
+              <ReferenceLine x={targetLabel} stroke="#64748b" strokeDasharray="4 4"
+                label={{ value: "Today", position: "top", style: { fill: "#64748b", fontWeight: 500, fontSize: LABEL_FS } }} />
+              <ReferenceLine yAxisId="right" y={95} stroke="#ef4444" strokeDasharray="6 4" strokeWidth={1.5}
+                label={{ value: "95%", position: "right", style: { fill: "#ef4444", fontWeight: 500, fontSize: LABEL_FS } }} />
+
+              <Bar yAxisId="left" dataKey="module" name="Module" fill="#0891b2" radius={[4, 4, 0, 0]} barSize={28} />
+              <Bar yAxisId="left" dataKey="assembly" name="Assembly" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={28} />
+              <Line yAxisId="right" type="monotone" dataKey="efficiency" name="Efficiency %" stroke="#0d9488" strokeWidth={2}
+                    dot={{ r: 3, fill: "#0d9488", strokeWidth: 0 }}
+                    activeDot={{ r: 5, stroke: "#0d9488", strokeWidth: 2, fill: "#fff" }} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </motion.div>
+
+        {/* P1-3: Paired Bar Chart — compact alongside summary */}
+        {data.length > 1 && (
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 mt-4">
+            {/* Bar chart: 3 cols */}
+            <motion.div {...cardTransition} className={`${CHART_CARD} xl:col-span-3`}>
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-slate-800">Pairs vs Assembly</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Daily comparison &middot; label = conversion %</p>
+              </div>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={data} margin={{ top: 20, right: 16, left: 0, bottom: 4 }} barCategoryGap="20%">
+                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
+                  <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                  <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0]?.payload;
+                      return (
+                        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-lg text-xs">
+                          <p className="font-semibold text-slate-900 mb-1">{d?.date}</p>
+                          <div className="space-y-0.5">
+                            <p className="text-slate-600">Pairs: <span className="font-bold tabular-nums">{d?.module_pairs}</span></p>
+                            <p className="text-slate-600">Assembly: <span className="font-bold tabular-nums">{d?.assembly}</span></p>
+                            <p className="text-slate-600">Efficiency: <span className="font-bold tabular-nums">{d?.efficiency}%</span></p>
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Legend wrapperStyle={{ paddingTop: "8px" }} iconType="rect" iconSize={10}
+                    formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
+                  <Bar dataKey="module_pairs" name="Pairs" fill="#0d9488" barSize={16} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="assembly" name="Assembly" fill="#f59e0b" barSize={16} radius={[4, 4, 0, 0]}>
+                    <LabelList content={({ x, y, width, value, index }) => {
+                      const eff = data[index]?.efficiency;
+                      if (!eff) return null;
+                      const color = eff >= 95 ? "#10b981" : eff >= 80 ? "#f59e0b" : "#ef4444";
+                      return (
+                        <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={10} fontWeight={600} fill={color}>
+                          {eff}%
+                        </text>
+                      );
+                    }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </motion.div>
+
+            {/* Right side: quick stats */}
+            <div className="xl:col-span-2 grid grid-cols-2 gap-3">
+              <div className={`${CARD_SURFACE} p-4`}>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Total Pairs</p>
+                <p className="text-2xl font-bold tabular-nums text-teal-600 mt-1">{stats.total_module_pairs?.toLocaleString()}</p>
+              </div>
+              <div className={`${CARD_SURFACE} p-4`}>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Total Assembly</p>
+                <p className="text-2xl font-bold tabular-nums text-cyan-600 mt-1">{stats.total_assembly?.toLocaleString()}</p>
+              </div>
+              <div className={`${CARD_SURFACE} p-4`}>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Total Module</p>
+                <p className="text-2xl font-bold tabular-nums text-slate-700 mt-1">{stats.total_module?.toLocaleString()}</p>
+              </div>
+              <div className={`${CARD_SURFACE} p-4`}>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Avg Efficiency</p>
+                <p className={`text-2xl font-bold tabular-nums mt-1 ${stats.avg_efficiency >= 95 ? "text-emerald-600" : stats.avg_efficiency >= 80 ? "text-amber-600" : "text-red-600"}`}>
+                  {stats.avg_efficiency}%
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /* ─────────────────── NG Timeline Stacked Area ─────────────────── */
+  const renderNgTimeline = () => {
+    if (!ngTimelineData || !ngTimelineData.top_reasons?.length) return null;
+    const { timeline_data, top_reasons } = ngTimelineData;
+    const chartData = timeline_data.map(d => ({
+      ...d,
+      date: format(parseISO(d.date), "MM/dd"),
+    }));
 
     return (
       <motion.div {...cardTransition} className={CHART_CARD}>
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="text-xl font-semibold text-slate-900">Module vs Assembly Comparison</h3>
-            <p className="text-sm text-slate-500 mt-1">Production line synchronization analysis</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="px-5 py-2 bg-slate-100 border border-slate-200 rounded-lg">
-              <span className="text-xs text-slate-500 block">Correlation</span>
-              <span className="text-sm font-semibold text-slate-900">{statistics.correlation.toFixed(3)}</span>
-            </div>
-            <div className="px-5 py-2 bg-slate-100 border border-slate-200 rounded-lg">
-              <span className="text-xs text-slate-500 block">Avg Efficiency</span>
-              <span className="text-sm font-semibold text-slate-900">{statistics.avg_efficiency}%</span>
-            </div>
-          </div>
+        <div className="mb-4">
+          <h3 className="text-sm font-semibold text-slate-800">NG Reason Timeline (30 Days)</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Top 5 reasons over time — stacked area</p>
         </div>
+        <ResponsiveContainer width="100%" height={340}>
+          <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
+            <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+            <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="rect" iconSize={10}
+                    formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
+            {top_reasons.map((reason, idx) => (
+              <Area key={reason} type="monotone" dataKey={reason} name={reason}
+                    stackId="ng" fill={COLORS.pieColors[idx % COLORS.pieColors.length]}
+                    stroke={COLORS.pieColors[idx % COLORS.pieColors.length]}
+                    fillOpacity={0.6} strokeWidth={1.5} />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      </motion.div>
+    );
+  };
 
-        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-          <ResponsiveContainer width="100%" height={CHART_H - 40}>
-            <ComposedChart data={data} margin={{ top: 10, right: 30, left: 20, bottom: 20 }}>
-              <defs>
-                <linearGradient id="moduleGradientComp" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#06b6d4" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#06b6d4" stopOpacity={0.7} />
-                </linearGradient>
-                <linearGradient id="assemblyGradientComp" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#f59e0b" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.7} />
-                </linearGradient>
-                <linearGradient id="efficiencyGradient" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity={0.8} />
-                  <stop offset="50%" stopColor="#10b981" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity={0.8} />
-                </linearGradient>
-              </defs>
+  /* ─────────────────── Hourly Heatmap (7x24) ─────────────────── */
+  const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const renderHeatmap = () => {
+    if (!heatmapData || !heatmapData.heatmap_data?.length) return null;
+    const { heatmap_data, max_count } = heatmapData;
 
-              <CartesianGrid strokeDasharray="0" stroke={GRID_COLOR} vertical={false}/>
-              <XAxis dataKey="date" stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }} />
-              <YAxis yAxisId="left" stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }}
-                     tickFormatter={(v) => v.toLocaleString()}
-                     label={{ value: "Production Units", angle: -90, position: "insideLeft", style: { fill: "#111827", fontWeight: 600, fontSize: 12 } }} />
-              <YAxis yAxisId="right" orientation="right" stroke="#6b7280" tick={{ fontSize: TICK_FS }} axisLine={{ stroke: GRID_COLOR }}
-                     domain={[Math.min(80, minEfficiency - 5), Math.max(100, maxEfficiency + 5)]}
-                     label={{ value: "Efficiency %", angle: 90, position: "insideRight", style: { fill: "#111827", fontWeight: 600, fontSize: 12 } }} />
-              <Tooltip contentStyle={{ backgroundColor: "rgba(255,255,255,0.98)", border: "none", borderRadius: "12px", boxShadow: "0 10px 40px rgba(0,0,0,0.12)" }}
-                       labelStyle={{ color: "#111827", fontWeight: 600, marginBottom: 8 }}
-                       itemStyle={{ color: "#111827", fontSize: 13 }}
-                       formatter={(value, name) => (name === "Efficiency %" ? [`${value}%`, name] : [value?.toLocaleString(), name])} />
-              <Legend wrapperStyle={{ paddingTop: "18px" }} iconType="rect" iconSize={12}
-                      formatter={(v) => <span style={{ color: "#111827", fontWeight: 600, fontSize: LEGEND_FS }}>{v}</span>} />
+    // Build lookup: weekday -> hour -> data
+    const lookup = {};
+    for (const d of heatmap_data) {
+      const key = `${d.weekday}:${d.hour}`;
+      lookup[key] = d;
+    }
 
-              <ReferenceLine x={targetLabel} stroke="#111827" strokeDasharray="6 4"
-                label={{ value: "Target", position: "top", style: { fill: "#111827", fontWeight: 600, fontSize: LABEL_FS } }} />
+    const intensityColor = (intensity) => {
+      if (intensity <= 0) return "bg-slate-50";
+      if (intensity < 0.2) return "bg-teal-50";
+      if (intensity < 0.4) return "bg-teal-100";
+      if (intensity < 0.6) return "bg-teal-200";
+      if (intensity < 0.8) return "bg-teal-300";
+      return "bg-teal-500";
+    };
+    const intensityText = (intensity) => {
+      if (intensity >= 0.6) return "text-white";
+      return "text-slate-600";
+    };
 
-              <ReferenceLine yAxisId="right" y={95} stroke="#ef4444" strokeDasharray="8 4" strokeWidth={1.5}
-                label={{ value: "Target 95%", position: "right", style: { fill: "#ef4444", fontWeight: 600, fontSize: 11 } }} />
-
-              <Bar yAxisId="left" dataKey="module" name="Module" fill="url(#moduleGradientComp)" radius={[6, 6, 0, 0]} barSize={35} />
-              <Bar yAxisId="left" dataKey="assembly" name="Assembly" fill="url(#assemblyGradientComp)" radius={[6, 6, 0, 0]} barSize={35} />
-              <Line yAxisId="right" type="monotone" dataKey="efficiency" name="Efficiency %" stroke="url(#efficiencyGradient)" strokeWidth={3}
-                    dot={{ r: 5, fill: "#10b981", strokeWidth: 2, stroke: "#fff" }}
-                    activeDot={{ r: 7, stroke: "#10b981", strokeWidth: 2, fill: "#fff" }} />
-            </ComposedChart>
-          </ResponsiveContainer>
+    return (
+      <motion.div {...cardTransition} className={CHART_CARD}>
+        <div className="mb-4">
+          <h3 className="text-sm font-semibold text-slate-800">Production Heatmap</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Hour x Weekday — {heatmapData.line_type} (last {heatmapData.days} days)</p>
+        </div>
+        <div className="overflow-x-auto">
+          <div className="min-w-[700px]">
+            {/* Hour header */}
+            <div className="grid gap-[2px]" style={{ gridTemplateColumns: "56px repeat(24, 1fr)" }}>
+              <div />
+              {Array.from({ length: 24 }, (_, h) => (
+                <div key={h} className="text-center text-[10px] font-medium text-slate-400 py-1">
+                  {h.toString().padStart(2, "0")}
+                </div>
+              ))}
+            </div>
+            {/* Rows */}
+            {[1, 2, 3, 4, 5, 6, 0].map(wd => (
+              <div key={wd} className="grid gap-[2px]" style={{ gridTemplateColumns: "56px repeat(24, 1fr)" }}>
+                <div className="flex items-center text-[11px] font-medium text-slate-500 pr-2 justify-end">
+                  {WEEKDAY_LABELS[wd]}
+                </div>
+                {Array.from({ length: 24 }, (_, h) => {
+                  const hr = h.toString().padStart(2, "0");
+                  const cell = lookup[`${wd}:${hr}`] || { count: 0, intensity: 0 };
+                  return (
+                    <div key={h}
+                         className={`aspect-square rounded-sm flex items-center justify-center ${intensityColor(cell.intensity)} ${intensityText(cell.intensity)} transition-colors duration-150 cursor-default group relative`}
+                         title={`${WEEKDAY_LABELS[wd]} ${hr}:00 — ${cell.count} units`}>
+                      <span className="text-[9px] font-medium tabular-nums opacity-70 group-hover:opacity-100">
+                        {cell.count > 0 ? cell.count : ""}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+            {/* Legend */}
+            <div className="flex items-center gap-2 mt-3 justify-end">
+              <span className="text-[10px] text-slate-400">Less</span>
+              {["bg-slate-50", "bg-teal-50", "bg-teal-100", "bg-teal-200", "bg-teal-300", "bg-teal-500"].map((c, i) => (
+                <div key={i} className={`w-3 h-3 rounded-sm ${c}`} />
+              ))}
+              <span className="text-[10px] text-slate-400">More</span>
+              {max_count > 0 && <span className="text-[10px] text-slate-400 ml-1">(max: {max_count})</span>}
+            </div>
+          </div>
         </div>
       </motion.div>
+    );
+  };
+
+  /* ─────────────────── Drill-down: Click bar → hourly detail ─────────────────── */
+  const handleDrillDown = async (dateStr) => {
+    if (drillDownDate === dateStr) {
+      setDrillDownDate(null);
+      setDrillDownData(null);
+      return;
+    }
+    setDrillDownDate(dateStr);
+    try {
+      const res = await axios.get("production-charts/hourly-distribution", {
+        params: { line_type: activeLine, period: "daily", target_date: dateStr, days: 1 }
+      });
+      setDrillDownData(res.data);
+    } catch (e) {
+      console.warn("Drill-down load error:", e);
+      setDrillDownData(null);
+    }
+  };
+
+  const renderDrillDown = () => {
+    if (!drillDownDate || !drillDownData) return null;
+    const { distribution_data } = drillDownData;
+    const activeHours = distribution_data.filter(d => d.total > 0);
+    if (!activeHours.length) return null;
+
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className={CHART_CARD}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-800">
+                Hourly Detail — {drillDownDate}
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">Click the same date bar again to close</p>
+            </div>
+            <button onClick={() => { setDrillDownDate(null); setDrillDownData(null); }}
+                    className="text-xs text-slate-400 hover:text-slate-600 px-2 py-1 rounded-md hover:bg-slate-100 transition-colors">
+              Close
+            </button>
+          </div>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={distribution_data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
+              <XAxis dataKey="hour" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+              <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="total" name="Output" fill={COLORS.info} radius={[4, 4, 0, 0]}>
+                <LabelList dataKey="total" position="top"
+                           formatter={(v) => (v > 0 ? v.toLocaleString() : "")}
+                           style={{ fill: "#334155", fontSize: LABEL_FS, fontWeight: 600 }} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </motion.div>
+      </AnimatePresence>
     );
   };
 
@@ -1331,109 +1379,97 @@ const renderTrendAnalysis = () => {
     <div
       ref={containerRef}
       onDoubleClick={toggleFullscreen}
-      className="min-h-screen bg-slate-50 p-6"
-      style={{ overflowY: "auto" }}
+      className="min-h-screen bg-slate-50/80 p-4 md:p-6"
+      style={{ overflowY: "auto", fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}
     >
-      <motion.header initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
-        <h1 className="text-4xl font-semibold text-slate-900 mb-2 flex items-center justify-center gap-3">
-          <BarChart3 className="w-10 h-10 text-sky-600"/>
-          Production Analytics
-        </h1>
-      </motion.header>
-
-      {/* Controls */}
-      <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }} className={`${CARD_SURFACE} p-6 mb-6`}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-slate-700">Production Line</label>
-            <div className="relative bg-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-              <motion.div
-                className="absolute top-1 bottom-1 w-1/2 rounded-lg bg-slate-900"
-                initial={false}
-                animate={{ x: activeLine === "module" ? "0%" : "100%" }}
-                transition={{ type: "spring", stiffness: 260, damping: 26 }}
-              />
-              <div className="grid grid-cols-2 relative z-10">
-                {[
-                  { key: "module", label: "Module", icon: Factory },
-                  { key: "assembly", label: "Assembly", icon: Package },
-                ].map((item) => {
-                  const active = activeLine === item.key;
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.key}
-                      onClick={() => setActiveLine(item.key)}
-                      className={`flex items-center gap-3 px-4 py-3 transition-colors ${active ? "text-white" : "text-slate-700 hover:text-slate-900"}`}
-                    >
-                      <span className={`p-2 rounded-lg ${active ? "bg-white/10" : "bg-white text-slate-700 border border-slate-200"}`}>
-                        <Icon size={16} />
-                      </span>
-                      <span className="text-left text-sm font-semibold tracking-wide">{item.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+      {/* Controls Bar */}
+      <div className={`${CARD_SURFACE} p-4 mb-5`}>
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
+          {/* Line Selector */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+            {[
+              { key: "module", label: "Module", icon: Factory },
+              { key: "assembly", label: "Assembly", icon: Package },
+            ].map((item) => {
+              const active = activeLine === item.key;
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveLine(item.key)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${active ? "bg-white text-slate-900 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  <Icon size={14} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-slate-700">Time Period</label>
-            <div className="flex gap-2">
-              {["daily", "weekly", "monthly"].map((p) => (
-                <motion.button key={p} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                  className={`px-4 py-2 rounded-md transition-all border ${period === p ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200"}`}
-                  onClick={() => setPeriod(p)}>
-                  {p === "daily" ? "Daily" : p === "weekly" ? "Weekly" : "Monthly"}
-                </motion.button>
-              ))}
-            </div>
+          {/* Period Selector */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+            {["daily", "weekly", "monthly"].map((p) => (
+              <button key={p}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${period === p ? "bg-white text-slate-900 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                onClick={() => setPeriod(p)}>
+                {p === "daily" ? "Daily" : p === "weekly" ? "Weekly" : "Monthly"}
+              </button>
+            ))}
           </div>
 
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-slate-700 flex items-center gap-1"><Calendar size={16}/> Target Date</label>
-            <motion.input whileFocus={{ scale: 1.02 }} type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)}
-              className="px-4 py-2 bg-white border border-slate-300 rounded-md text-gray-900 focus:outline-none focus:ring-2 focus:ring-slate-800 focus:border-transparent transition-all shadow-sm"
+          {/* Date Picker */}
+          <div className="flex items-center gap-2 ml-auto">
+            <Calendar size={14} className="text-slate-400" />
+            <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-colors"
               max={todayInTZ("America/Los_Angeles")}
             />
           </div>
+
+          {/* Status */}
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            {loading ? (
+              <>
+                <div className="w-3 h-3 border-2 border-slate-200 border-t-teal-600 rounded-full animate-spin" />
+                <span>Loading...</span>
+              </>
+            ) : (
+              <>
+                <Activity size={12} />
+                <span>Live</span>
+              </>
+            )}
+          </div>
         </div>
+      </div>
 
-        <div className="flex items-center gap-3 text-sm text-slate-600 mt-4">
-          {loading ? (
-            <div className="flex items-center gap-2">
-              <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }} className="w-4 h-4 border-2 border-gray-300 border-t-slate-900 rounded-full" />
-              <span>Loading latest data…</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <Activity size={14} className="text-slate-800" />
-              <span>Auto-refresh on filter change</span>
-            </div>
-          )}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 flex items-center gap-3">
+          <AlertCircle className="text-red-500" size={18} />
+          <p className="text-sm text-red-700 font-medium">{error}</p>
         </div>
-      </motion.div>
+      )}
 
-      <AnimatePresence>
-        {error && (
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center gap-3">
-            <AlertCircle className="text-red-600" size={24} />
-            <p className="text-red-700">{error}</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* 內容 */}
-      <AnimatePresence mode="wait">
-        {!loading && !error && (
-          <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-8">
-            {activeLine === "module" ? renderModuleCharts() : renderAssemblyCharts()}
+      {/* Content */}
+      {!loading && !error && (
+        <div className="space-y-5">
+          {activeLine === "module" ? renderModuleCharts() : renderAssemblyCharts()}
+          {/* Drill-down detail (appears when user clicks a date bar) */}
+          {renderDrillDown()}
+          {/* ─── Bento Row 3: Trend + Hourly side by side ─── */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             {renderTrendAnalysis()}
             {renderHourlyDistribution()}
-            {renderComparisonAnalysis()}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+          {/* ─── Bento Row 4: Heatmap + NG Timeline ─── */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            {renderHeatmap()}
+            {renderNgTimeline()}
+          </div>
+          {/* ─── Bento Row 5: Comparison full width ─── */}
+          {renderComparisonAnalysis()}
+        </div>
+      )}
     </div>
   );
 }

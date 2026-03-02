@@ -8,7 +8,7 @@
 // • 已加入 PCBA Tracking 導覽
 // ---------------------------------------------------------------------------
 
-import React, { useContext } from "react";
+import React, { useContext, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AuthCtx } from "../auth/AuthContext";
 import {
@@ -25,6 +25,7 @@ import {
   Activity,//  ← 新增圖標：PCBA Tracking
   AlertTriangle,//  ← 新增圖標：NG Dashboard
   Mail,//  ← 新增圖標：Email Settings
+  Monitor,//  ← 新增圖標：System Monitor
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -33,17 +34,15 @@ export default function Sidebar() {
   const { role, logout, name } = useContext(AuthCtx);
   const { pathname } = useLocation();
 
-  const isActive = (path) => pathname.startsWith(path);
-
-  const navItemClass = (path) => `
+  const navItemClass = useCallback((path) => `
     group relative flex items-center gap-3 px-4 py-3 rounded-xl
     font-medium text-base transition-all duration-500 overflow-hidden
     ${
-      isActive(path)
+      pathname.startsWith(path)
         ? "bg-gradient-to-r from-blue-500/30 to-cyan-500/20 text-cyan-300 border border-blue-400/30 shadow-xl shadow-blue-500/20 backdrop-blur-sm"
         : "text-gray-300 hover:text-cyan-300 hover:bg-gradient-to-r hover:from-blue-500/10 hover:to-cyan-500/5 hover:border-blue-400/20 hover:shadow-lg hover:shadow-blue-500/10 hover:backdrop-blur-sm border border-transparent"
     }
-  `;
+  `, [pathname]);
 
   return (
     <nav className="w-72 h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-gray-950 text-white flex flex-col shadow-2xl shadow-black/50 relative overflow-hidden">
@@ -96,7 +95,6 @@ export default function Sidebar() {
               <SidebarLink to="/module_production"   icon={BatteryMedium} text="Module Production" navItemClass={navItemClass} />
               <SidebarLink to="/assembly_production" icon={Package}       text="Assembly Production" navItemClass={navItemClass} />
               <SidebarLink to="/downtime" icon={ClipboardList} text="Downtime" navItemClass={navItemClass} />
-              <SidebarLink to="/equipment"          icon={Activity}    text="Performance "   navItemClass={navItemClass} />
             </div>
           </section>
 
@@ -111,6 +109,7 @@ export default function Sidebar() {
                 <>
                   <SidebarLink to="/user-perm" icon={Users} text="User Management" navItemClass={navItemClass} />
                   <SidebarLink to="/email-settings" icon={Mail} text="Email Settings" navItemClass={navItemClass} />
+                  <SidebarLink to="/system-monitor" icon={Monitor} text="System Monitor" navItemClass={navItemClass} />
                 </>
               )}
             </div>
@@ -193,7 +192,7 @@ export default function Sidebar() {
 /* ------------------------------------------------------------------ */
 /*  小型封裝：可重用的 Link                                            */
 /* ------------------------------------------------------------------ */
-function SidebarLink({ to, icon: Icon, text, navItemClass, badge }) {
+function SidebarLink({ to, icon: Icon, text, navItemClass }) {
   return (
     <Link to={to} className={navItemClass(to)}>
       {/* Hover 閃光 / 火花 */}
@@ -204,12 +203,6 @@ function SidebarLink({ to, icon: Icon, text, navItemClass, badge }) {
 
       <Icon size={20} className="relative z-10" />
       <span className="relative z-10">{text}</span>
-
-      {badge && (
-        <span className="ml-auto text-xs bg-gradient-to-r from-cyan-500 to-blue-500 text-white px-3 py-1 rounded-full font-medium shadow-lg shadow-cyan-500/30 animate-pulse-soft relative z-10">
-          {badge}
-        </span>
-      )}
     </Link>
   );
 }

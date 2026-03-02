@@ -1,5 +1,5 @@
 // src/features/search/Search.js
-import React, { useState, useRef, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect, useMemo, useContext } from "react";
 import {
   Search as SearchIcon,
   Filter,
@@ -15,12 +15,153 @@ import {
   Copy,
   ChevronLeft,
   ChevronRight,
+  Edit3,
+  Trash2,
+  Save,
+  RefreshCw,
 } from "lucide-react";
 import api from "../../services/api";
+import { AuthCtx } from "../../auth/AuthContext";
 import ErrorModal from "../../components/ErrorModal";
 import "./Search.css";
 
+// Admin Edit Modal Component
+const AdminEditModal = ({ record, onClose, onSave, onDelete, saving }) => {
+  // Convert "YYYY-MM-DD HH:MM:SS" to "YYYY-MM-DDTHH:MM:SS" for datetime-local input
+  const toInputFormat = (ts) => (ts || '').replace(' ', 'T').slice(0, 19);
+  // Convert back for API
+  const toApiFormat = (ts) => (ts || '').replace('T', ' ').slice(0, 19);
+
+  const [editData, setEditData] = useState({
+    timestamp: toInputFormat(record?.ts || ''),
+    china_sn: record?.china_sn || '',
+    us_sn: record?.us_sn || '',
+    module_a: record?.module_a || '',
+    module_b: record?.module_b || '',
+    pcba_au8: record?.pcba_au8 || '',
+    pcba_am7: record?.pcba_am7 || '',
+    status: record?.status || '',
+    ng_reason: record?.ng_reason || '',
+  });
+
+  const handleChange = (field, value) => {
+    setEditData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const fieldLabels = {
+    timestamp: 'Timestamp',
+    china_sn: 'China SN',
+    us_sn: 'US SN',
+    module_a: 'Module A',
+    module_b: 'Module B',
+    pcba_au8: 'PCBA AU8',
+    pcba_am7: 'PCBA AM7',
+    status: 'Status',
+    ng_reason: 'NG Reason',
+  };
+
+  return (
+    <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-teal-100 text-teal-700">
+              <Settings2 className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-stone-800">Admin Edit Record</h3>
+              <p className="text-xs text-stone-500">ID: {record?.id} | US SN: {record?.us_sn}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-stone-200 rounded-lg transition-colors">
+            <X className="w-5 h-5 text-stone-500" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 overflow-y-auto max-h-[60vh]">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Object.entries(fieldLabels).map(([field, label]) => (
+              <div key={field} className={field === 'ng_reason' ? 'md:col-span-2' : ''}>
+                <label className="block text-sm font-medium text-stone-600 mb-1">{label}</label>
+                {field === 'status' ? (
+                  <select
+                    value={editData[field]}
+                    onChange={(e) => handleChange(field, e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-stone-300 rounded-lg
+                             focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  >
+                    <option value="">OK</option>
+                    <option value="NG">NG</option>
+                    <option value="FIXED">FIXED</option>
+                  </select>
+                ) : field === 'timestamp' ? (
+                  <input
+                    type="datetime-local"
+                    step="1"
+                    value={editData[field]}
+                    onChange={(e) => handleChange(field, e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-stone-300 rounded-lg
+                             focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    value={editData[field]}
+                    onChange={(e) => handleChange(field, e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-stone-300 rounded-lg
+                             focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-stone-200 bg-stone-50 flex items-center justify-between">
+          <button
+            onClick={() => onDelete(record)}
+            className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg
+                     transition-colors flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2.5 bg-white hover:bg-stone-100 text-stone-600 font-medium rounded-lg
+                       transition-colors border border-stone-300"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => onSave(record.id, { ...editData, timestamp: toApiFormat(editData.timestamp) })}
+              disabled={saving}
+              className="px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg
+                       transition-colors flex items-center gap-2 disabled:opacity-50"
+            >
+              {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function Search() {
+  // Admin role check
+  const { role } = useContext(AuthCtx);
+  const isAdmin = role === 'admin';
+
+  // Admin edit state
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [adminSaving, setAdminSaving] = useState(false);
+
   // Get California time (not UTC)
   const getCaliforniaDate = () => {
     const now = new Date();
@@ -59,7 +200,7 @@ export default function Search() {
   const [sortDirection, setSortDirection] = useState("asc");
 
   // Column Visibility
-  const [hiddenColumns, setHiddenColumns] = useState([]);
+  const [hiddenColumns, setHiddenColumns] = useState(['id']);
 
   const resultRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -188,9 +329,11 @@ export default function Search() {
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    link.href = url;
     link.download = `search_results_${getCaliforniaDate()}.csv`;
     link.click();
+    URL.revokeObjectURL(url);
   };
 
   // Sorting
@@ -238,6 +381,68 @@ export default function Search() {
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !loading) {
       handleSearch();
+    }
+  };
+
+  // Admin Save Handler
+  const handleAdminSave = async (recordId, editData) => {
+    setAdminSaving(true);
+    try {
+      const { data } = await api.put(
+        `assembly_inventory/admin_full_edit/${recordId}`,
+        editData
+      );
+      if (data?.status === 'success') {
+        // Update the row in local state
+        setAllRows(prev => prev.map(row => {
+          if (row.id === recordId) {
+            return {
+              ...row,
+              ts: editData.timestamp,
+              china_sn: editData.china_sn,
+              us_sn: editData.us_sn,
+              module_a: editData.module_a,
+              module_b: editData.module_b,
+              pcba_au8: editData.pcba_au8,
+              pcba_am7: editData.pcba_am7,
+              status: editData.status,
+              ng_reason: editData.ng_reason,
+            };
+          }
+          return row;
+        }));
+        setEditingRecord(null);
+      } else {
+        setError(data?.message || 'Update failed');
+      }
+    } catch (e) {
+      setError(e.response?.data?.message || e.message || 'Update failed');
+    } finally {
+      setAdminSaving(false);
+    }
+  };
+
+  // Admin Delete Handler
+  const handleAdminDelete = async (record) => {
+    if (!record?.id) return;
+    if (!window.confirm(`Delete record ID ${record.id} (US SN: ${record.us_sn})?\nThis action cannot be undone.`)) {
+      return;
+    }
+    setAdminSaving(true);
+    try {
+      const { data } = await api.delete(`assembly_inventory/delete/${record.id}`);
+      if (data?.status === 'success') {
+        // Remove from local state
+        setAllRows(prev => prev.filter(row => row.id !== record.id));
+        setTotalCount(prev => prev - 1);
+        setEditingRecord(null);
+      } else {
+        setError(data?.message || 'Delete failed');
+      }
+    } catch (e) {
+      setError(e.response?.data?.message || e.message || 'Delete failed');
+    } finally {
+      setAdminSaving(false);
     }
   };
 
@@ -340,7 +545,7 @@ export default function Search() {
                     placeholder="Enter or scan serial number..."
                     value={sn}
                     onChange={(e) => setSn(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onKeyDown={handleKeyPress}
                   />
                 </div>
               </div>
@@ -561,15 +766,35 @@ export default function Search() {
                           </td>
                         ))}
                         <td className="actions-cell">
-                          <button
-                            className="action-btn"
-                            title="Copy to clipboard"
-                            onClick={() => {
-                              navigator.clipboard.writeText(JSON.stringify(row, null, 2));
-                            }}
-                          >
-                            <Copy className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              className="action-btn"
+                              title="Copy to clipboard"
+                              onClick={() => {
+                                navigator.clipboard.writeText(JSON.stringify(row, null, 2));
+                              }}
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            {isAdmin && line === 'assembly' && row.id && (
+                              <>
+                                <button
+                                  className="action-btn text-teal-600 hover:text-teal-800"
+                                  title="Edit record"
+                                  onClick={() => setEditingRecord(row)}
+                                >
+                                  <Edit3 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  className="action-btn text-red-600 hover:text-red-800"
+                                  title="Delete record"
+                                  onClick={() => handleAdminDelete(row)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -650,6 +875,17 @@ export default function Search() {
           )}
         </div>
       </div>
+
+      {/* Admin Edit Modal */}
+      {editingRecord && (
+        <AdminEditModal
+          record={editingRecord}
+          onClose={() => setEditingRecord(null)}
+          onSave={handleAdminSave}
+          onDelete={handleAdminDelete}
+          saving={adminSaving}
+        />
+      )}
 
       {/* Error Modal */}
       <ErrorModal message={error} onClose={() => setError("")} />

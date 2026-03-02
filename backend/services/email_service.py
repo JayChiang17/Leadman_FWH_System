@@ -4,6 +4,7 @@ Email Service - Microsoft Graph API
 """
 import requests
 import os
+import logging
 from typing import List
 from datetime import datetime
 import msal
@@ -12,6 +13,7 @@ from core.time_utils import ca_now, ca_now_str
 
 # Load environment variables
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 
 class GraphAPIEmailService:
@@ -29,7 +31,7 @@ class GraphAPIEmailService:
         # 驗證必需配置
         if not all([self.tenant_id, self.client_id, self.client_secret]):
             raise ValueError(
-                "❌ 未配置 Azure AD 憑證，請檢查 .env 文件：\n"
+                "未配置 Azure AD 憑證，請檢查 .env 文件：\n"
                 "   需要：AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET"
             )
 
@@ -45,7 +47,7 @@ class GraphAPIEmailService:
             client_credential=self.client_secret,
         )
 
-        print("Graph API Email Service initialized")
+        logger.info("Graph API Email Service initialized")
 
     def _get_access_token(self) -> str:
         """
@@ -101,7 +103,7 @@ class GraphAPIEmailService:
             ]
 
             if not to_recipients:
-                print("No valid recipients")
+                logger.warning("No valid recipients")
                 return False
 
             # Build email content
@@ -117,9 +119,7 @@ class GraphAPIEmailService:
                 "saveToSentItems": "true"
             }
 
-            print(f"Sending email...")
-            print(f"   Subject: {subject}")
-            print(f"   Recipients: {', '.join(recipients)}")
+            logger.info("Sending email: subject=%s recipients=%d", subject, len(recipients))
 
             # 調用 Graph API 發送郵件
             # 端點：POST /users/{user-id}/sendMail
@@ -139,24 +139,26 @@ class GraphAPIEmailService:
 
             # Graph API sendMail returns 202 Accepted on success
             if response.status_code == 202:
-                print(f"Email sent successfully!")
+                logger.info("Email sent successfully")
                 return True
             else:
-                print(f"Email send failed!")
-                print(f"   Status code: {response.status_code}")
-                print(f"   Response: {response.text}")
+                logger.error(
+                    "Email send failed: status=%s response=%s",
+                    response.status_code,
+                    response.text,
+                )
                 return False
 
         except requests.exceptions.Timeout:
-            print(f"Email send timeout (30 seconds)")
+            logger.error("Email send timeout (30 seconds)")
             return False
 
         except requests.exceptions.RequestException as e:
-            print(f"Network error: {e}")
+            logger.error("Network error while sending email: %s", e)
             return False
 
         except Exception as e:
-            print(f"Error sending email: {e}")
+            logger.error("Error sending email: %s", e)
             return False
 
     def send_daily_report(
@@ -206,7 +208,7 @@ class GraphAPIEmailService:
         # 生成郵件主題
         risk_level = risk_data.get('risk_level', 'CRITICAL')
         line_name = risk_data.get('line_name', '')
-        subject = f"⚠️ 生產風險警報 - {risk_level} - {line_name}"
+        subject = f"Warning 生產風險警報 - {risk_level} - {line_name}"
 
         # 生成 HTML 內容
         html_content = self._generate_risk_alert_html(risk_data)
@@ -279,6 +281,17 @@ class GraphAPIEmailService:
         assembly_total_hourly = data.get('assembly_total_hourly', [])
         downtime_cell_hourly = data.get('downtime_cell_hourly', [])
         downtime_assembly_hourly = data.get('downtime_assembly_hourly', [])
+
+        # Weekly cumulative data
+        weekly_module_count = data.get('weekly_module_count', 0)
+        weekly_module_plan = data.get('weekly_module_plan', 0)
+        weekly_module_efficiency = data.get('weekly_module_efficiency', 0)
+        weekly_assembly_count = data.get('weekly_assembly_count', 0)
+        weekly_assembly_plan = data.get('weekly_assembly_plan', 0)
+        weekly_assembly_efficiency = data.get('weekly_assembly_efficiency', 0)
+        weekly_total_ng = data.get('weekly_total_ng', 0)
+        week_start = data.get('week_start', '')
+        day_range = data.get('day_range', 'N/A')
 
         # Generate hourly production chart with A/B lines (side-by-side bars) - COMPACT PREMIUM DESIGN
         def generate_dual_line_chart(data_a, data_b, color_a, color_b, label):
@@ -700,6 +713,53 @@ class GraphAPIEmailService:
                                 </td>
                             </tr>
 
+                            <!-- Weekly Cumulative Summary Section -->
+                            <tr>
+                                <td style="padding: 8px 30px 16px 30px;">
+                                    <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; border-radius: 8px; padding: 16px 20px;">
+                                        <table cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td colspan="3" style="padding-bottom: 12px; border-bottom: 1px solid #fbbf24;">
+                                                    <div style="font-size: 13px; font-weight: 800; color: #92400e; text-transform: uppercase; letter-spacing: 1px;">
+                                                        Weekly Cumulative ({day_range})
+                                                    </div>
+                                                    <div style="font-size: 10px; color: #b45309; margin-top: 2px;">Week starting {week_start}</div>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <!-- Weekly Module -->
+                                                <td width="32%" style="padding-top: 12px; vertical-align: top;">
+                                                    <div style="font-size: 10px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px;">Module (Week)</div>
+                                                    <div style="font-size: 28px; font-weight: 800; color: #78350f; line-height: 1;">
+                                                        {weekly_module_count}<span style="font-size: 14px; font-weight: 600; color: #92400e;"> / {weekly_module_plan}</span>
+                                                    </div>
+                                                    <div style="font-size: 11px; font-weight: 600; color: {'#059669' if weekly_module_efficiency >= 90 else '#f59e0b' if weekly_module_efficiency >= 70 else '#dc2626'}; margin-top: 2px;">
+                                                        {weekly_module_efficiency}% Eff.
+                                                    </div>
+                                                </td>
+                                                <!-- Weekly Assembly -->
+                                                <td width="32%" style="padding-top: 12px; vertical-align: top;">
+                                                    <div style="font-size: 10px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px;">Assembly (Week)</div>
+                                                    <div style="font-size: 28px; font-weight: 800; color: #78350f; line-height: 1;">
+                                                        {weekly_assembly_count}<span style="font-size: 14px; font-weight: 600; color: #92400e;"> / {weekly_assembly_plan}</span>
+                                                    </div>
+                                                    <div style="font-size: 11px; font-weight: 600; color: {'#059669' if weekly_assembly_efficiency >= 90 else '#f59e0b' if weekly_assembly_efficiency >= 70 else '#dc2626'}; margin-top: 2px;">
+                                                        {weekly_assembly_efficiency}% Eff.
+                                                    </div>
+                                                </td>
+                                                <!-- Weekly NG -->
+                                                <td width="32%" style="padding-top: 12px; text-align: center; vertical-align: top;">
+                                                    <div style="font-size: 10px; font-weight: 700; color: #92400e; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px;">Total NG (Week)</div>
+                                                    <div style="font-size: 32px; font-weight: 800; color: #dc2626; line-height: 1;">
+                                                        {weekly_total_ng}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </td>
+                            </tr>
+
                             <!-- Compatibility Note -->
                             <tr>
                                 <td style="padding: 0 30px 10px 30px;">
@@ -909,7 +969,7 @@ class GraphAPIEmailService:
         </head>
         <body>
             <div class="alert-header">
-                <h1>⚠️ 生產風險警報</h1>
+                <h1>Warning 生產風險警報</h1>
                 <div class="risk-badge">{risk_level}</div>
             </div>
 
@@ -1104,7 +1164,7 @@ class GraphAPIEmailService:
             <div class="footer">
                 <p>此郵件由 Leadman 生產管理系統自動生成</p>
                 <p>警報時間：{alert_time}</p>
-                <p>⚠️ 請立即處理此停機事件</p>
+                <p>Warning 請立即處理此停機事件</p>
             </div>
         </body>
         </html>
@@ -1152,11 +1212,11 @@ def test_email_service():
 
     if success:
         print("\n" + "=" * 60)
-        print("✅ 測試成功！請檢查你的郵箱")
+        print("測試成功！請檢查你的郵箱")
         print("=" * 60)
     else:
         print("\n" + "=" * 60)
-        print("❌ 測試失敗！請檢查配置和權限")
+        print("測試失敗！請檢查配置和權限")
         print("=" * 60)
 
 

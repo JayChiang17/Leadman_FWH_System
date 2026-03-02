@@ -1,6 +1,7 @@
 # models/pcba_models.py
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
@@ -8,7 +9,7 @@ from pydantic import BaseModel, Field
 # ========== Pydantic Models ==========
 class BoardHistoryModel(BaseModel):
     stage: str
-    timestamp: str
+    timestamp: Optional[datetime] = None
     operator: str
     notes: Optional[str] = None
 
@@ -19,13 +20,13 @@ class BoardResponse(BaseModel):
     batchNumber: str
     model: str
     stage: str
-    startTime: str
-    lastUpdate: str
+    startTime: Optional[datetime] = None
+    lastUpdate: Optional[datetime] = None
     operator: str
     slipNumber: Optional[str] = None
     ngFlag: int = 0
     ngReason: Optional[str] = None
-    ngTime: Optional[str] = None
+    ngTime: Optional[datetime] = None
     history: List[Dict[str, Any]]
 
 

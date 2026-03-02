@@ -72,6 +72,8 @@ api.interceptors.response.use(
 
       const rt = localStorage.getItem("refreshToken");
       if (!rt) {
+        isRefreshing = false;
+        processQueue(error, null);
         localStorage.removeItem("token");
         localStorage.removeItem("refreshToken");
         setAuthHeader(null);
@@ -95,11 +97,29 @@ api.interceptors.response.use(
         original.headers.Authorization = `Bearer ${access_token}`;
         return api(original);
       } catch (e) {
+        const refreshStatus = e?.response?.status;
+        const isAuthError = refreshStatus === 401 || refreshStatus === 403;
+        const latestRefreshToken = localStorage.getItem("refreshToken");
+        const latestAccessToken = localStorage.getItem("token");
+        const hasNewTokens = latestRefreshToken &&
+          latestRefreshToken !== rt &&
+          latestAccessToken;
+        if (isAuthError && hasNewTokens) {
+          setAuthHeader(latestAccessToken);
+          processQueue(null, latestAccessToken);
+          original.headers = original.headers || {};
+          original.headers.Authorization = `Bearer ${latestAccessToken}`;
+          return api(original);
+        }
         processQueue(e, null);
-        localStorage.removeItem("token");
-        localStorage.removeItem("refreshToken");
-        setAuthHeader(null);
-        if (window.location.pathname !== "/login") window.location.href = "/login";
+        if (isAuthError) {
+          localStorage.removeItem("token");
+          localStorage.removeItem("refreshToken");
+          setAuthHeader(null);
+          if (window.location.pathname !== "/login") window.location.href = "/login";
+        } else {
+          console.warn("Auth refresh failed; keeping session:", e?.message || e);
+        }
         throw e;
       } finally {
         isRefreshing = false;

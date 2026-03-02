@@ -30,28 +30,28 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
 
   const palette = {
     aging:     {
-      active: "bg-gradient-to-br from-amber-600 to-orange-600 border-amber-600 shadow-lg shadow-amber-500/30",
-      hover: "hover:bg-amber-50 hover:border-amber-400 hover:shadow-md",
+      active: "bg-amber-600 border-amber-600 shadow-md",
+      hover: "hover:bg-amber-50 hover:border-amber-400",
       ring: "ring-amber-500",
       dot: "bg-amber-300"
     },
     coating:   {
-      active: "bg-gradient-to-br from-cyan-600 to-teal-600 border-cyan-600 shadow-lg shadow-cyan-500/30",
-      hover: "hover:bg-cyan-50 hover:border-cyan-400 hover:shadow-md",
-      ring: "ring-cyan-500",
-      dot: "bg-cyan-300"
+      active: "bg-teal-600 border-teal-600 shadow-md",
+      hover: "hover:bg-teal-50 hover:border-teal-400",
+      ring: "ring-teal-500",
+      dot: "bg-teal-300"
     },
     completed: {
-      active: "bg-gradient-to-br from-emerald-600 to-green-600 border-emerald-600 shadow-lg shadow-emerald-500/30",
-      hover: "hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-md",
+      active: "bg-emerald-600 border-emerald-600 shadow-md",
+      hover: "hover:bg-emerald-50 hover:border-emerald-400",
       ring: "ring-emerald-500",
       dot: "bg-emerald-300"
     },
   };
   const submitColors = {
-    aging: "bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-95",
-    coating: "bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-95",
-    completed: "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-95",
+    aging: "bg-amber-600 hover:bg-amber-700 text-white shadow-lg active:scale-95",
+    coating: "bg-teal-600 hover:bg-teal-700 text-white shadow-lg active:scale-95",
+    completed: "bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg active:scale-95",
   };
 
   const submit = async () => {
@@ -63,22 +63,22 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
   };
 
   return (
-    <div className="rounded-2xl p-4 md:p-6 bg-gradient-to-br from-white to-gray-50/50 border border-gray-200 shadow-md hover:shadow-lg transition-shadow duration-300">
+    <div className="rounded-xl p-4 md:p-5 bg-white border border-gray-200">
       <div className="space-y-4">
         {/* 標題區 */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-600 to-indigo-700 shadow-lg shadow-indigo-500/30">
+            <div className="p-2.5 rounded-xl bg-teal-600">
               <QrCode size={22} className="text-white" />
             </div>
             <div>
-              <h2 className="text-base md:text-lg font-bold text-slate-900">Scan Production Board</h2>
-              <p className="text-[11px] md:text-xs text-slate-500">Aging → Coating → Inventory</p>
+              <h2 className="text-base md:text-lg font-bold text-gray-900">Scan Production Board</h2>
+              <p className="text-[11px] md:text-xs text-gray-500">Aging → Coating → Inventory</p>
             </div>
           </div>
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 border border-indigo-200">
-            <Zap size={12} className="text-indigo-600" />
-            <span className="text-[10px] font-semibold text-indigo-700">1/2/3 Shortcuts</span>
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200">
+            <Zap size={12} className="text-teal-600" />
+            <span className="text-[10px] font-semibold text-teal-700">1/2/3 Shortcuts</span>
           </div>
         </div>
 
@@ -96,11 +96,11 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
                   className={`relative w-full min-h-[90px] p-3 rounded-xl border-2 transition-all duration-200
                               flex flex-col items-center justify-center gap-2 ${
                                 active
-                                  ? `${palette[s.key].active} text-white ring-2 ${palette[s.key].ring} transform scale-105`
-                                  : `bg-white text-slate-700 border-gray-200 ${palette[s.key].hover}`
+                                  ? `${palette[s.key].active} text-white ring-2 ${palette[s.key].ring}`
+                                  : `bg-white text-gray-700 border-gray-200 ${palette[s.key].hover}`
                               } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                 >
-                  <Icon className={`w-7 h-7 ${active ? "text-white" : "text-slate-600"}`} />
+                  <Icon className={`w-7 h-7 ${active ? "text-white" : "text-gray-600"}`} />
                   <span className="text-sm font-bold">{s.label}</span>
 
                   {/* 快捷鍵提示 */}
@@ -129,21 +129,21 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
               placeholder="Scan or type serial number..."
               disabled={disabled}
               autoFocus
-              className={`w-full px-4 py-4 rounded-xl border-2 transition-all duration-200
+              className={`w-full px-4 py-4 rounded-xl border-2 transition-colors duration-200
                          text-base md:text-lg font-mono text-black placeholder-gray-400
                          focus:outline-none disabled:opacity-60 disabled:bg-gray-50 ${
                            modelPreview
-                             ? "border-emerald-400 bg-emerald-50/30 focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-md"
+                             ? "border-emerald-400 bg-emerald-50/30 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                              : scanInput
-                               ? "border-rose-400 bg-rose-50/30 focus:ring-4 focus:ring-rose-500/20 focus:border-rose-500 shadow-md"
-                               : "border-gray-300 bg-white focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500"
+                               ? "border-red-400 bg-red-50/30 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                               : "border-gray-300 bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                          }`}
             />
             {isScanning && (
               <div className="absolute inset-0 rounded-xl bg-white/80 backdrop-blur-sm flex items-center justify-center">
                 <div className="flex flex-col items-center gap-2">
-                  <div className="animate-spin rounded-full h-8 w-8 border-3 border-indigo-600 border-b-transparent"></div>
-                  <span className="text-xs font-medium text-indigo-600">Processing...</span>
+                  <div className="animate-spin rounded-lg h-8 w-8 border-3 border-teal-600 border-b-transparent"></div>
+                  <span className="text-xs font-medium text-teal-600">Processing...</span>
                 </div>
               </div>
             )}
@@ -152,14 +152,14 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
           {scanInput && (
             <div className="flex items-center justify-center">
               {modelPreview ? (
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-100 border border-emerald-300 shadow-sm">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-100 border border-emerald-300">
                   <CheckCircle size={18} className="text-emerald-600" />
-                  <span className="text-sm font-semibold text-emerald-800">✓ Detected: {modelPreview} Model</span>
+                  <span className="text-sm font-semibold text-emerald-800">Detected: {modelPreview} Model</span>
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-rose-100 border border-rose-300 shadow-sm">
-                  <AlertCircle size={18} className="text-rose-600" />
-                  <span className="text-sm font-semibold text-rose-800">✗ Invalid - Only AM7/AU8 Accepted</span>
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-100 border border-red-300">
+                  <AlertCircle size={18} className="text-red-600" />
+                  <span className="text-sm font-semibold text-red-800">Invalid - Only AM7/AU8 Accepted</span>
                 </div>
               )}
             </div>
@@ -170,7 +170,7 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
         <button
           onClick={submit}
           disabled={disabled || !scanInput.trim() || !modelPreview}
-          className={`w-full py-4 rounded-xl font-bold text-base transition-all duration-200
+          className={`w-full py-4 rounded-lg font-bold text-base transition-colors duration-150
                       flex items-center justify-center gap-2 ${
             scanInput.trim() && modelPreview && !disabled
               ? submitColors[selected]
@@ -178,7 +178,7 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
           }`}
         >
           {disabled ? (
-            "👁️ Viewer cannot operate"
+            "Viewer cannot operate"
           ) : modelPreview ? (
             <>
               <QrCode size={20} />

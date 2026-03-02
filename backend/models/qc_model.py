@@ -44,7 +44,7 @@ class QCIssueCreate(BaseModel):
     description: str
     category: str
     severity: str
-    image_base64: Optional[str] = None
+    image_path: Optional[str] = None
 
 
 class QCIssue(BaseModel):
@@ -54,7 +54,7 @@ class QCIssue(BaseModel):
     description: str
     category: str
     severity: str
-    image_base64: Optional[str] = None
+    image_path: Optional[str] = None
     created_by: Optional[str] = None
     created_at: str
     updated_at: Optional[str] = None

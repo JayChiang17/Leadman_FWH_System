@@ -1,77 +1,87 @@
-# core/deps_ws.py - 修復後的 WebSocket 認證
 """
-WebSocket 認證依賴 - 修復版本
-解決認證時序和錯誤處理問題
+core/deps_ws.py — WebSocket authentication dependency.
 """
 from __future__ import annotations
-from typing import Dict, Any, Optional
+
+from contextlib import contextmanager
+from typing import Any
 from urllib.parse import parse_qs
+
 from fastapi import WebSocket
 from jose import JWTError
 import logging
 from datetime import datetime, timezone
-from contextlib import contextmanager
 
 from core.security import decode_token, verify_token_type
-from core.db import db_manager, get_user_by_username, row_to_dict
+from core.db import get_user_by_username, row_to_dict, get_db
 
 logger = logging.getLogger("ws_auth")
 
+_VALID_ROLES = {"admin", "operator", "qc", "viewer", "dashboard"}
+
+
 class WSAuthError(Exception):
-    """WebSocket 認證錯誤"""
     def __init__(self, message: str, code: int = 4003):
         self.message = message
         self.code = code
         super().__init__(self.message)
 
+
 @contextmanager
-def _open_user_db():
-    with db_manager.get_connection() as conn:
-        yield conn
+def _db_session():
+    """Safely enter/exit the get_db() generator."""
+    gen = get_db()
+    db = next(gen)
+    try:
+        yield db
+    finally:
+        try:
+            next(gen)
+        except StopIteration:
+            pass
 
 
-def _fetch_user(username: str) -> Optional[Dict[str, Any]]:
+def _fetch_user(username: str) -> dict[str, Any] | None:
     if not username:
         return None
-    with _open_user_db() as db:
+    with _db_session() as db:
         row = get_user_by_username(db, username)
         return row_to_dict(row) if row else None
 
 
-async def authenticate_websocket(websocket: WebSocket) -> Optional[Dict[str, Any]]:
+async def authenticate_websocket(websocket: WebSocket) -> dict[str, Any] | None:
     """
-    WebSocket 認證函數 - 不直接作為依賴項使用
-    返回 None 表示認證失敗，返回 payload 表示成功
+    Authenticate a WebSocket connection.
+    Returns None on failure, payload dict on success.
     """
     try:
-        # 1. 提取 token
+        # 1. Extract token
         query_params = parse_qs(websocket.url.query)
         token = query_params.get("token", [None])[0]
-        
+
         if not token:
             logger.warning("WS NO-TOKEN from %s", websocket.client.host if websocket.client else "unknown")
             return None
-        
-        # 2. 解碼 token
+
+        # 2. Decode token
         try:
             payload = decode_token(token)
         except JWTError as e:
             logger.warning("WS BAD-TOKEN %s from %s", str(e), websocket.client.host if websocket.client else "unknown")
             return None
-        
-        # 3. 驗證 token 類型
+
+        # 3. Verify token type
         if not verify_token_type(payload, "access"):
             logger.warning("WS WRONG-TOKEN-TYPE %s", payload.get("type"))
             return None
-        
-        # 4. 檢查過期
+
+        # 4. Check expiry
         current_time = int(datetime.now(tz=timezone.utc).timestamp())
         if payload.get("exp", 0) < current_time:
             logger.warning("WS TOKEN-EXPIRED for user %s", payload.get("sub"))
             return None
 
-        # 5. 確認使用者狀態（避免停用帳號仍可用舊 token）
-        user_row = None
+        # 5. Verify user status (prevent disabled accounts using old tokens)
         try:
             user_row = _fetch_user(payload.get("sub"))
         except Exception as e:
@@ -86,25 +96,23 @@ async def authenticate_websocket(websocket: WebSocket) -> Optional[Dict[str, Any
             return None
 
         role = user_row.get("role")
-        if role not in {"admin", "operator", "qc", "viewer", "dashboard"}:
+        if role not in _VALID_ROLES:
             logger.warning("WS INVALID-ROLE %s for user %s", role, payload.get("sub"))
             return None
 
-        # 攜帶最新角色資訊，確保權限同步
+        # Carry latest role to keep permissions in sync
         payload["role"] = role
-
-        logger.info("✅ WS AUTH SUCCESS for user %s", payload.get("sub"))
+        logger.info("WS AUTH SUCCESS for user %s", payload.get("sub"))
         return payload
-        
+
     except Exception as e:
         logger.error("WS AUTH ERROR: %s", str(e))
         return None
 
-async def get_current_user_ws(websocket: WebSocket) -> Dict[str, Any]:
+
+async def get_current_user_ws(websocket: WebSocket) -> dict[str, Any]:
     """
-    WebSocket 用戶認證依賴項
-    ⚠️ 此函數不應拋出異常，認證邏輯在 websocket 端點中處理
+    Placeholder dependency for FastAPI DI signature.
+    Real auth is handled by authenticate_websocket() called directly in WS endpoints.
     """
-    # 這個函數實際上不會被調用到認證邏輯
-    # 真正的認證在各個 websocket 端點中進行
     return {"sub": "unknown", "role": "viewer"}

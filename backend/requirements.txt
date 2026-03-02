@@ -23,6 +23,10 @@ pytz
 
 # WebSocket & CORS
 python-multipart
+redis
+
+# System Monitoring
+psutil
 
 # Task Scheduling
 apscheduler
@@ -31,8 +35,10 @@ apscheduler
 requests
 msal
 
+# PostgreSQL
+psycopg2-binary
+
 # Standard libraries (already included in Python)
-# sqlite3 - built-in
 # json - built-in
 # datetime - built-in
 # collections - built-in

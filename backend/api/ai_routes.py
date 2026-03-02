@@ -174,7 +174,7 @@ async def upload_document(
                 # 保留服務層錯誤訊息，便於定位（權限/解析/OCR 等）
                 raise HTTPException(status_code=400, detail=result.get("error", "Upload failed"))
 
-            logger.info(f"✅ Document uploaded by {_username(current_user)}: {file.filename}")
+            logger.info(f"Document uploaded by {_username(current_user)}: {file.filename}")
             return {
                 "success": True,
                 "message": "Document uploaded successfully",
@@ -236,7 +236,7 @@ async def delete_document(
         if not success:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        logger.info(f"✅ Document deleted by {_username(current_user)}: {document_id}")
+        logger.info(f"Document deleted by {_username(current_user)}: {document_id}")
         return {"success": True, "message": "Document deleted successfully"}
     except HTTPException:
         raise
@@ -420,7 +420,7 @@ async def query_documents(
             )
 
         # 實際查詢（包含檢索、重排、生成/OA rerank 視服務層配置）
-        result = ai_engine.query_documents(req_body.question, req_body.use_openai, req_body.openai_model)
+        result = await ai_engine.query_documents(req_body.question, req_body.use_openai, req_body.openai_model)
 
         # 統一錯誤處理（result 內含 status/answer 訊息）
         if result.get("status") == "error":
@@ -430,7 +430,7 @@ async def query_documents(
             raise HTTPException(status_code=404, detail=result.get("answer", "No related documents"))
 
         logger.info(
-            f"✅ Document query processed successfully with {ai_provider} - Type: {result.get('query_type', 'general')}"
+            f"Document query processed successfully with {ai_provider} - Type: {result.get('query_type', 'general')}"
         )
 
         # 轉換相對下載連結 → 絕對 URL（API Gateway 或子路徑部署時尤其需要）
@@ -526,7 +526,7 @@ async def test_openai_connection(
     try:
         from services.ai_service import openai_generate
 
-        test_response = openai_generate(
+        test_response = await openai_generate(
             "Please respond with exactly: 'OpenAI connection successful for document analysis'",
             "gpt-4o-mini",
         )
@@ -554,7 +554,7 @@ async def test_ollama_connection(
     try:
         from services.ai_service import ollama_generate
 
-        test_response = ollama_generate(
+        test_response = await ollama_generate(
             "Please respond with exactly: 'Ollama connection successful for document analysis'",
             DEFAULT_OLLAMA_MODEL,
         )

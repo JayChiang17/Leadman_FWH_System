@@ -1,21 +1,19 @@
 // src/features/pcbaTracking/PCBATracking.js
 import React, { useEffect, useState, useMemo, useCallback, useContext, useRef } from "react";
 import {
-  // icons used in THIS file (補齊，避免 no-undef)
   Wifi, WifiOff, Download, Search, Bell, Database, Settings,
-  Filter, Calendar, BarChart3, Clock, Activity, CheckCircle, Package, AlertCircle, X, Tag, ArrowRight,
+  BarChart3, Clock, Activity, CheckCircle, Package, AlertCircle, X, Tag, ArrowRight,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LabelList
 } from "recharts";
+import { List as VirtualList } from "react-window";
 
 import usePCBAWebSocket from "../../utils/usePCBAWebSocket";
 import { AuthCtx } from "../../auth/AuthContext";
 
 // 拆分後的 UI 元件
-import PCBAProductionFlow from "./components/PCBAProductionFlow";
 import PCBANGListPanel from "./components/PCBANGListPanel";
-import PCBASlipProgress from "./components/PCBASlipProgress";
 import PCBAEnhancedScannerPanel from "./components/PCBAEnhancedScannerPanel";
 import PCBASlipModal from "./components/PCBASlipModal";
 import PCBAPackingSlipPanel from "./components/PCBAPackingSlipPanel";
@@ -30,17 +28,45 @@ import {
   fmtElapsed, toCaliTime, toCAISODate, shortMMDD, authFetch
 } from "./PCBAUtils";
 
+function ActiveBoardRow({
+  index,
+  style,
+  boards,
+  blinkSet,
+  isEditor,
+  onViewDetails,
+  onEditBoard,
+  onDeleteBoard,
+  onToggleNGBoard,
+}) {
+  const board = boards[index];
+  if (!board) return null;
+
+  return (
+    <div style={style}>
+      <div className="pb-3">
+        <PCBAModernBoardCard
+          board={board}
+          onViewDetails={() => onViewDetails(board)}
+          isBlink={blinkSet.has(board.serialNumber)}
+          isEditor={isEditor}
+          onEdit={() => onEditBoard(board)}
+          onDelete={onDeleteBoard}
+          onToggleNG={onToggleNGBoard}
+        />
+      </div>
+    </div>
+  );
+}
+
 /* ----------------------- 主頁 ----------------------- */
 export default function PCBATracking() {
   const PAGE_SIZE = 50;
 
   // boards 與統計
-  // TODO: Issue #21 - For large datasets (>1000 boards), implement virtualization using react-window
-  // to improve rendering performance and reduce memory usage
   const [data, setData] = useState([]);
   const [stats, setStats] = useState({ total: 0, aging: 0, coating: 0, completed: 0, efficiency: 0, byModel: {} });
   const [loadingList, setLoadingList] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
 
   // slip 相關
   // Fixes issue #24: Use sessionStorage instead of localStorage for slip filter (session-level persistence)
@@ -199,13 +225,14 @@ export default function PCBATracking() {
     };
   }, [stats.byModel]);
 
-  const pickPositive = (...v) => v.map(Number).find((n) => Number.isFinite(n) && n > 0) || 0;
   const available = useMemo(() => {
-    const a7 = pickPositive(stats.availableAM7, stageBreakdown.completed.AM7);
-    const a8 = pickPositive(stats.availableAU8, stageBreakdown.completed.AU8);
-    const total = pickPositive(stats.availableTotal, stats.completed, a7 + a8);
+    // Use backend-computed available values (completed non-NG minus consumed by assembly).
+    // Do NOT fall back to stageBreakdown.completed (which includes consumed boards).
+    const a7    = Number(stats.availableAM7    ?? 0);
+    const a8    = Number(stats.availableAU8    ?? 0);
+    const total = Number(stats.availableTotal  ?? (a7 + a8));
     return { AM7: a7, AU8: a8, total };
-  }, [stats, stageBreakdown.completed]);
+  }, [stats.availableAM7, stats.availableAU8, stats.availableTotal]);
 
   /* -------- Slip handlers -------- */
   const refreshSlip = useCallback(async (sn) => {
@@ -481,7 +508,6 @@ export default function PCBATracking() {
         // Only update state if not aborted
         if (!signal.aborted) {
           setData(ALL);
-          setHasMore(false);
         }
       } else {
         const offset = reset ? 0 : (Number.isFinite(offsetOverride) ? offsetOverride : 0);
@@ -491,7 +517,6 @@ export default function PCBATracking() {
           const arr = await r.json();
           if (!signal.aborted) {
             setData((prev) => (reset ? arr : [...prev, ...arr]));
-            setHasMore(arr.length === PAGE_SIZE);
           }
         }
       }
@@ -773,36 +798,6 @@ export default function PCBATracking() {
     });
   }, [data, filterDate, ngFilter, useSlipFilter, slipFilterApplied, debouncedSlip, debouncedQ]);
 
-  /* Slip 各階段 pairs（若後端沒給 aging/coating pairs，就前端估） */
-  const slipPairByStage = useMemo(() => {
-    if (!slipStatus?.slipNumber) return { aging: 0, coating: 0, completed: Number(slipStatus?.completedPairs || 0) };
-
-    if (typeof slipStatus.agingPairs === "number" || typeof slipStatus.coatingPairs === "number") {
-      return {
-        aging: Number(slipStatus.agingPairs || 0),
-        coating: Number(slipStatus.coatingPairs || 0),
-        completed: Number(slipStatus.completedPairs || 0),
-      };
-    }
-
-    const countPairsAt = (stageKey) => {
-      const arr = data.filter(b =>
-        b.slipNumber === slipStatus.slipNumber &&
-        b.stage === stageKey &&
-        !b.ngFlag
-      );
-      const am7 = arr.reduce((n, b) => n + (b.model === "AM7" ? 1 : 0), 0);
-      const au8 = arr.reduce((n, b) => n + (b.model === "AU8" ? 1 : 0), 0);
-      return Math.min(am7, au8);
-    };
-
-    return {
-      aging: countPairsAt("aging"),
-      coating: countPairsAt("coating"),
-      completed: Number(slipStatus.completedPairs || countPairsAt("completed")),
-    };
-  }, [data, slipStatus]);
-
   /* 匯出 */
   const exportCsv = () => {
     const rows = [
@@ -831,15 +826,6 @@ export default function PCBATracking() {
   };
 
   useEffect(() => { if (slipOpen) fetchSlipList(); }, [slipOpen, fetchSlipList]);
-
-  const openDetail = useCallback(async (serial) => {
-    const found = data.find(b => b.serialNumber === serial);
-    if (found) setPick(found);
-    try {
-      const r = await authFetch(`/pcba/boards/${encodeURIComponent(serial)}`);
-      if (r.ok) setPick(await r.json());
-    } catch { /* keep current */ }
-  }, [data]);
 
   const submit = async (selectedStageFromPanel) => {
     if (!guardEdit()) return;
@@ -920,27 +906,6 @@ export default function PCBATracking() {
 
   const ngCount = useMemo(() => ngActive.filter((b) => b.ngFlag).length, [ngActive]);
 
-  // ====== Infinite Scroll Refs & Observer (只針對 Active Boards，避免卡頓) ======
-  const listContainerRef = useRef(null);
-  const loadMoreRef = useRef(null);
-  useEffect(() => {
-    const root = listContainerRef.current;
-    const target = loadMoreRef.current;
-    if (!root || !target) return;
-
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingList) {
-          fetchBoards({ reset: false, offset: data.length });
-        }
-      },
-      { root, rootMargin: "200px", threshold: 0.1 }
-    );
-
-    io.observe(target);
-    return () => io.disconnect();
-  }, [hasMore, loadingList, fetchBoards, data.length]);
-
   /* ---------------- UI ---------------- */
   return (
     <div className="min-h-screen bg-gray-50 text-[15px]">
@@ -966,7 +931,7 @@ export default function PCBATracking() {
                 }`}>{roleBadge}</span>
 
                 {slipStatus?.slipNumber && (
-                  <span className="px-3 py-1.5 bg-sky-50 text-sky-700 rounded-lg text-xs font-semibold border border-sky-200">
+                  <span className="px-3 py-1.5 bg-teal-50 text-teal-700 rounded-lg text-xs font-semibold border border-teal-200">
                     Slip: {slipStatus.slipNumber} • {slipStatus.completedPairs}/{slipStatus.targetPairs}
                   </span>
                 )}
@@ -1019,147 +984,152 @@ export default function PCBATracking() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-10 space-y-8">
-        {/* Hero Section */}
-        <section className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-          {/* Header */}
-          <div className="px-10 py-8 border-b border-gray-100">
-            <div className="flex items-center justify-between">
+      <main className="max-w-7xl mx-auto px-4 py-6 space-y-5">
+        {/* WIP Dashboard */}
+        <section className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Production Control Center</p>
-                <h2 className="text-3xl font-bold text-gray-900">PCBA Work in Process</h2>
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Production Control Center</p>
+                <h2 className="text-xl font-bold text-gray-900">PCBA Work in Process</h2>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => { fetchBoards({ reset: true }); setShowActiveBoardsModal(true); }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                >
+                  <Database className="w-4 h-4" />
+                  <span className="hidden sm:inline">Boards</span> ({list.length})
+                </button>
+                <button
+                  onClick={() => { fetchNGActive(); setShowNGModal(true); }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="hidden sm:inline">NG</span> ({ngCount})
+                </button>
+                <button
+                  onClick={() => { fetchDashboardDaily(rangeDays, customFrom, customTo); setShowDailyOutputModal(true); }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                >
+                  <BarChart3 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Output</span>
+                </button>
+                <button
+                  onClick={() => { fetchDailyConsumption(rangeDays, customFrom, customTo); setShowConsumptionModal(true); }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                >
+                  <Package className="w-4 h-4" />
+                  <span className="hidden sm:inline">Consumption</span>
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-gray-100">
-            <div className="px-10 py-10 hover:bg-gray-50/50 transition-colors">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-semibold uppercase tracking-wider text-amber-600">Aging</span>
-                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-amber-600" />
+          {/* WIP Pipeline: Aging → Coating → Completed */}
+          <div className="px-5 pt-4 pb-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">WIP Pipeline</p>
+            <div className="flex items-stretch gap-2">
+              {/* Aging */}
+              <div className="flex-1 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">Aging</span>
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+                    <Clock className="w-4 h-4 text-amber-700" />
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-gray-900 tabular-nums">{stats.aging}</div>
+                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                  <span>AM7 <span className="font-semibold text-gray-700">{stageBreakdown.aging.AM7}</span></span>
+                  <span className="text-gray-300">|</span>
+                  <span>AU8 <span className="font-semibold text-gray-700">{stageBreakdown.aging.AU8}</span></span>
                 </div>
               </div>
-              <div className="text-6xl font-bold text-gray-900 tabular-nums mb-4">{stats.aging}</div>
-              <div className="flex items-center gap-4 text-sm">
-                <div>
-                  <span className="text-gray-400 text-xs">AM7</span>
-                  <p className="font-semibold text-gray-900 text-lg">{stats.byModel?.AM7?.aging || 0}</p>
-                </div>
-                <div className="w-px h-8 bg-gray-200"></div>
-                <div>
-                  <span className="text-gray-400 text-xs">AU8</span>
-                  <p className="font-semibold text-gray-900 text-lg">{stats.byModel?.AU8?.aging || 0}</p>
-                </div>
-              </div>
-            </div>
 
-            <div className="px-10 py-10 hover:bg-gray-50/50 transition-colors">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-semibold uppercase tracking-wider text-sky-600">Coating</span>
-                <div className="w-10 h-10 rounded-xl bg-sky-50 flex items-center justify-center">
-                  <Activity className="w-5 h-5 text-sky-600" />
-                </div>
+              {/* Arrow */}
+              <div className="flex items-center text-gray-300">
+                <ArrowRight className="w-5 h-5" />
               </div>
-              <div className="text-6xl font-bold text-gray-900 tabular-nums mb-4">{stats.coating}</div>
-              <div className="flex items-center gap-4 text-sm">
-                <div>
-                  <span className="text-gray-400 text-xs">AM7</span>
-                  <p className="font-semibold text-gray-900 text-lg">{stats.byModel?.AM7?.coating || 0}</p>
-                </div>
-                <div className="w-px h-8 bg-gray-200"></div>
-                <div>
-                  <span className="text-gray-400 text-xs">AU8</span>
-                  <p className="font-semibold text-gray-900 text-lg">{stats.byModel?.AU8?.coating || 0}</p>
-                </div>
-              </div>
-            </div>
 
-            <div className="px-10 py-10 hover:bg-gray-50/50 transition-colors">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Inventory</span>
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-                  <CheckCircle className="w-5 h-5 text-emerald-600" />
+              {/* Coating */}
+              <div className="flex-1 rounded-xl border border-cyan-200 bg-cyan-50/50 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-teal-700">Coating</span>
+                  <div className="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center">
+                    <Activity className="w-4 h-4 text-teal-700" />
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-gray-900 tabular-nums">{stats.coating}</div>
+                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                  <span>AM7 <span className="font-semibold text-gray-700">{stageBreakdown.coating.AM7}</span></span>
+                  <span className="text-gray-300">|</span>
+                  <span>AU8 <span className="font-semibold text-gray-700">{stageBreakdown.coating.AU8}</span></span>
                 </div>
               </div>
-              <div className="text-6xl font-bold text-gray-900 tabular-nums mb-4">{available.total}</div>
-              <div className="flex items-center gap-4 text-sm">
-                <div>
-                  <span className="text-gray-400 text-xs">AM7</span>
-                  <p className="font-semibold text-gray-900 text-lg">{available.AM7 || 0}</p>
-                </div>
-                <div className="w-px h-8 bg-gray-200"></div>
-                <div>
-                  <span className="text-gray-400 text-xs">AU8</span>
-                  <p className="font-semibold text-gray-900 text-lg">{available.AU8 || 0}</p>
-                </div>
-              </div>
-            </div>
 
-            <div className="px-10 py-10 hover:bg-gray-50/50 transition-colors">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs font-semibold uppercase tracking-wider text-rose-600">NG Alerts</span>
-                <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
-                  <AlertCircle className="w-5 h-5 text-rose-600" />
-                </div>
+              {/* Arrow */}
+              <div className="flex items-center text-gray-300">
+                <ArrowRight className="w-5 h-5" />
               </div>
-              <div className="text-6xl font-bold text-gray-900 tabular-nums mb-4">{ngCount}</div>
-              <div className="flex items-center gap-4 text-sm">
-                <span className="text-gray-400 text-xs">Quality Issues</span>
+
+              {/* Completed / Available Inventory */}
+              <div className="flex-1 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Inventory</span>
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                    <CheckCircle className="w-4 h-4 text-emerald-700" />
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-gray-900 tabular-nums">{available.total}</div>
+                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                  <span>AM7 <span className="font-semibold text-gray-700">{available.AM7}</span></span>
+                  <span className="text-gray-300">|</span>
+                  <span>AU8 <span className="font-semibold text-gray-700">{available.AU8}</span></span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="px-10 py-8 bg-white border-t border-gray-100">
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={() => {
-                  fetchBoards({ reset: true });
-                  setShowActiveBoardsModal(true);
-                }}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white border-2 border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all"
-              >
-                <Database className="w-4 h-4" />
-                Active Boards ({list.length})
-              </button>
-              <button
-                onClick={() => {
-                  fetchNGActive();
-                  setShowNGModal(true);
-                }}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white border-2 border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all"
-              >
-                <AlertCircle className="w-4 h-4" />
-                Quality Alerts ({ngCount})
-              </button>
-              <button
-                onClick={() => {
-                  fetchDashboardDaily(rangeDays, customFrom, customTo);
-                  setShowDailyOutputModal(true);
-                }}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white border-2 border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all"
-              >
-                <BarChart3 className="w-4 h-4" />
-                Daily Output
-              </button>
-              <button
-                onClick={() => {
-                  fetchDashboardDaily(rangeDays, customFrom, customTo);
-                  setShowConsumptionModal(true);
-                }}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-white border-2 border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all"
-              >
-                <Package className="w-4 h-4" />
-                Consumption
-              </button>
+          {/* Quick Stats */}
+          <div className="px-5 pt-3 pb-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Available Pairs */}
+              <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Available Pairs</span>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{stats.pairsDone ?? 0}</div>
+                <p className="text-xs text-gray-500 mt-1">min(AM7, AU8)</p>
+              </div>
+
+              {/* Today's Output */}
+              <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Today Output</span>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{todayRow?.pairs || 0}</div>
+                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
+                  <span>Aging <span className="font-semibold text-gray-700">{todayRow?.aging || 0}</span></span>
+                  <span className="text-gray-300">|</span>
+                  <span>Coating <span className="font-semibold text-gray-700">{todayRow?.coating || 0}</span></span>
+                </div>
+              </div>
+
+              {/* Consumed Today */}
+              <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Consumed</span>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{todayRow?.consumed || 0}</div>
+                <p className="text-xs text-gray-500 mt-1">Today</p>
+              </div>
+
+              {/* NG Active */}
+              <div className="rounded-xl border border-red-200 bg-red-50/50 p-4">
+                <span className="text-xs font-semibold uppercase tracking-wide text-red-700">NG Active</span>
+                <div className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{ngCount}</div>
+                <p className="text-xs text-gray-500 mt-1">Quality Issues</p>
+              </div>
             </div>
           </div>
         </section>
 
         {/* Scanner Section */}
-        <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
+        <section className="rounded-xl bg-white border border-gray-100 shadow-sm p-5">
           <PCBAEnhancedScannerPanel
             scanInput={scan}
             setScanInput={setScan}
@@ -1168,384 +1138,19 @@ export default function PCBATracking() {
             handleScan={submit}
             disabled={!isEditor}
           />
-        </section>
-
-        {/* Today's Activity Summary */}
-        <section className="rounded-2xl bg-white border border-gray-100 shadow-sm p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Activity className="w-5 h-5 text-gray-700" />
-              <h3 className="text-lg font-semibold text-gray-900">Today's Activity</h3>
-            </div>
-            <span className="text-xs text-gray-500">{new Date().toLocaleDateString()}</span>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="rounded-xl bg-amber-50 border border-amber-100 p-4">
-              <p className="text-sm font-semibold text-amber-700 mb-2">Aging Scans</p>
-              <p className="text-3xl font-bold text-gray-900">{todayRow?.aging || 0}</p>
-            </div>
-            <div className="rounded-xl bg-sky-50 border border-sky-100 p-4">
-              <p className="text-sm font-semibold text-sky-700 mb-2">Coating Scans</p>
-              <p className="text-3xl font-bold text-gray-900">{todayRow?.coating || 0}</p>
-            </div>
-            <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-4">
-              <p className="text-sm font-semibold text-emerald-700 mb-2">Output Pairs</p>
-              <p className="text-3xl font-bold text-gray-900">{todayRow?.pairs || 0}</p>
-            </div>
-            <div className="rounded-xl bg-rose-50 border border-rose-100 p-4">
-              <p className="text-sm font-semibold text-rose-700 mb-2">Consumed</p>
-              <p className="text-3xl font-bold text-gray-900">{todayRow?.consumed || 0}</p>
-            </div>
-          </div>
         </section>
       </main>
-
-      {/* Hidden: Daily Output - Now in Modal */}
-      {false && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 md:p-6">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-2">
-              <BarChart3 size={18} className="text-violet-600" />
-              <h3 className="text-base md:text-lg font-semibold text-gray-900">Daily Output (Pairs)</h3>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                {[{k:7,label:"7d"},{k:30,label:"30d"},{k:90,label:"90d"}].map(opt => (
-                  <button
-                    key={opt.k}
-                    onClick={() => { setRangeDays(opt.k); setCustomFrom(""); setCustomTo(""); fetchDashboardDaily(opt.k); }}
-                    className={`px-2.5 py-1 rounded-md text-sm ${rangeDays === opt.k && !customFrom ? "bg-white shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
-                  >{opt.label}</button>
-                ))}
-                <button
-                  onClick={() => { setRangeDays(0); }}
-                  className={`px-2.5 py-1 rounded-md text-sm ${rangeDays === 0 ? "bg-white shadow-sm" : "text-gray-600 hover:text-gray-900"}`}
-                >Custom</button>
-              </div>
-
-              <div className="hidden sm:flex items-center gap-2">
-                <span className="text-xs text-gray-500">Avg / Active Day:</span>
-                <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold">{dailyAvg.toFixed(1)}</span>
-              </div>
-            </div>
-          </div>
-
-          {rangeDays === 0 && (
-            <div className="mt-3 flex items-center gap-3 flex-wrap">
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
-                <input
-                  type="date"
-                  value={customFrom}
-                  onChange={(e)=>setCustomFrom(e.target.value)}
-                  className="pl-9 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-black"
-                />
-              </div>
-              <span className="text-sm text-gray-500">to</span>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16}/>
-                <input
-                  type="date"
-                  value={customTo}
-                  onChange={(e)=>setCustomTo(e.target.value)}
-                  className="pl-9 pr-3 py-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-black"
-                />
-              </div>
-              <button
-                onClick={()=> customFrom && customTo && fetchDashboardDaily(0, customFrom, customTo)}
-                className="px-3 py-2 rounded-lg bg-slate-800 text-white hover:bg-slate-900 text-sm"
-              >Apply</button>
-            </div>
-          )}
-
-          <div className="mt-4 h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dailyRows} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="dateShort" />
-                <YAxis allowDecimals={false} />
-                <Tooltip formatter={(v, n) => [v, n === "pairs" ? "Pairs" : n.toUpperCase()]} />
-                <Bar dataKey="pairs" name="Pairs" fill="#6366f1" radius={[6,6,0,0]} maxBarSize={42}>
-                  <LabelList dataKey="pairs" position="top" formatter={(v)=> (v||0)} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        )}
-
-        {/* Hidden: Daily Consumption - Now in Modal */}
-        {false && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 md:p-6">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-2">
-              <ArrowRight size={18} className="text-rose-600" />
-              <h3 className="text-base md:text-lg font-semibold text-gray-900">Daily Consumption (Boards Used by Assembly)</h3>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-500">Avg / Day:</span>
-              <span className="px-2 py-1 rounded-full bg-rose-50 text-rose-700 text-sm font-semibold">{consumptionAvg.toFixed(1)}</span>
-            </div>
-          </div>
-
-          <div className="mt-4 h-[260px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dailyConsumption} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="dateShort" />
-                <YAxis allowDecimals={false} />
-                <Tooltip formatter={(v, n) => [v, n === "consumed" ? "Boards" : n === "consumedPairs" ? "Pairs" : n]} />
-                <Bar dataKey="consumed" name="Boards" fill="#f43f5e" radius={[6,6,0,0]} maxBarSize={42}>
-                  <LabelList dataKey="consumed" position="top" formatter={(v)=> (v||0)} />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="mt-3 p-3 bg-rose-50 rounded-lg border border-rose-200">
-            <div className="text-xs text-gray-700">
-              <strong>Note:</strong> This tracks boards removed from WIP inventory when scanned by assembly.
-              Each scan reduces the "WIP: Inventory" count in real-time.
-            </div>
-          </div>
-        </div>
-        )}
-
-        {/* Hidden: Old sections - moved to new layout */}
-        {false && (
-        <>
-          <PCBASlipProgress status={slipStatus} pairByStage={slipPairByStage} />
-          <PCBAEnhancedScannerPanel
-            scanInput={scan}
-            setScanInput={setScan}
-            handleScan={submit}
-            stageToAssign={stage}
-            setStageToAssign={setStage}
-            disabled={!isEditor}
-          />
-        </>
-        )}
-
-        {/* Hidden: Boards + Pipeline + NG - Now in Modals */}
-        {false && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Boards */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden" id="active-boards-section">
-              <div className="p-5 border-b border-gray-200 bg-gray-50">
-                <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-                  <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                    <Database size={22} className="text-gray-700" /> Active Boards
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    {loadingList && (
-                      <div className="flex items-center gap-2 px-3 py-1.5 bg-sky-50 text-sky-700 rounded-full text-xs font-semibold border border-sky-200">
-                        <div className="animate-spin rounded-full h-3 w-3 border-2 border-sky-600 border-t-transparent"></div>
-                        Searching...
-                      </div>
-                    )}
-                    <span className="px-3 py-1.5 bg-sky-50 text-sky-700 rounded-full text-sm font-bold border border-sky-200">
-                      {list.length !== data.length ? (
-                        <>
-                          <span className="text-indigo-900">{list.length.toLocaleString()}</span>
-                          <span className="text-indigo-400 mx-1">/</span>
-                          <span className="text-indigo-600">{data.length.toLocaleString()}</span>
-                        </>
-                      ) : (
-                        list.length.toLocaleString()
-                      )} items
-                    </span>
-                  </div>
-                </div>
-
-                {/* Active filters indicator & clear button */}
-                {(q || filterDate || filterSlip || fStage !== "all" || modelFilter !== "all" || ngFilter !== "all") && (
-                  <div className="mb-3 flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-semibold text-gray-600">Active Filters:</span>
-                    {q && <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-md text-xs font-medium">Search: {q}</span>}
-                    {filterDate && <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs font-medium">Date: {filterDate}</span>}
-                    {filterSlip && <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-md text-xs font-medium">Slip: {filterSlip}</span>}
-                    {modelFilter !== "all" && <span className="px-2 py-1 bg-cyan-100 text-cyan-700 rounded-md text-xs font-medium">Model: {modelFilter}</span>}
-                    {fStage !== "all" && <span className="px-2 py-1 bg-green-100 text-green-700 rounded-md text-xs font-medium">Stage: {labelOf(fStage)}</span>}
-                    {ngFilter !== "all" && <span className="px-2 py-1 bg-rose-100 text-rose-700 rounded-md text-xs font-medium">Status: {ngFilter === "ng" ? "NG Only" : "OK Only"}</span>}
-                    <button
-                      onClick={() => {
-                        setQ("");
-                        setFilterDate("");
-                        setFilterSlip("");
-                        setFStage("all");
-                        setModelFilter("all");
-                        setNgFilter("all");
-                      }}
-                      className="ml-auto px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-xs font-semibold transition-colors flex items-center gap-1"
-                    >
-                      <X size={14} />
-                      Clear All
-                    </button>
-                  </div>
-                )}
-
-                {/* filters */}
-                <div className="grid grid-cols-12 gap-3">
-                  <div className="col-span-12 sm:col-span-6 lg:col-span-5 xl:col-span-4 min-w-0">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-indigo-400" size={18} />
-                      <input
-                        value={q}
-                        onChange={(e) => setQ(e.target.value)}
-                        placeholder="Search serial or batch..."
-                        className="w-full pl-10 pr-4 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
-                                   focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
-                                   text-black placeholder-gray-400 transition-all duration-200 hover:border-indigo-300"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="col-span-6 sm:col-span-3 lg:col-span-2 xl:col-span-2 min-w-0">
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" size={18}/>
-                      <input
-                        type="date"
-                        value={filterDate}
-                        onChange={(e)=> setFilterDate(e.target.value)}
-                        className="w-full pl-10 pr-3 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
-                                   focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500
-                                   text-black transition-all duration-200 hover:border-purple-300"
-                        title="Update Date (CA Time)"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="col-span-12 sm:col-span-6 lg:col-span-5 xl:col-span-4 min-w-0">
-                    <div className="relative">
-                      <Tag className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-400" size={16}/>
-                      <input
-                        value={filterSlip}
-                        onChange={(e)=> setFilterSlip(e.target.value)}
-                        placeholder="Packing Slip #..."
-                        className="w-full pl-9 pr-3 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
-                                   focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500
-                                   text-black placeholder-gray-400 transition-all duration-200 hover:border-amber-300"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="col-span-6 sm:col-span-3 lg:col-span-2 xl:col-span-2 min-w-0">
-                    <select
-                      value={modelFilter}
-                      onChange={(e) => setModelFilter(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
-                                 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500
-                                 text-black appearance-none cursor-pointer transition-all duration-200 hover:border-cyan-300
-                                 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEgMS41TDYgNi41TDExIDEuNSIgc3Ryb2tlPSIjOTg5OGE4IiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+')] bg-[length:12px] bg-[center_right_12px] bg-no-repeat pr-9"
-                    >
-                      <option value="all">All Models</option>
-                      <option value="AM7">AM7</option>
-                      <option value="AU8">AU8</option>
-                    </select>
-                  </div>
-
-                  <div className="col-span-6 sm:col-span-3 lg:col-span-2 xl:col-span-2 min-w-0">
-                    <div className="relative">
-                      <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-green-400" size={18} />
-                      <select
-                        value={fStage}
-                        onChange={(e) => setFStage(e.target.value)}
-                        className="w-full pl-10 pr-9 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
-                                   focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500
-                                   appearance-none cursor-pointer text-black transition-all duration-200 hover:border-green-300
-                                   bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEgMS41TDYgNi41TDExIDEuNSIgc3Ryb2tlPSIjOTg5OGE4IiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+')] bg-[length:12px] bg-[center_right_12px] bg-no-repeat"
-                      >
-                        <option value="all">All Stages</option>
-                        <option value="aging">Aging</option>
-                        <option value="coating">Coating</option>
-                        <option value="completed">Inventory</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="col-span-6 sm:col-span-3 lg:col-span-2 xl:col-span-2 min-w-0">
-                    <div className="relative">
-                      <AlertCircle className="absolute left-3 top-1/2 -translate-y-1/2 text-rose-400" size={18} />
-                      <select
-                        value={ngFilter}
-                        onChange={(e) => setNgFilter(e.target.value)}
-                        className="w-full pl-10 pr-9 py-2.5 bg-white border-2 border-rose-300 rounded-xl text-sm
-                                   focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-rose-400
-                                   appearance-none cursor-pointer text-black transition-all duration-200 hover:border-rose-400
-                                   bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTEgMS41TDYgNi41TDExIDEuNSIgc3Ryb2tlPSIjOTg5OGE4IiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+')] bg-[length:12px] bg-[center_right_12px] bg-no-repeat"
-                      >
-                        <option value="all">All Status</option>
-                        <option value="ng">NG Only</option>
-                        <option value="ok">OK Only</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div ref={listContainerRef} className="relative p-5 space-y-3 max-h-[calc(100vh-340px)] md:max-h-[calc(100vh-260px)] overflow-y-auto scroll-smooth">
-                {/* 滾動漸層指示器 */}
-                {list.length > 5 && (
-                  <div className="sticky bottom-0 h-12 bg-white/95 pointer-events-none -mb-5 z-10"></div>
-                )}
-                {list.length ? (
-                  list.map((b) => (
-                    <PCBAModernBoardCard
-                      key={b.serialNumber}
-                      board={b}
-                      onViewDetails={() => openDetail(b.serialNumber)}
-                      isBlink={blink.has(b.serialNumber)}
-                      isEditor={isEditor}
-                      onEdit={() => setEditBoard(b)}
-                      onDelete={handleDelete}
-                      onToggleNG={toggleNG}
-                    />
-                  ))
-                ) : (
-                  <div className="text-center py-14">
-                    <Database className="mx-auto text-gray-300 mb-4" size={52} />
-                    <p className="text-gray-500">No boards found</p>
-                    <p className="text-sm text-gray-400 mt-1">Try adjusting your filters</p>
-                  </div>
-                )}
-
-                <div ref={loadMoreRef} className="pt-3 h-10 flex items-center justify-center">
-                  {hasMore ? (
-                    <span className="text-sm text-gray-400">
-                      {loadingList ? "Loading…" : "Scroll to load more"}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right column */}
-          <div className="lg:col-span-1 space-y-5">
-            <PCBAProductionFlow stats={stats} />
-            <PCBANGListPanel
-              data={ngActive}
-              onView={(serial) => openDetail(serial)}
-              onClear={(board) => toggleNG(board, false)}
-            />
-          </div>
-        </div>
-        )}
 
       {/* 詳情 Modal（仍保留在本檔） */}
       {pick && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl lg:max-w-4xl xl:max-w-5xl w-full max-h-[90vh] overflow-hidden">
-            <div className={`p-6 text-white ${pick.ngFlag ? "bg-red-600" : "bg-sky-600"}`}>
+          <div className="bg-white rounded-xl shadow-xl max-w-3xl lg:max-w-4xl xl:max-w-5xl w-full max-h-[90vh] overflow-hidden">
+            <div className={`p-6 text-white ${pick.ngFlag ? "bg-red-600" : "bg-teal-600"}`}>
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-2xl font-bold mb-2 break-all">{pick.serialNumber}</h3>
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium backdrop-blur-sm">{pick.model}</span>
+                    <span className="px-3 py-1 bg-white/20 rounded-lg text-sm font-medium backdrop-blur-sm">{pick.model}</span>
                     {pick.version === "V2" && (
                       <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500 text-white shadow-md">
                         V2 NEW
@@ -1556,8 +1161,8 @@ export default function PCBATracking() {
                         V1
                       </span>
                     )}
-                    {pick.slipNumber && <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium backdrop-blur-sm break-all">{pick.slipNumber}</span>}
-                    {pick.ngFlag && <span className="px-3 py-1 bg-white/25 rounded-full text-sm font-semibold text-white">NG</span>}
+                    {pick.slipNumber && <span className="px-3 py-1 bg-white/20 rounded-lg text-sm font-medium backdrop-blur-sm break-all">{pick.slipNumber}</span>}
+                    {pick.ngFlag && <span className="px-3 py-1 bg-white/25 rounded-lg text-sm font-semibold text-white">NG</span>}
                   </div>
                 </div>
                 <button onClick={() => setPick(null)} className="p-2 hover:bg-white/20 rounded-lg transition-colors"><X size={24} /></button>
@@ -1582,7 +1187,7 @@ export default function PCBATracking() {
               <div className="p-4 border border-gray-200 rounded-xl">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2 text-gray-700">
-                    <Tag size={16} className="text-indigo-600" />
+                    <Tag size={16} className="text-teal-600" />
                     <span className="font-semibold">Change Slip</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1594,7 +1199,7 @@ export default function PCBATracking() {
                     />
                     <button
                       onClick={()=> changeSlip(pick.serialNumber, newSlip || "")}
-                      className="px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm flex items-center gap-1"
+                      className="px-3 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm flex items-center gap-1"
                     >
                       Save <ArrowRight size={14} />
                     </button>
@@ -1607,7 +1212,7 @@ export default function PCBATracking() {
                 <div className="space-y-3">
                   {(Array.isArray(pick.history) ? pick.history : []).map((h, i) => (
                     <div key={i} className="flex items-start gap-3">
-                      <div className={`p-2 rounded-lg ${h.notes?.toLowerCase().startsWith("ng ") ? "bg-rose-600" : "bg-indigo-600"} mt-1`}>
+                      <div className={`p-2 rounded-lg ${h.notes?.toLowerCase().startsWith("ng ") ? "bg-red-600" : "bg-teal-600"} mt-1`}>
                         {h.notes?.toLowerCase().startsWith("ng ") ? <AlertCircle className="text-white" size={16} /> : <Activity className="text-white" size={16} />}
                       </div>
                       <div className="flex-1">
@@ -1630,7 +1235,7 @@ export default function PCBATracking() {
                   <button
                     onClick={() => toggleNG(pick, !pick.ngFlag)}
                     className={`px-4 py-2 rounded-lg transition-colors font-medium ${
-                      pick.ngFlag ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
+                      pick.ngFlag ? "bg-red-50 text-red-600 hover:bg-red-100"
                                   : "bg-amber-50 text-amber-700 hover:bg-amber-100"
                     }`}
                   >
@@ -1641,7 +1246,7 @@ export default function PCBATracking() {
                       Delete Board
                     </button>
                   )}
-                  <button onClick={() => setPick(null)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">Close</button>
+                  <button onClick={() => setPick(null)} className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors font-medium">Close</button>
                 </div>
               </div>
             </div>
@@ -1654,24 +1259,24 @@ export default function PCBATracking() {
       {/* Active Boards Modal */}
       {showActiveBoardsModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowActiveBoardsModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
               <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                 <Database size={22} />
                 Active Boards
-                <span className="px-3 py-1 bg-sky-50 text-sky-700 rounded-full text-sm font-bold border border-sky-200">
+                <span className="px-3 py-1 bg-teal-50 text-teal-700 rounded-lg text-sm font-bold border border-teal-200">
                   {list.length !== data.length ? (
                     <>
-                      <span className="text-sky-900">{list.length.toLocaleString()}</span>
-                      <span className="text-sky-400 mx-1">/</span>
-                      <span className="text-sky-600">{data.length.toLocaleString()}</span>
+                      <span className="text-teal-900">{list.length.toLocaleString()}</span>
+                      <span className="text-teal-400 mx-1">/</span>
+                      <span className="text-teal-600">{data.length.toLocaleString()}</span>
                     </>
                   ) : (
                     list.length.toLocaleString()
                   )} items
                 </span>
               </h3>
-              <button onClick={() => setShowActiveBoardsModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+              <button onClick={() => setShowActiveBoardsModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1682,12 +1287,12 @@ export default function PCBATracking() {
               {(q || filterDate || filterSlip || fStage !== "all" || modelFilter !== "all" || ngFilter !== "all") && (
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-semibold text-gray-600">Active Filters:</span>
-                  {q && <span className="px-2 py-1 bg-sky-100 text-sky-700 rounded-md text-xs font-medium">Search: {q}</span>}
+                  {q && <span className="px-2 py-1 bg-teal-100 text-teal-700 rounded-md text-xs font-medium">Search: {q}</span>}
                   {filterDate && <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs font-medium">Date: {filterDate}</span>}
                   {filterSlip && <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-md text-xs font-medium">Slip: {filterSlip}</span>}
                   {modelFilter !== "all" && <span className="px-2 py-1 bg-cyan-100 text-cyan-700 rounded-md text-xs font-medium">Model: {modelFilter}</span>}
                   {fStage !== "all" && <span className="px-2 py-1 bg-green-100 text-green-700 rounded-md text-xs font-medium">Stage: {labelOf(fStage)}</span>}
-                  {ngFilter !== "all" && <span className="px-2 py-1 bg-rose-100 text-rose-700 rounded-md text-xs font-medium">Status: {ngFilter === "ng" ? "NG Only" : "OK Only"}</span>}
+                  {ngFilter !== "all" && <span className="px-2 py-1 bg-red-100 text-red-700 rounded-md text-xs font-medium">Status: {ngFilter === "ng" ? "NG Only" : "OK Only"}</span>}
                   <button
                     onClick={() => {
                       setQ("");
@@ -1709,14 +1314,14 @@ export default function PCBATracking() {
               <div className="grid grid-cols-12 gap-3">
                 <div className="col-span-12 sm:col-span-6 lg:col-span-4 min-w-0">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-sky-400" size={18} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-teal-400" size={18} />
                     <input
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
                       placeholder="Search serial or batch..."
                       className="w-full pl-10 pr-4 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
-                                 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500
-                                 text-black placeholder-gray-400 transition-all duration-200 hover:border-sky-300"
+                                 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
+                                 text-black placeholder-gray-400 transition-all duration-200 hover:border-teal-300"
                     />
                   </div>
                 </div>
@@ -1726,8 +1331,8 @@ export default function PCBATracking() {
                     value={modelFilter}
                     onChange={(e) => setModelFilter(e.target.value)}
                     className="w-full px-3 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
-                               focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500
-                               text-black transition-all duration-200 hover:border-sky-300"
+                               focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
+                               text-black transition-all duration-200 hover:border-teal-300"
                   >
                     <option value="all">All Models</option>
                     <option value="AM7">AM7</option>
@@ -1740,13 +1345,13 @@ export default function PCBATracking() {
                     value={fStage}
                     onChange={(e) => setFStage(e.target.value)}
                     className="w-full px-3 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
-                               focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500
-                               text-black transition-all duration-200 hover:border-sky-300"
+                               focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
+                               text-black transition-all duration-200 hover:border-teal-300"
                   >
                     <option value="all">All Stages</option>
                     <option value="aging">Aging</option>
                     <option value="coating">Coating</option>
-                    <option value="completed">Completed</option>
+                    <option value="completed">Inventory</option>
                   </select>
                 </div>
 
@@ -1755,8 +1360,8 @@ export default function PCBATracking() {
                     value={ngFilter}
                     onChange={(e) => setNgFilter(e.target.value)}
                     className="w-full px-3 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
-                               focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500
-                               text-black transition-all duration-200 hover:border-sky-300"
+                               focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
+                               text-black transition-all duration-200 hover:border-teal-300"
                   >
                     <option value="all">All Status</option>
                     <option value="ok">OK Only</option>
@@ -1770,8 +1375,8 @@ export default function PCBATracking() {
                     value={filterDate}
                     onChange={(e) => setFilterDate(e.target.value)}
                     className="w-full px-3 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
-                               focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500
-                               text-black transition-all duration-200 hover:border-sky-300"
+                               focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
+                               text-black transition-all duration-200 hover:border-teal-300"
                     title="Update Date"
                   />
                 </div>
@@ -1782,22 +1387,29 @@ export default function PCBATracking() {
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-380px)] space-y-3">
               {loadingList && (
                 <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-sky-600 border-t-transparent"></div>
+                  <div className="animate-spin rounded-lg h-8 w-8 border-2 border-teal-600 border-t-transparent"></div>
                 </div>
               )}
               {!loadingList && list.length > 0 ? (
-                list.slice(0, 50).map((b) => (
-                  <PCBAModernBoardCard
-                    key={b.serialNumber}
-                    board={b}
-                    onViewDetails={() => { setPick(b); setShowActiveBoardsModal(false); }}
-                    isBlink={blink.has(b.serialNumber)}
-                    isEditor={isEditor}
-                    onEdit={() => setEditBoard(b)}
-                    onDelete={handleDelete}
-                    onToggleNG={toggleNG}
-                  />
-                ))
+                <VirtualList
+                  rowComponent={ActiveBoardRow}
+                  rowCount={list.length}
+                  rowHeight={152}
+                  overscanCount={6}
+                  rowProps={{
+                    boards: list,
+                    blinkSet: blink,
+                    isEditor,
+                    onViewDetails: (board) => {
+                      setPick(board);
+                      setShowActiveBoardsModal(false);
+                    },
+                    onEditBoard: (board) => setEditBoard(board),
+                    onDeleteBoard: handleDelete,
+                    onToggleNGBoard: toggleNG,
+                  }}
+                  style={{ height: Math.min(Math.max(list.length * 152, 152), 520) }}
+                />
               ) : !loadingList ? (
                 <p className="text-center text-gray-500 py-12">No active boards found</p>
               ) : null}
@@ -1809,13 +1421,13 @@ export default function PCBATracking() {
       {/* NG Alerts Modal */}
       {showNGModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowNGModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
               <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                <AlertCircle size={22} className="text-rose-600" />
+                <AlertCircle size={22} className="text-red-600" />
                 Quality Alerts (NG) ({ngCount})
               </h3>
-              <button onClick={() => setShowNGModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+              <button onClick={() => setShowNGModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1836,13 +1448,13 @@ export default function PCBATracking() {
       {/* Daily Output Modal */}
       {showDailyOutputModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowDailyOutputModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
               <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                 <BarChart3 size={22} />
                 Daily Output (Pairs)
               </h3>
-              <button onClick={() => setShowDailyOutputModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+              <button onClick={() => setShowDailyOutputModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1862,7 +1474,7 @@ export default function PCBATracking() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600">Avg:</span>
-                  <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-sm font-semibold">{dailyAvg.toFixed(1)}</span>
+                  <span className="px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-sm font-semibold">{dailyAvg.toFixed(1)}</span>
                 </div>
               </div>
               <div className="h-[400px]">
@@ -1872,7 +1484,7 @@ export default function PCBATracking() {
                     <XAxis dataKey="dateShort" tick={{ fontSize: 12 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                     <Tooltip formatter={(v, n) => [v, n === "pairs" ? "Pairs" : n.toUpperCase()]} />
-                    <Bar dataKey="pairs" name="Pairs" fill="#6366f1" radius={[6,6,0,0]} maxBarSize={50}>
+                    <Bar dataKey="pairs" name="Pairs" fill="#0d9488" radius={[6,6,0,0]} maxBarSize={50}>
                       <LabelList dataKey="pairs" position="top" formatter={(v)=> (v||0)} />
                     </Bar>
                   </BarChart>
@@ -1886,13 +1498,13 @@ export default function PCBATracking() {
       {/* Daily Consumption Modal */}
       {showConsumptionModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowConsumptionModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
               <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                 <Package size={22} />
                 Daily Consumption (Boards Used by Assembly)
               </h3>
-              <button onClick={() => setShowConsumptionModal(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+              <button onClick={() => setShowConsumptionModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1903,7 +1515,7 @@ export default function PCBATracking() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-600">Avg:</span>
-                  <span className="px-3 py-1 rounded-full bg-rose-50 text-rose-700 text-sm font-semibold">{consumptionAvg.toFixed(1)}</span>
+                  <span className="px-3 py-1 rounded-lg bg-red-50 text-red-700 text-sm font-semibold">{consumptionAvg.toFixed(1)}</span>
                 </div>
               </div>
               <div className="h-[400px]">
@@ -1913,13 +1525,13 @@ export default function PCBATracking() {
                     <XAxis dataKey="dateShort" tick={{ fontSize: 12 }} />
                     <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                     <Tooltip formatter={(v, n) => [v, n === "consumed" ? "Boards" : n === "consumedPairs" ? "Pairs" : n]} />
-                    <Bar dataKey="consumed" name="Boards" fill="#f43f5e" radius={[6,6,0,0]} maxBarSize={50}>
+                    <Bar dataKey="consumed" name="Boards" fill="#ef4444" radius={[6,6,0,0]} maxBarSize={50}>
                       <LabelList dataKey="consumed" position="top" formatter={(v)=> (v||0)} />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <div className="p-4 bg-rose-50 rounded-lg border border-rose-200">
+              <div className="p-4 bg-red-50 rounded-lg border border-red-200">
                 <p className="text-sm text-gray-700">
                   <strong>Note:</strong> This tracks boards removed from WIP inventory when scanned by assembly.
                   Each scan reduces the "WIP: Inventory" count in real-time.

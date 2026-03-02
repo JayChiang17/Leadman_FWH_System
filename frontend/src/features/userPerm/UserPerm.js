@@ -1,5 +1,5 @@
 // src/features/userPerm/UserPerm.js
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Users,
   UserPlus,
@@ -12,437 +12,338 @@ import {
   Save,
 } from "lucide-react";
 import api from "../../services/api";
+import useMessageTimer from "../../utils/useMessageTimer";
+
+const CARD = "bg-white border border-slate-200/80 rounded-xl shadow-sm";
+
+const ROLE_MAP = {
+  admin:    { bg: "bg-teal-50",    text: "text-teal-700",    border: "border-teal-200",   dot: "bg-teal-500",    ring: "ring-teal-500/20",  Icon: Shield },
+  operator: { bg: "bg-cyan-50",    text: "text-cyan-700",    border: "border-cyan-200",   dot: "bg-cyan-500",    ring: "ring-cyan-500/20",  Icon: UserCheck },
+  qc:       { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200", dot: "bg-emerald-500", ring: "ring-emerald-500/20", Icon: Eye },
+  viewer:   { bg: "bg-slate-100",  text: "text-slate-600",   border: "border-slate-200",  dot: "bg-slate-400",   ring: "ring-slate-400/20", Icon: Users },
+};
+
+const METRIC_CFG = [
+  { key: "total",    label: "Total Users", color: "text-teal-600",  accent: "bg-teal-500",  iconBg: "bg-teal-50",  iconColor: "text-teal-600",  Icon: Users },
+  { key: "admin",    label: "Admin",       color: "text-cyan-600",  accent: "bg-cyan-500",  iconBg: "bg-cyan-50",  iconColor: "text-cyan-600",  Icon: Shield },
+  { key: "operator", label: "Operator",    color: "text-amber-500", accent: "bg-amber-500", iconBg: "bg-amber-50", iconColor: "text-amber-600", Icon: UserCheck },
+  { key: "other",    label: "QC + Viewer", color: "text-slate-600", accent: "bg-slate-400", iconBg: "bg-slate-100",iconColor: "text-slate-500", Icon: Eye },
+];
 
 export default function UserPerm() {
-  /* ────────── local state ────────── */
   const empty = { id: null, username: "", password: "", role: "viewer" };
 
   const [users, setUsers] = useState([]);
   const [form, setForm] = useState(empty);
-  const [mode, setMode] = useState("add"); // add | edit
+  const [mode, setMode] = useState("add");
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [successMsg, showSuccess] = useMessageTimer(3000);
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  /* ────────── fetch list on mount ────────── */
-  useEffect(() => {
-    refresh();
-  }, []);
-
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       const { data } = await api.get("users/");
       setUsers(data);
     } catch {
       setError("Failed to load users");
     }
-  };
+  }, []);
 
-  /* ────────── create / update ────────── */
+  useEffect(() => { refresh(); }, [refresh]);
+
   const save = async () => {
     setError("");
-    setSuccess("");
-
     const uname = form.username.trim();
     const pw = form.password.trim();
+    if (!uname) { setError("Username is required"); return; }
+    if (mode === "add" && !pw) { setError("Password is required"); return; }
 
-    if (!uname) {
-      setError("Username is required");
-      return;
-    }
-    if (mode === "add" && !pw) {
-      setError("Password is required");
-      return;
-    }
-
-    // 後端 schema：{ username, password?, role }
-    const payload = {
-      username: uname,
-      role: form.role,
-    };
-    if (pw) payload.password = pw; // edit 模式可留空 → 不送 password
+    const payload = { username: uname, role: form.role };
+    if (pw) payload.password = pw;
 
     try {
       setBusy(true);
-
       if (mode === "add") {
         await api.post("users/", payload);
-        setSuccess("User created successfully!");
+        showSuccess("User created successfully!", "success");
       } else {
         await api.put(`users/${form.id}`, payload);
-        setSuccess("User updated successfully!");
+        showSuccess("User updated successfully!", "success");
       }
-
-      setForm(empty);
-      setMode("add");
-      refresh();
-      setTimeout(() => setSuccess(""), 3000);
+      setForm(empty); setMode("add"); refresh();
     } catch (err) {
-      setError(
-        err.response?.data?.detail ||
-          err.response?.data?.message ||
-          "Failed to save user"
-      );
-    } finally {
-      setBusy(false);
-    }
+      setError(err.response?.data?.detail || err.response?.data?.message || "Failed to save user");
+    } finally { setBusy(false); }
   };
 
-  /* ────────── delete ────────── */
   const del = async (u) => {
-    if (
-      !window.confirm(`Are you sure you want to delete user "${u.username}"?`)
-    )
-      return;
+    if (!window.confirm(`Are you sure you want to delete user "${u.username}"?`)) return;
     try {
       await api.delete(`users/${u.id}`);
-      setSuccess("User deleted successfully!");
+      showSuccess("User deleted successfully!", "success");
       refresh();
-      setTimeout(() => setSuccess(""), 3000);
-    } catch {
-      setError("Failed to delete user");
-    }
+    } catch { setError("Failed to delete user"); }
   };
 
-  /* ────────── edit / reset helpers ────────── */
-  const edit = (u) => {
-    setForm({ ...u, password: "" }); // 清空密碼欄位
-    setMode("edit");
-    setError("");
-    setSuccess("");
+  const edit = (u) => { setForm({ ...u, password: "" }); setMode("edit"); setError(""); };
+  const newUser = () => { setForm(empty); setMode("add"); setError(""); };
+
+  const countByRole = (r) => users.filter(u => u.role === r).length;
+  const metricValues = {
+    total: users.length,
+    admin: countByRole("admin"),
+    operator: countByRole("operator"),
+    other: countByRole("qc") + countByRole("viewer"),
   };
 
-  const newUser = () => {
-    setForm(empty);
-    setMode("add");
-    setError("");
-    setSuccess("");
-  };
-
-  /* ────────── UI helpers ────────── */
-  const getRoleStyle = (role) => {
-    const styles = {
-     admin: "bg-cyan-100 text-cyan-800 border-cyan-200",
-      operator: "bg-blue-100 text-blue-800 border-blue-200",
-      qc: "bg-green-100 text-green-800 border-green-200",
-      viewer: "bg-gray-100 text-gray-800 border-gray-200",
-    };
-    return styles[role] || styles.viewer;
-  };
-
-  const getRoleIcon = (role) => {
-    const icons = {
-      admin: <Shield className="w-3 h-3" />,
-      operator: <UserCheck className="w-3 h-3" />,
-      qc: <Eye className="w-3 h-3" />,
-      viewer: <Users className="w-3 h-3" />,
-    };
-    return icons[role] || icons.viewer;
-  };
-
-  /* ────────── render ────────── */
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen p-4 md:p-6" style={{ fontFamily: "'Inter', system-ui, sans-serif", background: 'rgba(248, 250, 252, 0.8)' }}>
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-6">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-br from-sky-100 to-cyan-100 rounded-lg">
-                <Users className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">
-                  User Management
-                </h1>
-                <p className="text-gray-600 mt-1">
-                  Manage system users and permissions
-                </p>
-              </div>
+        <div className="mb-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center">
+              <Users className="w-[18px] h-[18px] text-teal-600" />
+            </div>
+            <div>
+              <h1 className="text-xl md:text-2xl font-semibold text-slate-800">User Management</h1>
+              <p className="text-sm text-slate-500">Manage system users and permissions</p>
             </div>
           </div>
+        </div>
 
-          {/* Alerts */}
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-              <span className="text-red-800">{error}</span>
-            </div>
-          )}
+        {/* ── Metric Cards ── */}
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
+          {METRIC_CFG.map((m) => {
+            const MIcon = m.Icon;
+            return (
+              <div key={m.key} className={`${CARD} p-4 relative overflow-hidden`}>
+                {/* accent top stripe */}
+                <div className={`absolute top-0 inset-x-0 h-[3px] ${m.accent}`} />
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400 mb-1.5">{m.label}</p>
+                    <p className={`text-2xl font-bold tabular-nums ${m.color}`}>{metricValues[m.key]}</p>
+                  </div>
+                  <div className={`w-8 h-8 rounded-lg ${m.iconBg} flex items-center justify-center flex-shrink-0`}>
+                    <MIcon className={`w-4 h-4 ${m.iconColor}`} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
-          {success && (
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3">
-              <UserCheck className="w-5 h-5 text-green-600 flex-shrink-0" />
-              <span className="text-green-800">{success}</span>
-            </div>
-          )}
+        {/* Alerts */}
+        {error && (
+          <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+            <span className="text-sm text-red-800">{error}</span>
+          </div>
+        )}
+        {successMsg.text && (
+          <div className="mb-5 p-4 bg-teal-50 border border-teal-200 rounded-lg flex items-center gap-3">
+            <UserCheck className="w-5 h-5 text-teal-600 flex-shrink-0" />
+            <span className="text-sm text-teal-800">{successMsg.text}</span>
+          </div>
+        )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Users Table */}
-            <div className="lg:col-span-2">
-              <div className="bg-gradient-to-br from-sky-50 to-indigo-100 rounded-xl p-6 border border-indigo-200">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-gray-600" />
-                  Current Users
-                </h2>
+        {/* ── Content Grid ── */}
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
 
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="bg-gradient-to-r from-sky-100 to-indigo-50 border-b border-indigo-200">
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Username
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Role
-                        </th>
-                        <th className="px-6 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {users.map((u) => (
-                        <tr
-                          key={u.id}
-                          className="hover:bg-gray-50 transition-colors duration-150"
-                        >
-                          <td className="px-6 py-4">
+          {/* ── Users Table Card ── */}
+          <div className="xl:col-span-2">
+            <div className={CARD}>
+              {/* card header zone */}
+              <div className="px-5 md:px-6 pt-5 md:pt-6 pb-4 border-b border-slate-100 flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
+                  <Users className="w-4 h-4 text-slate-500" />
+                </div>
+                <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wider">Current Users</h2>
+                <span className="ml-auto inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-500 tabular-nums">
+                  {users.length}
+                </span>
+              </div>
+
+              {/* table body */}
+              <div className="overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-slate-50/80">
+                      <th className="px-5 md:px-6 py-3 text-left text-[11px] font-medium text-slate-400 uppercase tracking-wider">User</th>
+                      <th className="px-5 py-3 text-left text-[11px] font-medium text-slate-400 uppercase tracking-wider">Role</th>
+                      <th className="px-5 md:px-6 py-3 text-center text-[11px] font-medium text-slate-400 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {users.map((u) => {
+                      const rc = ROLE_MAP[u.role] || ROLE_MAP.viewer;
+                      const RIcon = rc.Icon;
+                      return (
+                        <tr key={u.id} className="hover:bg-slate-50/60 transition-colors duration-150">
+                          <td className="px-5 md:px-6 py-3.5">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full flex items-center justify-center font-semibold bg-amber-100 text-amber-700">
+                              <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-semibold text-sm ring-2 ${rc.ring} ${rc.bg} ${rc.text}`}>
                                 {u.username.charAt(0).toUpperCase()}
                               </div>
                               <div>
-                                <p className="text-sm font-medium text-gray-900">
-                                  {u.username}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  ID: {u.id}
-                                </p>
+                                <p className="text-sm font-medium text-slate-800">{u.username}</p>
+                                <p className="text-[11px] text-slate-400 tabular-nums">ID: {u.id}</p>
                               </div>
                             </div>
                           </td>
-
-                          <td className="px-6 py-4">
-                            <span
-                              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${getRoleStyle(
-                                u.role
-                              )}`}
-                            >
-                              {getRoleIcon(u.role)}
+                          <td className="px-5 py-3.5">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${rc.bg} ${rc.text} ${rc.border}`}>
+                              <RIcon className="w-3 h-3" />
                               {u.role}
                             </span>
                           </td>
-
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-center gap-2">
-                              <button
-                                onClick={() => edit(u)}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
-                                title="Edit user"
-                              >
+                          <td className="px-5 md:px-6 py-3.5">
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={() => edit(u)} className="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors duration-150" title="Edit user">
                                 <Edit3 className="w-4 h-4" />
                               </button>
-                              <button
-                                onClick={() => del(u)}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                                title="Delete user"
-                              >
+                              <button onClick={() => del(u)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-150" title="Delete user">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </div>
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  {users.length === 0 && (
-                    <div className="p-8 text-center text-gray-500">
-                      No users found. Create your first user!
-                    </div>
-                  )}
-                </div>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {users.length === 0 && (
+                  <div className="py-12 text-center">
+                    <Users className="w-10 h-10 text-slate-200 mx-auto mb-3" />
+                    <p className="text-sm text-slate-400">No users found. Create your first user!</p>
+                  </div>
+                )}
               </div>
             </div>
+          </div>
 
-            {/* User Form */}
-            <div className="lg:col-span-1">
-              <div className="bg-gradient-to-br from-sky-50 to-indigo-100 rounded-xl p-6 border border-indigo-200">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2 ">
-                  {mode === "add" ? (
-                    <>
-                      <UserPlus className="w-5 h-5 text-indigo-600" />
-                      Add New User
-                    </>
-                  ) : (
-                    <>
-                      <Edit3 className="ww-5 h-5 text-indigo-600" />
-                      Edit User
-                    </>
-                  )}
+          {/* ── Sidebar: Form + Role Legend ── */}
+          <div className="xl:col-span-1">
+            <div className={CARD}>
+              {/* tinted header banner */}
+              <div className={`px-5 md:px-6 pt-5 md:pt-6 pb-4 border-b border-slate-100 flex items-center gap-3 ${mode === "edit" ? "bg-amber-50/40" : "bg-teal-50/40"}`}>
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${mode === "edit" ? "bg-amber-100" : "bg-teal-100"}`}>
+                  {mode === "add"
+                    ? <UserPlus className="w-4 h-4 text-teal-600" />
+                    : <Edit3 className="w-4 h-4 text-amber-600" />
+                  }
+                </div>
+                <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wider">
+                  {mode === "add" ? "Add New User" : "Edit User"}
                 </h2>
+              </div>
 
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    save();
-                  }}
-                  className="space-y-5"
-                >
-                  {/* Username */}
+              {/* form body */}
+              <div className="p-5 md:p-6">
+                <form onSubmit={(e) => { e.preventDefault(); save(); }} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Username
-                    </label>
-                    <input
-                      type="text"
-                      value={form.username}
-                      onChange={(e) =>
-                        setForm({ ...form, username: e.target.value })
-                      }
-                      className="w-full px-4 py-2.5 bg-white text-black border border-gray-700 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200 pr-10"
-                      placeholder="Enter username"
-                    />
+                    <label className="block text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">Username</label>
+                    <input type="text" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-white text-slate-800 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm"
+                      placeholder="Enter username" />
                   </div>
 
-                  {/* Password */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">
                       Password
-                      {mode === "edit" && (
-                        <span className="text-xs text-gray-500 font-normal ml-2">
-                          (leave blank to keep current)
-                        </span>
-                      )}
+                      {mode === "edit" && <span className="text-slate-400 font-normal ml-2 normal-case tracking-normal">(leave blank to keep current)</span>}
                     </label>
                     <div className="relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={form.password}
-                        onChange={(e) =>
-                          setForm({ ...form, password: e.target.value })
-                        }
-                        className="w-full px-4 py-2.5 bg-white text-black border border-gray-700 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200 pr-10"
-                        placeholder={
-                          mode === "edit"
-                            ? "Enter new password (optional)"
-                            : "Enter password"
-                        }
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                      >
-                        {showPassword ? (
-                          <Eye className="w-5 h-5" />
-                        ) : (
-                          <Eye className="w-5 h-5" />
-                        )}
+                      <input type={showPassword ? "text" : "password"} value={form.password}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-white text-slate-800 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 pr-10 text-sm"
+                        placeholder={mode === "edit" ? "New password (optional)" : "Enter password"} />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                        <Eye className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
 
-                  {/* Role */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Role
-                    </label>
-                    <select
-                      value={form.role}
-                      onChange={(e) =>
-                        setForm({ ...form, role: e.target.value })
-                      }
-                      className="w-full px-4 py-2.5 bg-white text-black border border-gray-700 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all duration-200"
-                    >
-                      <option value="viewer">
-                        Viewer - Read only access
-                      </option>
+                    <label className="block text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">Role</label>
+                    <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-white text-slate-800 border-2 border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm">
+                      <option value="viewer">Viewer - Read only access</option>
                       <option value="qc">QC - Quality control access</option>
-                      <option value="operator">
-                        Operator - Production access
-                      </option>
-                      <option value="admin">
-                        Admin - Full system access
-                      </option>
+                      <option value="operator">Operator - Production access</option>
+                      <option value="admin">Admin - Full system access</option>
                     </select>
                   </div>
 
-                  {/* Submit Button */}
-                  <button
-                    type="submit"
-                    disabled={busy}
-                    className="w-full px-6 py-3 bg-gradient-to-r from-sky-600 to-indigo-600 text-white font-medium rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transform transition-all duration-200 hover:scale-[1.02] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                  >
+                  {/* preview selected role */}
+                  {(() => {
+                    const rc = ROLE_MAP[form.role] || ROLE_MAP.viewer;
+                    const RIcon = rc.Icon;
+                    return (
+                      <div className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg border ${rc.border} ${rc.bg}`}>
+                        <div className={`w-2 h-2 rounded-full ${rc.dot}`} />
+                        <RIcon className={`w-3.5 h-3.5 ${rc.text}`} />
+                        <span className={`text-xs font-semibold ${rc.text} capitalize`}>{form.role}</span>
+                      </div>
+                    );
+                  })()}
+
+                  <button type="submit" disabled={busy}
+                    className={`w-full px-5 py-3 text-white font-semibold text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150 shadow-sm ${
+                      mode === "edit"
+                        ? "bg-amber-500 hover:bg-amber-600 active:bg-amber-700"
+                        : "bg-teal-600 hover:bg-teal-700 active:bg-teal-800"
+                    }`}>
                     {busy ? (
                       <span className="flex items-center justify-center gap-2">
-                        <svg
-                          className="animate-spin h-5 w-5"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                            fill="none"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                         </svg>
                         {mode === "add" ? "Creating..." : "Updating..."}
                       </span>
                     ) : (
                       <span className="flex items-center justify-center gap-2">
-                        <Save className="w-5 h-5" />
+                        <Save className="w-4 h-4" />
                         {mode === "add" ? "Create User" : "Update User"}
                       </span>
                     )}
                   </button>
 
-                  {/* Cancel button (edit mode) */}
                   {mode === "edit" && (
-                    <button
-                      type="button"
-                      onClick={newUser}
-                      className="w-full px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-all duration-200"
-                    >
+                    <button type="button" onClick={newUser}
+                      className="w-full px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm rounded-lg transition-colors duration-150">
                       Cancel
                     </button>
                   )}
                 </form>
-              </div>
 
-              {/* Role Legend */}
-              <div className="mt-6 bg-white rounded-xl p-6 border border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-900 mb-3">
-                  Role Permissions
-                </h3>
-                <div className="space-y-2 text-sm">
-                  {[
-                    ["viewer", "View production data"],
-                    ["qc", "Perform quality checks"],
-                    ["operator", "Manage production"],
-                    ["admin", "Full system control"],
-                  ].map(([role, desc]) => (
-                    <div key={role} className="flex items-start gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border mt-0.5 ${getRoleStyle(
-                          role
-                        )}`}
-                      >
-                        {getRoleIcon(role)}
-                      </span>
-                      <span className="text-gray-600">{desc}</span>
-                    </div>
-                  ))}
+                {/* Role Legend */}
+                <div className="pt-5 mt-5 border-t border-slate-100">
+                  <h3 className="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-3">Role Permissions</h3>
+                  <div className="space-y-2.5">
+                    {[
+                      ["admin",    "Full system control"],
+                      ["operator", "Manage production"],
+                      ["qc",       "Perform quality checks"],
+                      ["viewer",   "View production data"],
+                    ].map(([role, desc]) => {
+                      const rc = ROLE_MAP[role];
+                      const RIcon = rc.Icon;
+                      return (
+                        <div key={role} className="flex items-center gap-2.5">
+                          <div className={`w-6 h-6 rounded-md flex items-center justify-center ${rc.bg}`}>
+                            <RIcon className={`w-3 h-3 ${rc.text}`} />
+                          </div>
+                          <span className={`text-xs font-semibold capitalize ${rc.text} w-16`}>{role}</span>
+                          <span className="text-xs text-slate-400">{desc}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>

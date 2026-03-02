@@ -439,7 +439,7 @@ export default function QCCheck() {
         description: issueDesc.trim(),
         category: issueCategory,
         severity: issueSeverity,
-        image_base64: issueImage,
+        image_path: issueImage,
       };
       const { data } = await api.post(`${QC_PREFIX}/issues`, payload);
       setIssues((prev) => [data, ...prev].slice(0, 50));
@@ -889,9 +889,9 @@ export default function QCCheck() {
                               <span>{it.created_at ? new Date(it.created_at).toLocaleString() : ""}</span>
                               {it.created_by && <span>by {it.created_by}</span>}
                             </div>
-                            {it.image_base64 && (
+                            {it.image_path && (
                               <div className="mt-2">
-                                <img src={it.image_base64} alt="attachment" className="max-h-40 rounded border" />
+                                <img src={it.image_path} alt="attachment" className="max-h-40 rounded border" />
                               </div>
                             )}
                           </div>
@@ -1477,7 +1477,7 @@ export default function QCCheck() {
                             </h4>
                             <div className="bg-white border border-red-200 rounded p-3 overflow-y-auto" style={{ maxHeight: "150px" }}>
                               <p className="text-sm text-red-700 font-mono whitespace-pre-wrap">
-                                {batchResults.notReady.map((r) => r.sn).join("\n")}
+                                {batchResults.notReady.map((r, i) => `${i + 1}. ${r.sn}`).join("\n")}
                               </p>
                             </div>
                           </div>
@@ -1496,7 +1496,7 @@ export default function QCCheck() {
                             </h4>
                             <div className="bg-white border border-blue-200 rounded p-3 overflow-y-auto" style={{ maxHeight: "150px" }}>
                               <p className="text-sm text-blue-700 font-mono whitespace-pre-wrap">
-                                {batchResults.alreadyShipped.map((r) => r.sn).join("\n")}
+                                {batchResults.alreadyShipped.map((r, i) => `${i + 1}. ${r.sn}`).join("\n")}
                               </p>
                             </div>
                           </div>
@@ -1515,7 +1515,7 @@ export default function QCCheck() {
                             </h4>
                             <div className="bg-white border border-green-200 rounded p-3 overflow-y-auto" style={{ maxHeight: "150px" }}>
                               <p className="text-sm text-green-700 font-mono whitespace-pre-wrap">
-                                {batchResults.ready.map((r) => r.sn).join("\n")}
+                                {batchResults.ready.map((r, i) => `${i + 1}. ${r.sn}`).join("\n")}
                               </p>
                             </div>
                           </div>

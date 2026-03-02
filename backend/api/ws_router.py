@@ -1,6 +1,6 @@
 # backend/api/ws_router.py
 """
-WebSocket 路由（使用 api.pcba.open_conn 與 REST 共享同一顆根目錄 pcba.db）
+WebSocket 路由（使用 core.pg 連線 PostgreSQL pcba schema）
 - 認證後才 accept()
 - 所有 send/receive 皆加保護
 - 初始資料與事件廣播一致
@@ -12,15 +12,16 @@ import json
 import logging
 from typing import Any, Dict, Optional
 
+import psycopg2.extras
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
 
 from core.deps_ws import authenticate_websocket
+from core.pg import get_conn
 from core.ws_manager import ws_manager
 
-# 直接共用 API 端邏輯與同一顆 DB 連線
+# 直接共用 API 端邏輯
 from api.pcba import (
-    open_conn as open_pcba_conn,
     _get_all_boards,
     _get_board_by_serial,
     _get_statistics,
@@ -31,6 +32,13 @@ from api.pcba import (
 
 logger = logging.getLogger("api.ws_router")
 router = APIRouter()
+
+PCBA_SCHEMA = "pcba"
+
+
+def _pcba_cursor(conn):
+    """Create a RealDictCursor for the pcba schema."""
+    return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
 
 # ------------------ 安全 send 工具 ------------------
@@ -62,7 +70,7 @@ async def safe_send_json(ws: WebSocket, data: dict) -> bool:
 
 
 # ------------------ Dashboard WS ------------------
-@router.websocket("/ws/dashboard")
+@router.websocket("/realtime/dashboard")
 async def websocket_dashboard(websocket: WebSocket):
     user = await authenticate_websocket(websocket)
     if not user:
@@ -109,7 +117,7 @@ async def websocket_dashboard(websocket: WebSocket):
 
 
 # ------------------ PCBA WS ------------------
-@router.websocket("/ws/pcba")
+@router.websocket("/realtime/pcba")
 async def websocket_pcba(websocket: WebSocket):
     user: Optional[Dict[str, Any]] = None
     try:
@@ -140,7 +148,7 @@ async def websocket_pcba(websocket: WebSocket):
         if not await ws_manager.connect(websocket, user):
             return
 
-        logger.info("✅ PCBA WebSocket connected for user: %s", user.get("sub"))
+        logger.info("PCBA WebSocket connected for user: %s", user.get("sub"))
 
         # 初始資料
         await asyncio.sleep(0.05)
@@ -171,7 +179,7 @@ async def websocket_pcba(websocket: WebSocket):
 
     finally:
         if user:
-            logger.info("❌ PCBA WebSocket disconnected for user: %s", user.get("sub"))
+            logger.info("PCBA WebSocket disconnected for user: %s", user.get("sub"))
         await ws_manager.disconnect(websocket)
 
 
@@ -180,21 +188,19 @@ async def send_initial_pcba_data_safe(ws: WebSocket):
     if not _is_connected(ws):
         return
 
-    conn = None
     try:
-        conn = open_pcba_conn()
-        # FIX: Don't send all 11,288 boards! Only send statistics
-        # Front-end will load boards via REST API as needed
-        stats = _get_statistics(conn)
+        with get_conn(PCBA_SCHEMA) as conn:
+            cur = _pcba_cursor(conn)
+            # FIX: Don't send all 11,288 boards! Only send statistics
+            # Front-end will load boards via REST API as needed
+            stats = _get_statistics(conn, cur)
+            cur.close()
         payload = stats.dict() if hasattr(stats, "dict") else (stats.model_dump() if hasattr(stats, "model_dump") else stats.__dict__)
         # Send empty boards array - front-end loads via API
         await safe_send_json(ws, {"type": "initial_data", "boards": [], "statistics": payload})
     except Exception as e:
         logger.error(f"Failed to send initial PCBA data: {e}")
         await safe_send_json(ws, {"type": "error", "message": "Failed to load initial data"})
-    finally:
-        if conn:
-            conn.close()
 
 
 async def handle_pcba_message_safe(ws: WebSocket, message: Dict[str, Any], user: Dict[str, Any]):
@@ -229,16 +235,15 @@ async def handle_new_board_safe(message: Dict[str, Any], username: str):
     if not board_data:
         raise ValueError("Missing board data")
 
-    conn = None
-    try:
-        conn = open_pcba_conn()
+    with get_conn(PCBA_SCHEMA) as conn:
+        cur = _pcba_cursor(conn)
         serial = board_data.get("serialNumber")
         if not serial:
             raise ValueError("Missing serialNumber")
 
-        existing = _get_board_by_serial(conn, serial)
+        existing = _get_board_by_serial(cur, serial)
         if existing:
-            board = _update_board_stage_internal(conn, serial, board_data.get("stage"), username)
+            board = _update_board_stage_internal(conn, cur, serial, board_data.get("stage"), username)
             action = "updated"
         else:
             create_data = BoardCreate(
@@ -248,21 +253,24 @@ async def handle_new_board_safe(message: Dict[str, Any], username: str):
                 model=board_data.get("model", "AUTO-DETECT"),
                 operator=username,
             )
-            board = _create_board_internal(conn, create_data, username)  # 僅允許 AM7/AU8
+            board = _create_board_internal(conn, cur, create_data, username)
             action = "created"
 
-        stats = _get_statistics(conn)
-
-    finally:
-        if conn:
-            conn.close()
+        stats = _get_statistics(conn, cur)
+        cur.close()
 
     payload = stats.dict() if hasattr(stats, "dict") else (stats.model_dump() if hasattr(stats, "model_dump") else stats.__dict__)
-    await ws_manager.broadcast({"type": "board_update", "board": board})
-    await ws_manager.broadcast(
-        {"type": "notification", "message": f"Board {board['serialNumber']} {action} - Stage: {board['stage']}", "level": "success"}
+    await ws_manager.broadcast_many(
+        [
+            {"type": "board_update", "board": board},
+            {
+                "type": "notification",
+                "message": f"Board {board['serialNumber']} {action} - Stage: {board['stage']}",
+                "level": "success",
+            },
+            {"type": "statistics_update", "statistics": payload},
+        ]
     )
-    await ws_manager.broadcast({"type": "statistics_update", "statistics": payload})
 
 
 async def handle_update_board_safe(message: Dict[str, Any], username: str):
@@ -270,25 +278,25 @@ async def handle_update_board_safe(message: Dict[str, Any], username: str):
     if not board_data:
         raise ValueError("Missing board data")
 
-    conn = None
-    try:
-        conn = open_pcba_conn()
+    with get_conn(PCBA_SCHEMA) as conn:
+        cur = _pcba_cursor(conn)
         serial = board_data.get("serialNumber")
         stage = board_data.get("stage")
         if not serial or not stage:
             raise ValueError("Missing serialNumber or stage")
 
-        board = _update_board_stage_internal(conn, serial, stage, username)
-        stats = _get_statistics(conn)
-
-    finally:
-        if conn:
-            conn.close()
+        board = _update_board_stage_internal(conn, cur, serial, stage, username)
+        stats = _get_statistics(conn, cur)
+        cur.close()
 
     payload = stats.dict() if hasattr(stats, "dict") else (stats.model_dump() if hasattr(stats, "model_dump") else stats.__dict__)
-    await ws_manager.broadcast({"type": "board_update", "board": board})
-    await ws_manager.broadcast({"type": "notification", "message": f"Board {board['serialNumber']} moved to {board['stage']}", "level": "info"})
-    await ws_manager.broadcast({"type": "statistics_update", "statistics": payload})
+    await ws_manager.broadcast_many(
+        [
+            {"type": "board_update", "board": board},
+            {"type": "notification", "message": f"Board {board['serialNumber']} moved to {board['stage']}", "level": "info"},
+            {"type": "statistics_update", "statistics": payload},
+        ]
+    )
 
 
 async def handle_request_board_data_safe(ws: WebSocket, message: Dict[str, Any]):
@@ -297,13 +305,10 @@ async def handle_request_board_data_safe(ws: WebSocket, message: Dict[str, Any])
         await safe_send_json(ws, {"type": "error", "message": "serialNumber required"})
         return
 
-    conn = None
-    try:
-        conn = open_pcba_conn()
-        board = _get_board_by_serial(conn, serial)
-    finally:
-        if conn:
-            conn.close()
+    with get_conn(PCBA_SCHEMA) as conn:
+        cur = _pcba_cursor(conn)
+        board = _get_board_by_serial(cur, serial)
+        cur.close()
 
     if board:
         await safe_send_json(ws, {"type": "board_update", "board": board})
@@ -312,13 +317,10 @@ async def handle_request_board_data_safe(ws: WebSocket, message: Dict[str, Any])
 
 
 async def handle_get_statistics_safe(ws: WebSocket):
-    conn = None
-    try:
-        conn = open_pcba_conn()
-        stats = _get_statistics(conn)
-    finally:
-        if conn:
-            conn.close()
+    with get_conn(PCBA_SCHEMA) as conn:
+        cur = _pcba_cursor(conn)
+        stats = _get_statistics(conn, cur)
+        cur.close()
 
     payload = stats.dict() if hasattr(stats, "dict") else (stats.model_dump() if hasattr(stats, "model_dump") else stats.__dict__)
     await safe_send_json(ws, {"type": "statistics_update", "statistics": payload})

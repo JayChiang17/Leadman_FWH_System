@@ -16,10 +16,12 @@ import {
   Title,
   Tooltip,
   Legend,
+  Filler,
 } from "chart.js";
+import DataLabels from "chartjs-plugin-datalabels";
 import "./Downtime.css";
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler, DataLabels);
 
 // ===== 時區與日期工具（鎖 Pacific） ==========================================
 const PACIFIC_TZ = "America/Los_Angeles";
@@ -115,11 +117,76 @@ const minToHHMM = (m) => {
   return `${String(Math.floor(mm / 60)).padStart(2, "0")}:${String(mm % 60).padStart(2, "0")}`;
 };
 
+const roundValue = (value) => {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? Math.round(numberValue) : 0;
+};
+
+const DowntimeTimer = React.memo(function DowntimeTimer({
+  line,
+  station,
+  startTs,
+  onStart,
+  onSubmit,
+  onAlert,
+}) {
+  const [elapsed, setElapsed] = useState(0);
+  const alertedRef = useRef(false);
+
+  useEffect(() => {
+    if (!startTs) {
+      setElapsed(0);
+      alertedRef.current = false;
+      return;
+    }
+
+    const tick = () => {
+      const sec = Math.floor((Date.now() - startTs) / 1000);
+      setElapsed(sec);
+      if (sec >= 600 && !alertedRef.current) {
+        alertedRef.current = true;
+        if (onAlert) onAlert();
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startTs, onAlert]);
+
+  return (
+    <div className="dt-timer">
+      <div className="dt-info">
+        <p>
+          <strong>Line:</strong> {line}
+        </p>
+        <p>
+          <strong>Station:</strong> {station}
+        </p>
+      </div>
+      {startTs && (
+        <div className="flip-timer-wrapper">
+          <FlipClockTimer seconds={elapsed} />
+        </div>
+      )}
+      <div className="dt-timer-btns">
+        {startTs ? (
+          <button className="dt-end-btn" onClick={onSubmit}>
+            End &amp; Submit
+          </button>
+        ) : (
+          <button onClick={onStart}>Start</button>
+        )}
+      </div>
+    </div>
+  );
+});
+
 // ===== Downtime Types Configuration ==========================================
 const _DOWNTIME_TYPES = {
   'Breakdown': { color: '#EF4444', label: 'Breakdown' },
   'Changeover': { color: '#F59E0B', label: 'Changeover' },
-  'Material Shortage': { color: '#8B5CF6', label: 'Material Shortage' },
+  'Material Shortage': { color: '#0891B2', label: 'Material Shortage' },
   'Maintenance': { color: '#10B981', label: 'Maintenance' },
   'Other': { color: '#6B7280', label: 'Other' }
 };
@@ -139,7 +206,7 @@ const buildUPHVsDowntimeChartData = (production, downtimes, lineName) => {
       const key = String(rawHour).padStart(2, "0");
       return key === h;
     });
-    return prodData ? prodData.total : 0;
+    return prodData ? roundValue(prodData.total) : 0;
   });
 
   const hourlyDowntime = hours.map(hour => {
@@ -172,7 +239,7 @@ const buildUPHVsDowntimeChartData = (production, downtimes, lineName) => {
       }
     });
 
-    return totalMinutes;
+    return roundValue(totalMinutes);
   });
 
   return {
@@ -182,17 +249,17 @@ const buildUPHVsDowntimeChartData = (production, downtimes, lineName) => {
         type: 'line',
         label: 'UPH (pcs/h)',
         data: hourlyUPH,
-        borderColor: '#059669',
-        backgroundColor: 'rgba(5, 150, 105, 0.08)',
-        borderWidth: 3,
+        borderColor: '#0d9488',
+        backgroundColor: 'rgba(13, 148, 136, 0.08)',
+        borderWidth: 2,
         tension: 0.4,
         fill: true,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        pointBackgroundColor: '#059669',
+        pointRadius: 3,
+        pointHoverRadius: 5,
+        pointBackgroundColor: '#0d9488',
         pointBorderColor: '#ffffff',
         pointBorderWidth: 2,
-        pointHoverBackgroundColor: '#047857',
+        pointHoverBackgroundColor: '#0f766e',
         pointHoverBorderColor: '#ffffff',
         yAxisID: 'y',
       },
@@ -200,10 +267,10 @@ const buildUPHVsDowntimeChartData = (production, downtimes, lineName) => {
         type: 'bar',
         label: 'Downtime (min)',
         data: hourlyDowntime,
-        backgroundColor: 'rgba(251, 146, 60, 0.75)',
-        borderColor: '#f97316',
-        borderWidth: 1.5,
-        borderRadius: 8,
+        backgroundColor: 'rgba(245, 158, 11, 0.75)',
+        borderColor: '#f59e0b',
+        borderWidth: 1,
+        borderRadius: 6,
         yAxisID: 'y1',
       }
     ]
@@ -302,7 +369,6 @@ export default function Downtime() {
   const [line, setLine] = useState("");
   const [station, setStation] = useState("");
   const [startTs, setStartTs] = useState(null);
-  const [elapsed, setElapsed] = useState(0);
   const [alert, setAlert] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -311,6 +377,8 @@ export default function Downtime() {
   const [week, setWeek] = useState({ labels: [], datasets: [], hhmm: {} });
   const [uphVsDowntime, setUphVsDowntime] = useState({ labels: [], datasets: [] });
   const [uphVsDowntimeAssembly, setUphVsDowntimeAssembly] = useState({ labels: [], datasets: [] });
+  const [uphEnabled, setUphEnabled] = useState(false);
+  const [uphLoading, setUphLoading] = useState(false);
   const [maxDowntime, setMaxDowntime] = useState(0); // 用於統一兩個圖表的 downtime 刻度
 
   const [records, setRecords] = useState([]);
@@ -325,16 +393,9 @@ export default function Downtime() {
 
   // Virtual scrolling
   const parentRef = useRef(null);
-
-  useEffect(() => {
-    if (step !== 3 || !startTs) return;
-    const id = setInterval(() => {
-      const sec = Math.floor((Date.now() - startTs) / 1000);
-      setElapsed(sec);
-      if (sec >= 600) setAlert(true);
-    }, 1000);
-    return () => clearInterval(id);
-  }, [step, startTs]);
+  const uphCardRef = useRef(null);
+  const uphLoadingRef = useRef(false);
+  const handleTimerAlert = useCallback(() => setAlert(true), []);
 
   const loadSummaries = useCallback(() => {
     // Load today's summary
@@ -394,8 +455,31 @@ export default function Downtime() {
     });
   }, []);
 
+  useEffect(() => {
+    if (uphEnabled) return;
+    const node = uphCardRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") {
+      setUphEnabled(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0] && entries[0].isIntersecting) {
+          setUphEnabled(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [uphEnabled]);
+
   // Load UPH vs Downtime integrated data
   const loadUPHVsDowntime = useCallback(async () => {
+    if (!uphEnabled || uphLoadingRef.current) return;
+    uphLoadingRef.current = true;
+    setUphLoading(true);
     try {
       const today = pacificTodayISODate();
 
@@ -472,14 +556,22 @@ export default function Downtime() {
       }
     } catch (err) {
       console.error("Failed to load UPH vs Downtime data:", err);
+    } finally {
+      uphLoadingRef.current = false;
+      setUphLoading(false);
     }
-  }, []);
+  }, [uphEnabled]);
 
   useEffect(() => {
     loadSummaries();
     loadRecords();
-    loadUPHVsDowntime();
-  }, [loadSummaries, loadRecords, loadUPHVsDowntime]);
+  }, [loadSummaries, loadRecords]);
+
+  useEffect(() => {
+    if (uphEnabled) {
+      loadUPHVsDowntime();
+    }
+  }, [uphEnabled, loadUPHVsDowntime]);
 
   // Debug: log week state changes
   useEffect(() => {
@@ -526,11 +618,22 @@ export default function Downtime() {
     overscan: 5,
   });
 
-  // 圖表選項 - PREMIUM STYLING
+  // Chart options - Production Charts style (TICK_FS=11, LEGEND_FS=11, LABEL_FS=10)
+  const TICK_FS = 11;
+  const LEGEND_FS = 11;
+  const GRID_COLOR = "#f1f5f9";
+
   const getTodayChartOptions = () => ({
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      datalabels: {
+        anchor: 'end',
+        align: 'top',
+        formatter: (v) => v > 0 ? minToHHMM(v) : '',
+        font: { size: 10, weight: '600', family: "'Inter', sans-serif" },
+        color: '#334155',
+      },
       legend: {
         display: true,
         position: "top",
@@ -555,22 +658,22 @@ export default function Downtime() {
             },
           ],
           usePointStyle: true,
-          padding: 18,
-          font: { size: 13, weight: '600', family: "'Inter', sans-serif" },
-          color: '#374151'
+          padding: 16,
+          font: { size: LEGEND_FS, weight: '500', family: "'Inter', sans-serif" },
+          color: '#64748b'
         },
       },
       tooltip: {
         enabled: true,
-        backgroundColor: 'rgba(17, 24, 39, 0.96)',
-        titleFont: { size: 15, weight: 'bold', family: "'Inter', sans-serif" },
-        bodyFont: { size: 13, family: "'Inter', sans-serif" },
-        padding: 16,
-        cornerRadius: 12,
+        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        titleFont: { size: 12, weight: '600', family: "'Inter', sans-serif" },
+        bodyFont: { size: 11, family: "'Inter', sans-serif" },
+        padding: 12,
+        cornerRadius: 8,
         displayColors: true,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderColor: 'rgba(148, 163, 184, 0.2)',
         borderWidth: 1,
-        boxPadding: 6,
+        boxPadding: 4,
         usePointStyle: true,
         callbacks: {
           title: (context) => context[0].label,
@@ -593,7 +696,7 @@ export default function Downtime() {
       y: {
         beginAtZero: true,
         grid: {
-          color: 'rgba(156, 163, 175, 0.08)',
+          color: GRID_COLOR,
           lineWidth: 1,
           drawTicks: false
         },
@@ -602,9 +705,9 @@ export default function Downtime() {
         },
         ticks: {
           callback: (v) => minToHHMM(v),
-          font: { size: 12, weight: '500', family: "'Inter', sans-serif" },
-          color: '#6B7280',
-          padding: 12
+          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
+          color: '#64748b',
+          padding: 8
         }
       },
       x: {
@@ -614,8 +717,8 @@ export default function Downtime() {
         },
         ticks: {
           padding: 8,
-          font: { size: 12, weight: '500', family: "'Inter', sans-serif" },
-          color: '#6B7280',
+          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
+          color: '#64748b',
           maxRotation: 45,
           minRotation: 0
         }
@@ -627,7 +730,7 @@ export default function Downtime() {
     },
     elements: {
       bar: {
-        borderRadius: 8,
+        borderRadius: 6,
         borderSkipped: false
       }
     }
@@ -637,6 +740,13 @@ export default function Downtime() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      datalabels: {
+        anchor: 'end',
+        align: 'top',
+        formatter: (v) => v > 0 ? minToHHMM(v) : '',
+        font: { size: 10, weight: '600', family: "'Inter', sans-serif" },
+        color: '#334155',
+      },
       legend: {
         display: true,
         position: "top",
@@ -644,24 +754,24 @@ export default function Downtime() {
         labels: {
           usePointStyle: true,
           pointStyle: 'rectRounded',
-          padding: 18,
-          font: { size: 13, weight: '600', family: "'Inter', sans-serif" },
-          color: '#374151',
-          boxWidth: 12,
-          boxHeight: 12
+          padding: 16,
+          font: { size: LEGEND_FS, weight: '500', family: "'Inter', sans-serif" },
+          color: '#64748b',
+          boxWidth: 10,
+          boxHeight: 10
         }
       },
       tooltip: {
         enabled: true,
-        backgroundColor: 'rgba(17, 24, 39, 0.96)',
-        titleFont: { size: 15, weight: 'bold', family: "'Inter', sans-serif" },
-        bodyFont: { size: 13, family: "'Inter', sans-serif" },
-        padding: 16,
-        cornerRadius: 12,
+        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        titleFont: { size: 12, weight: '600', family: "'Inter', sans-serif" },
+        bodyFont: { size: 11, family: "'Inter', sans-serif" },
+        padding: 12,
+        cornerRadius: 8,
         displayColors: true,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderColor: 'rgba(148, 163, 184, 0.2)',
         borderWidth: 1,
-        boxPadding: 6,
+        boxPadding: 4,
         usePointStyle: true,
         callbacks: {
           title: (context) => `Date: ${context[0].label}`,
@@ -679,7 +789,7 @@ export default function Downtime() {
         beginAtZero: true,
         stacked: false,
         grid: {
-          color: 'rgba(156, 163, 175, 0.08)',
+          color: GRID_COLOR,
           lineWidth: 1,
           drawTicks: false
         },
@@ -688,9 +798,9 @@ export default function Downtime() {
         },
         ticks: {
           callback: (v) => minToHHMM(v),
-          font: { size: 12, weight: '500', family: "'Inter', sans-serif" },
-          color: '#6B7280',
-          padding: 12
+          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
+          color: '#64748b',
+          padding: 8
         }
       },
       x: {
@@ -701,8 +811,8 @@ export default function Downtime() {
         },
         ticks: {
           padding: 8,
-          font: { size: 12, weight: '500', family: "'Inter', sans-serif" },
-          color: '#6B7280'
+          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
+          color: '#64748b'
         },
         categoryPercentage: 0.7,
         barPercentage: 0.85
@@ -714,7 +824,7 @@ export default function Downtime() {
     },
     elements: {
       bar: {
-        borderRadius: 8,
+        borderRadius: 6,
         borderSkipped: false
       }
     }
@@ -725,6 +835,7 @@ export default function Downtime() {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
+      datalabels: { display: false },
       legend: {
         display: true,
         position: "top",
@@ -732,36 +843,37 @@ export default function Downtime() {
         labels: {
           usePointStyle: true,
           pointStyle: 'circle',
-          padding: 18,
-          font: { size: 13, weight: '600', family: "'Inter', sans-serif" },
-          color: '#374151',
-          boxWidth: 12,
-          boxHeight: 12
+          padding: 16,
+          font: { size: LEGEND_FS, weight: '500', family: "'Inter', sans-serif" },
+          color: '#64748b',
+          boxWidth: 10,
+          boxHeight: 10
         }
       },
       tooltip: {
         enabled: true,
-        backgroundColor: 'rgba(17, 24, 39, 0.96)',
-        titleFont: { size: 15, weight: 'bold', family: "'Inter', sans-serif" },
-        bodyFont: { size: 13, family: "'Inter', sans-serif" },
-        padding: 16,
-        cornerRadius: 12,
+        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        titleFont: { size: 12, weight: '600', family: "'Inter', sans-serif" },
+        bodyFont: { size: 11, family: "'Inter', sans-serif" },
+        padding: 12,
+        cornerRadius: 8,
         displayColors: true,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderColor: 'rgba(148, 163, 184, 0.2)',
         borderWidth: 1,
-        boxPadding: 6,
+        boxPadding: 4,
         usePointStyle: true,
         callbacks: {
           title: (context) => `Time: ${context[0].label}`,
           label: (context) => {
             const label = context.dataset.label || '';
             const value = context.parsed.y;
+            const roundedValue = roundValue(value);
             if (label.includes('UPH')) {
-              return `${label}: ${value} pcs/h`;
+              return `${label}: ${roundedValue} pcs/h`;
             } else if (label.includes('Downtime')) {
-              return `${label}: ${value} min (${minToHHMM(value)})`;
+              return `${label}: ${roundedValue} min (${minToHHMM(roundedValue)})`;
             }
-            return `${label}: ${value}`;
+            return `${label}: ${roundedValue}`;
           },
         },
       },
@@ -775,11 +887,11 @@ export default function Downtime() {
         title: {
           display: true,
           text: 'UPH (pcs/h)',
-          font: { size: 13, weight: '700', family: "'Inter', sans-serif" },
-          color: '#059669'
+          font: { size: 10, weight: '600', family: "'Inter', sans-serif" },
+          color: '#0d9488'
         },
         grid: {
-          color: 'rgba(5, 150, 105, 0.06)',
+          color: GRID_COLOR,
           lineWidth: 1,
           drawTicks: false
         },
@@ -787,9 +899,10 @@ export default function Downtime() {
           display: false
         },
         ticks: {
-          font: { size: 12, weight: '600', family: "'Inter', sans-serif" },
-          color: '#059669',
-          padding: 12
+          callback: (v) => roundValue(v),
+          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
+          color: '#0d9488',
+          padding: 8
         }
       },
       y1: {
@@ -797,12 +910,12 @@ export default function Downtime() {
         display: true,
         position: 'right',
         beginAtZero: true,
-        max: maxDowntime || 60, // 使用統一的最大值
+        max: maxDowntime || 60,
         title: {
           display: true,
           text: 'Downtime (min)',
-          font: { size: 13, weight: '700', family: "'Inter', sans-serif" },
-          color: '#f97316'
+          font: { size: 10, weight: '600', family: "'Inter', sans-serif" },
+          color: '#f59e0b'
         },
         grid: {
           drawOnChartArea: false,
@@ -812,10 +925,10 @@ export default function Downtime() {
         },
         ticks: {
           callback: (v) => minToHHMM(v),
-          font: { size: 12, weight: '600', family: "'Inter', sans-serif" },
-          color: '#f97316',
-          padding: 12,
-          stepSize: maxDowntime > 120 ? 30 : (maxDowntime > 60 ? 20 : 10), // 根據範圍調整刻度間距
+          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
+          color: '#f59e0b',
+          padding: 8,
+          stepSize: maxDowntime > 120 ? 30 : (maxDowntime > 60 ? 20 : 10),
         }
       },
       x: {
@@ -825,8 +938,8 @@ export default function Downtime() {
         },
         ticks: {
           padding: 8,
-          font: { size: 12, weight: '500', family: "'Inter', sans-serif" },
-          color: '#6B7280',
+          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
+          color: '#64748b',
           maxRotation: 45,
           minRotation: 0,
           autoSkip: true,
@@ -846,7 +959,6 @@ export default function Downtime() {
     setLine("");
     setStation("");
     setStartTs(null);
-    setElapsed(0);
     setAlert(false);
   };
   const chooseLine = (l) => {
@@ -857,9 +969,12 @@ export default function Downtime() {
     setStation(s);
     setStep(3);
     setStartTs(null);
-    setElapsed(0);
+    setAlert(false);
   };
-  const startTimer = () => setStartTs(Date.now());
+  const startTimer = () => {
+    setAlert(false);
+    setStartTs(Date.now());
+  };
 
   // 送出（送「Pacific local 無時區字串」）
   const submit = async () => {
@@ -931,7 +1046,7 @@ export default function Downtime() {
 
   return (
     <div className={`dt-container ${alert ? "dt-flash" : ""}`}>
-      <h1 className="dt-title">Downtime Log</h1>
+      <h1 className="text-xl md:text-2xl font-semibold text-slate-800 mb-5">Downtime Log</h1>
 
       {step === 1 && (
         <div className="dt-line-select">
@@ -951,30 +1066,14 @@ export default function Downtime() {
       )}
 
       {step === 3 && (
-        <div className="dt-timer">
-          <div className="dt-info">
-            <p>
-              <strong>Line:</strong> {line}
-            </p>
-            <p>
-              <strong>Station:</strong> {station}
-            </p>
-          </div>
-          {startTs && (
-            <div className="flip-timer-wrapper">
-              <FlipClockTimer seconds={elapsed} />
-            </div>
-          )}
-          <div className="dt-timer-btns">
-            {startTs ? (
-              <button className="dt-end-btn" onClick={submit}>
-                End &amp; Submit
-              </button>
-            ) : (
-              <button onClick={startTimer}>Start</button>
-            )}
-          </div>
-        </div>
+        <DowntimeTimer
+          line={line}
+          station={station}
+          startTs={startTs}
+          onStart={startTimer}
+          onSubmit={submit}
+          onAlert={handleTimerAlert}
+        />
       )}
 
       {msg && <div className="dt-msg">{msg}</div>}
@@ -1022,11 +1121,21 @@ export default function Downtime() {
           </div>
 
           {/* UPH vs Downtime Correlation */}
-          <div className="downtime-card downtime-card-full uph-correlation-card">
+          <div
+            className="downtime-card downtime-card-full uph-correlation-card"
+            ref={uphCardRef}
+          >
             <div className="downtime-card-header">
-              <div className="downtime-header-content">
-                <h3>UPH vs Downtime Correlation - Today</h3>
-                <p>Production rate vs downtime analysis</p>
+              <div className="downtime-header-content" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f0fdfa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3>UPH vs Downtime Correlation</h3>
+                  <p>Production rate vs downtime analysis — Today</p>
+                </div>
               </div>
             </div>
 
@@ -1036,9 +1145,10 @@ export default function Downtime() {
                 <div className="uph-chart-label">
                   <span className="uph-label-dot cell-dot"></span>
                   <span className="uph-label-text">Cell Line</span>
+                  <span style={{ marginLeft: 'auto', fontSize: '0.6875rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Hourly</span>
                 </div>
                 <div className="uph-chart-wrapper">
-                  {uphVsDowntime.datasets && uphVsDowntime.datasets.length > 0 ? (
+                  {uphVsDowntime.datasets && uphVsDowntime.datasets.length > 0 && !uphLoading ? (
                     <Line data={uphVsDowntime} options={getUPHVsDowntimeChartOptions()} />
                   ) : (
                     <div className="chart-skeleton">
@@ -1060,9 +1170,10 @@ export default function Downtime() {
                 <div className="uph-chart-label">
                   <span className="uph-label-dot assembly-dot"></span>
                   <span className="uph-label-text">Assembly Line</span>
+                  <span style={{ marginLeft: 'auto', fontSize: '0.6875rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Hourly</span>
                 </div>
                 <div className="uph-chart-wrapper">
-                  {uphVsDowntimeAssembly.datasets && uphVsDowntimeAssembly.datasets.length > 0 ? (
+                  {uphVsDowntimeAssembly.datasets && uphVsDowntimeAssembly.datasets.length > 0 && !uphLoading ? (
                     <Line data={uphVsDowntimeAssembly} options={getUPHVsDowntimeChartOptions()} />
                   ) : (
                     <div className="chart-skeleton">

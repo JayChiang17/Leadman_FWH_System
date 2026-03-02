@@ -1,17 +1,19 @@
 # backend/api/ate_testing.py
-# ATE Testing - NG Management API
-# Provides endpoints for ATE testing operators to mark/clear NG status
+# ATE Testing - NG Management API (PostgreSQL)
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
-import sqlite3
 import logging
-from pathlib import Path
+
+import psycopg2
+import psycopg2.extras
 
 from core.deps import require_roles, get_current_user
 from core.ws_manager import ws_manager
+from core.monitor_db import log_audit
+from core.pg import get_conn, get_cursor
 from pydantic import BaseModel
 
 # ─────────────────────────── Setup ───────────────────────────
@@ -19,11 +21,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["ate_testing"], prefix="/ate")
 
 TZ = ZoneInfo("America/Los_Angeles")
+SCHEMA = "assembly"
 
-# Database path resolution (same as assembly_inventory.py)
-def _get_db_path() -> Path:
-    """Get absolute path to assembly.db in backend directory"""
-    return Path(__file__).parent.parent / "assembly.db"
+# ─────────────────────────── Performance: Cache ───────────────────────────
+from core.cache_utils import TTLCache
+_STATS_CACHE = TTLCache(ttl_seconds=3)
 
 # ─────────────────────────── Models ───────────────────────────
 class MarkNGRequest(BaseModel):
@@ -48,62 +50,47 @@ class StatsResponse(BaseModel):
     pass_rate: float
     total_today: int
 
-# ─────────────────────────── Database Helper ───────────────────────────
-def get_db_connection() -> sqlite3.Connection:
-    """Open connection to assembly.db with proper path resolution"""
-    db_path = _get_db_path()
-    if not db_path.exists():
-        raise RuntimeError(f"Database not found at {db_path}")
-
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    return conn
-
 # ─────────────────────────── Endpoints ───────────────────────────
 
 @router.get("/stats", response_model=StatsResponse, summary="Get today's NG statistics")
 async def get_today_stats(user=Depends(get_current_user)):
-    """
-    Returns today's NG statistics:
-    - ng_count: Records marked as NG (not fixed)
-    - fixed_count: Records that were NG and now fixed
-    - pass_rate: Percentage of OK records
-    - total_today: Total records scanned today
-    """
-    try:
-        conn = get_db_connection()
+    today = datetime.now(TZ).date()
+    cache_key = f"ate_stats:{today}"
+    cached = _STATS_CACHE.get(cache_key)
+    if cached:
+        return cached
 
-        # Get today's date range
-        today = datetime.now(TZ).date()
+    try:
         start_ts = today.strftime("%Y-%m-%d 00:00:00")
         end_ts = (today + timedelta(days=1)).strftime("%Y-%m-%d 00:00:00")
 
-        # Query today's stats
-        row = conn.execute("""
-            SELECT
-                COUNT(*) AS total,
-                SUM(CASE WHEN UPPER(status) = 'NG' THEN 1 ELSE 0 END) AS ng_count,
-                SUM(CASE WHEN UPPER(status) = 'FIXED' THEN 1 ELSE 0 END) AS fixed_count
-            FROM scans
-            WHERE ts >= ? AND ts < ?
-        """, (start_ts, end_ts)).fetchone()
+        with get_cursor(SCHEMA) as cur:
+            cur.execute("""
+                SELECT
+                    COUNT(*) AS total,
+                    SUM(CASE WHEN UPPER(status) = 'NG' THEN 1 ELSE 0 END) AS ng_count,
+                    SUM(CASE WHEN UPPER(status) = 'FIXED' THEN 1 ELSE 0 END) AS fixed_count
+                FROM scans
+                WHERE scanned_at >= %s AND scanned_at < %s
+            """, (start_ts, end_ts))
+            row = cur.fetchone()
 
         total = int(row["total"] or 0)
         ng_count = int(row["ng_count"] or 0)
         fixed_count = int(row["fixed_count"] or 0)
 
-        # Calculate pass rate (OK records / total)
         ok_count = total - ng_count - fixed_count
         pass_rate = round((ok_count / total * 100) if total > 0 else 100.0, 1)
 
-        conn.close()
-
-        return StatsResponse(
+        result = StatsResponse(
             ng_count=ng_count,
             fixed_count=fixed_count,
             pass_rate=pass_rate,
             total_today=total
         )
+
+        _STATS_CACHE.set(cache_key, result)
+        return result
 
     except Exception as e:
         logger.error(f"Error fetching ATE stats: {e}")
@@ -112,28 +99,22 @@ async def get_today_stats(user=Depends(get_current_user)):
 
 @router.get("/scan/{us_sn}", response_model=ScanResponse, summary="Verify SN exists in assembly DB")
 async def scan_sn(us_sn: str, user=Depends(require_roles("admin", "operator"))):
-    """
-    Check if a US SN exists in the assembly database.
-    Returns record details if found, error if not found.
-    """
     if not us_sn or not us_sn.strip():
         raise HTTPException(status_code=400, detail="US SN cannot be empty")
 
     us_sn = us_sn.strip()
 
     try:
-        conn = get_db_connection()
-
-        row = conn.execute("""
-            SELECT id, ts AS timestamp, cn_sn AS china_sn, us_sn,
-                   mod_a AS module_a, mod_b AS module_b,
-                   au8 AS pcba_au8, am7 AS pcba_am7,
-                   status, ng_reason, product_line
-            FROM scans
-            WHERE us_sn = ?
-        """, (us_sn,)).fetchone()
-
-        conn.close()
+        with get_cursor(SCHEMA) as cur:
+            cur.execute("""
+                SELECT id, scanned_at AS timestamp, cn_sn AS china_sn, us_sn,
+                       mod_a AS module_a, mod_b AS module_b,
+                       au8 AS pcba_au8, am7 AS pcba_am7,
+                       status, ng_reason, product_line
+                FROM scans
+                WHERE us_sn = %s
+            """, (us_sn,))
+            row = cur.fetchone()
 
         if not row:
             return ScanResponse(
@@ -155,11 +136,7 @@ async def scan_sn(us_sn: str, user=Depends(require_roles("admin", "operator"))):
 
 
 @router.post("/mark_ng", summary="Mark assembly record as NG")
-async def mark_ng(body: MarkNGRequest, user=Depends(require_roles("admin", "operator"))):
-    """
-    Mark an assembly record as NG with reason.
-    Reuses the existing assembly_inventory mark_ng logic.
-    """
+async def mark_ng(body: MarkNGRequest, request: Request = None, user=Depends(require_roles("admin", "operator"))):
     if not body.us_sn or not body.us_sn.strip():
         raise HTTPException(status_code=400, detail="US SN cannot be empty")
 
@@ -170,30 +147,28 @@ async def mark_ng(body: MarkNGRequest, user=Depends(require_roles("admin", "oper
     reason = body.reason.strip()
 
     try:
-        conn = get_db_connection()
+        with get_conn(SCHEMA) as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        # Check if record exists
-        exists = conn.execute("SELECT 1 FROM scans WHERE us_sn = ?", (us_sn,)).fetchone()
-        if not exists:
-            conn.close()
-            raise HTTPException(status_code=404, detail=f"Serial number {us_sn} not found")
+            cur.execute("SELECT 1 FROM scans WHERE us_sn = %s", (us_sn,))
+            if not cur.fetchone():
+                cur.close()
+                raise HTTPException(status_code=404, detail=f"Serial number {us_sn} not found")
 
-        # Update status to NG
-        cursor = conn.execute("""
-            UPDATE scans
-            SET status = 'NG', ng_reason = ?
-            WHERE us_sn = ?
-        """, (reason, us_sn))
+            cur.execute("""
+                UPDATE scans
+                SET status = 'NG', ng_reason = %s
+                WHERE us_sn = %s
+            """, (reason, us_sn))
 
-        conn.commit()
+            if cur.rowcount == 0:
+                cur.close()
+                raise HTTPException(status_code=404, detail=f"Failed to update {us_sn}")
 
-        if cursor.rowcount == 0:
-            conn.close()
-            raise HTTPException(status_code=404, detail=f"Failed to update {us_sn}")
+            cur.close()
 
-        conn.close()
+        _STATS_CACHE.clear()
 
-        # Broadcast WebSocket update
         await ws_manager.broadcast({
             "event": "assembly_status_updated",
             "timestamp": datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S"),
@@ -202,7 +177,10 @@ async def mark_ng(body: MarkNGRequest, user=Depends(require_roles("admin", "oper
             "reason": reason
         })
 
-        logger.info(f"ATE: Marked {us_sn} as NG by {user.get('username', 'unknown')}")
+        uname = getattr(user, "username", "unknown")
+        logger.info(f"ATE: Marked {us_sn} as NG by {uname}")
+        log_audit(user=uname, action="ate_ng_mark", target=us_sn, new_value=reason,
+                  ip=request.client.host if request and request.client else None)
 
         return {
             "status": "success",
@@ -217,72 +195,65 @@ async def mark_ng(body: MarkNGRequest, user=Depends(require_roles("admin", "oper
 
 
 @router.post("/clear_ng", summary="Clear NG status (mark as FIXED)")
-async def clear_ng(body: ClearNGRequest, user=Depends(require_roles("admin", "operator"))):
-    """
-    Clear NG status by marking record as FIXED.
-    Reuses the existing assembly_inventory clear_ng logic.
-    """
+async def clear_ng(body: ClearNGRequest, request: Request = None, user=Depends(require_roles("admin", "operator"))):
     if not body.us_sn or not body.us_sn.strip():
         raise HTTPException(status_code=400, detail="US SN cannot be empty")
 
     us_sn = body.us_sn.strip()
 
     try:
-        conn = get_db_connection()
+        with get_conn(SCHEMA) as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-        # Check if record exists and is NG
-        row = conn.execute("""
-            SELECT status FROM scans WHERE us_sn = ?
-        """, (us_sn,)).fetchone()
+            cur.execute("SELECT status FROM scans WHERE us_sn = %s", (us_sn,))
+            row = cur.fetchone()
 
-        if not row:
-            conn.close()
-            raise HTTPException(status_code=404, detail=f"Serial number {us_sn} not found")
+            if not row:
+                cur.close()
+                raise HTTPException(status_code=404, detail=f"Serial number {us_sn} not found")
 
-        if (row["status"] or "").upper() != "NG":
-            conn.close()
-            raise HTTPException(
-                status_code=400,
-                detail=f"{us_sn} is not marked as NG (current status: {row['status'] or 'OK'})"
+            if (row["status"] or "").upper() != "NG":
+                cur.close()
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{us_sn} is not marked as NG (current status: {row['status'] or 'OK'})"
+                )
+
+            updates = ["status = 'FIXED'"]
+            params = []
+
+            def add_update(column: str, value: Optional[str]) -> None:
+                if value is None:
+                    return
+                trimmed = value.strip()
+                if not trimmed:
+                    return
+                updates.append(f"{column} = %s")
+                params.append(trimmed)
+
+            add_update("mod_a", body.module_a)
+            add_update("mod_b", body.module_b)
+            add_update("au8", body.pcba_au8)
+            add_update("am7", body.pcba_am7)
+
+            params.append(us_sn)
+            cur.execute(
+                f"""
+                UPDATE scans
+                SET {", ".join(updates)}
+                WHERE us_sn = %s AND UPPER(status) = 'NG'
+                """,
+                params,
             )
 
-        # Update status to FIXED, optionally update module/pcba SNs
-        updates = ["status = 'FIXED'"]
-        params = []
+            if cur.rowcount == 0:
+                cur.close()
+                raise HTTPException(status_code=400, detail=f"Failed to clear NG for {us_sn}")
 
-        def add_update(column: str, value: Optional[str]) -> None:
-            if value is None:
-                return
-            trimmed = value.strip()
-            if not trimmed:
-                return
-            updates.append(f"{column} = ?")
-            params.append(trimmed)
+            cur.close()
 
-        add_update("mod_a", body.module_a)
-        add_update("mod_b", body.module_b)
-        add_update("au8", body.pcba_au8)
-        add_update("am7", body.pcba_am7)
+        _STATS_CACHE.clear()
 
-        params.append(us_sn)
-        cursor = conn.execute(
-            f"""
-            UPDATE scans
-            SET {", ".join(updates)}
-            WHERE us_sn = ? AND UPPER(status) = 'NG'
-            """,
-            params,
-        )
-
-        conn.commit()
-
-        if cursor.rowcount == 0:
-            conn.close()
-            raise HTTPException(status_code=400, detail=f"Failed to clear NG for {us_sn}")
-
-        conn.close()
-
-        # Broadcast WebSocket update
         await ws_manager.broadcast({
             "event": "assembly_status_updated",
             "timestamp": datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S"),
@@ -290,7 +261,10 @@ async def clear_ng(body: ClearNGRequest, user=Depends(require_roles("admin", "op
             "status": "FIXED"
         })
 
-        logger.info(f"ATE: Cleared NG for {us_sn} by {user.get('username', 'unknown')}")
+        uname = getattr(user, "username", "unknown")
+        logger.info(f"ATE: Cleared NG for {us_sn} by {uname}")
+        log_audit(user=uname, action="ate_ng_clear", target=us_sn,
+                  ip=request.client.host if request and request.client else None)
 
         return {
             "status": "success",
@@ -310,32 +284,25 @@ async def get_recent_ng(
     include_fixed: bool = True,
     user=Depends(get_current_user)
 ):
-    """
-    Get recent NG records (with optional fixed records).
-    Default limit: 50 records.
-    """
     if limit < 1 or limit > 200:
         raise HTTPException(status_code=400, detail="Limit must be between 1 and 200")
 
     try:
-        conn = get_db_connection()
-
-        # Build status condition
         if include_fixed:
             status_cond = "UPPER(status) IN ('NG', 'FIXED')"
         else:
             status_cond = "UPPER(status) = 'NG'"
 
-        rows = conn.execute(f"""
-            SELECT id, ts AS timestamp, us_sn, cn_sn AS china_sn,
-                   status, ng_reason, product_line
-            FROM scans
-            WHERE {status_cond}
-            ORDER BY ts DESC
-            LIMIT ?
-        """, (limit,)).fetchall()
-
-        conn.close()
+        with get_cursor(SCHEMA) as cur:
+            cur.execute(f"""
+                SELECT id, scanned_at AS timestamp, us_sn, cn_sn AS china_sn,
+                       status, ng_reason, product_line
+                FROM scans
+                WHERE {status_cond}
+                ORDER BY scanned_at DESC
+                LIMIT %s
+            """, (limit,))
+            rows = cur.fetchall()
 
         records = [dict(row) for row in rows]
 

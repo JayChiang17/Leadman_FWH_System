@@ -5,6 +5,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Activity, Search, XCircle, CheckCircle, Loader2, AlertCircle, Download } from "lucide-react";
 import api from "../../services/api";
 import useWs from "../../utils/wsConnect";
+import useMessageTimer from "../../utils/useMessageTimer";
 import "./ATETesting.css";
 
 export default function ATETesting() {
@@ -23,7 +24,7 @@ export default function ATETesting() {
     total_today: 0
   });
   const [recentNg, setRecentNg] = useState([]);
-  const [message, setMessage] = useState({ text: "", type: "" });
+  const [message, showMessage] = useMessageTimer(4000);
   const [loading, setLoading] = useState(false);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
@@ -62,7 +63,7 @@ export default function ATETesting() {
 
     setLoading(true);
     try {
-      const { data } = await api.get(`/ate/scan/${encodeURIComponent(trimmedSn)}`);
+      const { data } = await api.get(`ate/scan/${encodeURIComponent(trimmedSn)}`);
 
       if (data.exists) {
         setCurrentRecord(data.record);
@@ -136,8 +137,8 @@ export default function ATETesting() {
 
       showMessage(data.message || "Successfully marked as NG", "success");
 
-      // Refresh data
-      await Promise.all([fetchStats(), fetchRecentNg()]);
+      // WebSocket will trigger fetchStats() and fetchRecentNg() automatically
+      // No need to refresh here - avoids duplicate API calls
 
       // Clear form
       clearForm();
@@ -187,8 +188,8 @@ export default function ATETesting() {
 
       showMessage(data.message || "Successfully cleared NG", "success");
 
-      // Refresh data
-      await Promise.all([fetchStats(), fetchRecentNg()]);
+      // WebSocket will trigger fetchStats() and fetchRecentNg() automatically
+      // No need to refresh here - avoids duplicate API calls
 
       // Clear form
       clearForm();
@@ -205,10 +206,7 @@ export default function ATETesting() {
 
   // ─────────────────────────── Helper Functions ───────────────────────────
 
-  const showMessage = (text, type = "info") => {
-    setMessage({ text, type });
-    setTimeout(() => setMessage({ text: "", type: "" }), 4000);
-  };
+  // showMessage provided by useMessageTimer hook
 
   const clearForm = () => {
     setSn("");
@@ -223,28 +221,12 @@ export default function ATETesting() {
 
   // ─────────────────────────── WebSocket Integration ───────────────────────────
 
-  const { ws, isConnected } = useWs("/ws/dashboard");
-
-  useEffect(() => {
-    if (!ws || !isConnected) return;
-
-    const handleMessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        if (data.event === "assembly_status_updated") {
-          // Refresh stats and recent list
-          fetchStats();
-          fetchRecentNg();
-        }
-      } catch (error) {
-        console.error("WebSocket message error:", error);
-      }
-    };
-
-    ws.addEventListener("message", handleMessage);
-    return () => ws.removeEventListener("message", handleMessage);
-  }, [ws, isConnected, fetchStats, fetchRecentNg]);
+  const handleWsMessage = useCallback((data) => {
+    if (data.event === "assembly_status_updated") {
+      Promise.all([fetchStats(), fetchRecentNg()]);
+    }
+  }, [fetchStats, fetchRecentNg]);
+  useWs("/realtime/dashboard", handleWsMessage);
 
   // ─────────────────────────── PWA Install Support ───────────────────────────
 
@@ -316,8 +298,8 @@ export default function ATETesting() {
   // ─────────────────────────── Initial Data Load ───────────────────────────
 
   useEffect(() => {
-    fetchStats();
-    fetchRecentNg();
+    // Load stats and recent records in parallel
+    Promise.all([fetchStats(), fetchRecentNg()]);
 
     // Check if install was dismissed recently (within 7 days)
     const dismissed = localStorage.getItem('pwa-install-dismissed');

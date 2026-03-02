@@ -1,14 +1,17 @@
 """
 Scheduler - Automated Task Scheduler
-Uses APScheduler to manage scheduled tasks including daily production reports and downtime summary
+Uses APScheduler to manage scheduled tasks including daily production reports.
 """
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.triggers.interval import IntervalTrigger
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+
 import os
 import sys
+import time
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 # Add parent directory to path for service imports
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -19,249 +22,369 @@ from core.email_db import (
     init_email_tables,
     get_email_config,
     get_active_recipients,
-    log_email_send
+    log_email_send,
 )
+from core.paths import DATA_DIR
 
 
 class ReportScheduler:
-    """Report Scheduler - Manages all scheduled tasks"""
+    """Report Scheduler - Manages all scheduled tasks."""
 
-    def __init__(self):
-        """Initialize scheduler"""
+    def __init__(self, emit_init_log: bool = True):
         self.scheduler = BackgroundScheduler()
         self.email_service = GraphAPIEmailService()
         self.data_service = DataCollectionService()
+        self._emit_init_log = emit_init_log
+        default_lock = DATA_DIR / "scheduler.lock"
+        if "unittest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST"):
+            default_lock = DATA_DIR / f"scheduler.test.{os.getpid()}.lock"
+        self._lock_enabled = os.getenv("SCHEDULER_LOCK_ENABLED", "1") != "0"
+        self._lock_file = Path(os.getenv("SCHEDULER_LOCK_FILE", str(default_lock)))
+        self._lock_fd = None
+        self._is_leader = False
 
-        # Initialize database tables
         try:
             init_email_tables()
         except Exception as e:
-            print(f"[WARNING] Failed to initialize email tables: {e}")
+            self._log("WARN", f"failed to initialize email tables: {e}")
 
-        # Read configuration from database (fallback to environment variables)
         self._load_config()
 
-        print("[INFO] Scheduler initialized")
-        print(f"   Daily report send time: {self.report_time}")
-        print(f"   Daily report enabled: {self.enabled}")
-        print(f"   Daily report recipients: {', '.join(self.recipients) if self.recipients else 'Not configured'}")
+        if self._emit_init_log:
+            self._log("INFO", "scheduler initialized")
+            self._log("INFO", f"daily report time: {self.report_time}")
+            self._log("INFO", f"daily report enabled: {self.enabled}")
+            self._log("INFO", f"recipients: {self._recipients_summary()}")
+
+    def _log(self, level: str, message: str):
+        print(f"[{level:<5}] {message}")
+
+    @staticmethod
+    def _extract_production_counts(report_data: dict) -> tuple[int, int]:
+        module_count = int(
+            report_data.get("module_production", report_data.get("module_count", 0)) or 0
+        )
+        assembly_count = int(
+            report_data.get("assembly_production", report_data.get("assembly_count", 0)) or 0
+        )
+        return module_count, assembly_count
+
+    @property
+    def is_leader(self) -> bool:
+        return self._is_leader
+
+    def _acquire_leader_lock(self) -> bool:
+        if not self._lock_enabled:
+            self._is_leader = True
+            return True
+
+        if self._lock_fd is not None:
+            return self._is_leader
+
+        self._lock_file.parent.mkdir(parents=True, exist_ok=True)
+        self._lock_fd = open(self._lock_file, "a+b")
+        self._lock_fd.seek(0)
+        self._lock_fd.write(b"1")
+        self._lock_fd.flush()
+
+        try:
+            if os.name == "nt":
+                import msvcrt
+                self._lock_fd.seek(0)
+                msvcrt.locking(self._lock_fd.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self._lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self._is_leader = True
+            return True
+        except Exception:
+            try:
+                self._lock_fd.close()
+            except Exception:
+                pass
+            self._lock_fd = None
+            self._is_leader = False
+            return False
+
+    def _release_leader_lock(self):
+        if not self._lock_enabled:
+            self._is_leader = False
+            return
+        if self._lock_fd is None:
+            self._is_leader = False
+            return
+        try:
+            if os.name == "nt":
+                import msvcrt
+                self._lock_fd.seek(0)
+                msvcrt.locking(self._lock_fd.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self._lock_fd.fileno(), fcntl.LOCK_UN)
+        except Exception:
+            pass
+        try:
+            self._lock_fd.close()
+        except Exception:
+            pass
+        self._lock_fd = None
+        self._is_leader = False
+
+    def _parse_recipients(self, recipients_str: str) -> list:
+        if not recipients_str:
+            return []
+        return [email.strip() for email in recipients_str.split(",") if email.strip()]
+
+    def _recipients_summary(self, preview_limit: int = 3) -> str:
+        if not self.recipients:
+            return "0 recipients"
+        count = len(self.recipients)
+        preview = ", ".join(self.recipients[:preview_limit])
+        if count > preview_limit:
+            preview = f"{preview}, +{count - preview_limit} more"
+        return f"{count} recipients ({preview})"
 
     def _load_config(self):
-        """Load configuration from database with fallback to environment variables"""
+        """Load configuration from database with fallback to environment variables."""
         try:
-            # Try to get config from database
             config = get_email_config()
             if config:
-                self.report_time = config['send_time']
-                self.enabled = bool(config['enabled'])
+                self.report_time = config["send_time"]
+                self.enabled = bool(config["enabled"])
             else:
-                # Fallback to environment variables
                 self.report_time = os.getenv("REPORT_SEND_TIME", "18:00")
                 self.enabled = True
 
-            # Get recipients from database
             recipient_list = get_active_recipients()
             if recipient_list:
-                self.recipients = [r['email'] for r in recipient_list]
+                self.recipients = [r["email"] for r in recipient_list]
             else:
-                # Fallback to environment variables
-                self.recipients = os.getenv("DAILY_REPORT_EMAILS", "").split(",")
-                self.recipients = [email.strip() for email in self.recipients if email.strip()]
+                self.recipients = self._parse_recipients(os.getenv("DAILY_REPORT_EMAILS", ""))
 
         except Exception as e:
-            print(f"[WARNING] Failed to load config from database: {e}")
-            # Fallback to environment variables
+            self._log("WARN", f"failed to load config from database: {e}")
             self.report_time = os.getenv("REPORT_SEND_TIME", "18:00")
-            self.recipients = os.getenv("DAILY_REPORT_EMAILS", "").split(",")
-            self.recipients = [email.strip() for email in self.recipients if email.strip()]
+            self.recipients = self._parse_recipients(os.getenv("DAILY_REPORT_EMAILS", ""))
             self.enabled = True
 
-    def _parse_recipients(self, recipients_str: str) -> list:
-        """Parse recipient string"""
-        if not recipients_str:
-            return []
-        return [email.strip() for email in recipients_str.split(',') if email.strip()]
-
     def send_daily_report(self):
-        """
-        Daily report task function
-        This function will be called on schedule
-        """
+        """Daily report task function called by scheduler."""
         print("\n" + "=" * 70)
-        print(f"[INFO] Starting daily report generation and sending - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        self._log("INFO", f"daily report run started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("=" * 70)
 
         try:
-            # Reload config from database before sending
             self._load_config()
 
-            # Check if email is enabled
             if not self.enabled:
-                print("[INFO] Email sending is disabled in configuration")
+                self._log("INFO", "email sending disabled in configuration")
                 print("=" * 70 + "\n")
                 return
 
             if not self.recipients:
-                print("[WARNING] No recipients configured")
+                self._log("WARN", "no recipients configured")
                 print("=" * 70 + "\n")
                 return
 
-            # 1. Generate report data
-            print("\nStep 1/2: Collecting data...")
+            self._log("INFO", "step 1/2 collecting data")
             report_data = self.data_service.get_daily_report_data()
+            module_count, assembly_count = self._extract_production_counts(report_data)
 
-            # 2. Send email
-            print("\nStep 2/2: Sending email...")
+            # Retry full data once if collector reported error (common transient case: DB lock)
+            if report_data.get("error"):
+                self._log("WARN", f"daily report collection error, retry once: {report_data.get('error')}")
+                time.sleep(0.5)
+                retry_data = self.data_service.get_daily_report_data()
+                if not retry_data.get("error"):
+                    report_data = retry_data
+                    module_count, assembly_count = self._extract_production_counts(report_data)
+                    self._log("INFO", "daily report collection recovered after retry")
+
+            # Final guard: never skip by relying only on full report payload.
+            if module_count == 0 and assembly_count == 0:
+                try:
+                    fallback = self.data_service.get_today_production_counts()
+                    fb_module, fb_assembly = self._extract_production_counts(fallback)
+                    module_count = max(module_count, fb_module)
+                    assembly_count = max(assembly_count, fb_assembly)
+                    report_data["module_production"] = module_count
+                    report_data["assembly_production"] = assembly_count
+                    self._log(
+                        "INFO",
+                        f"fallback production counts checked: module={module_count}, assembly={assembly_count}",
+                    )
+                except Exception as e:
+                    self._log("WARN", f"fallback production count check failed: {e}")
+
+            if module_count == 0 and assembly_count == 0:
+                self._log("INFO", "no production data today (module=0, assembly=0), skip email")
+                try:
+                    log_email_send(
+                        recipients=self.recipients,
+                        status="skipped",
+                        error_message="No production data today (module=0, assembly=0)",
+                        triggered_by="scheduler:daily_report",
+                    )
+                except Exception:
+                    pass
+                print("=" * 70 + "\n")
+                return
+
+            self._log("INFO", "step 2/2 sending email")
             success = self.email_service.send_daily_report(
                 recipients=self.recipients,
-                report_data=report_data
+                report_data=report_data,
             )
 
-            # 3. Log the send attempt
             try:
                 log_email_send(
                     recipients=self.recipients,
                     status="success" if success else "failed",
                     error_message=None if success else "Email send failed",
-                    triggered_by="scheduler:daily_report"
+                    triggered_by="scheduler:daily_report",
                 )
             except Exception as log_error:
-                print(f"[WARNING] Failed to log email send: {log_error}")
+                self._log("WARN", f"failed to log email send: {log_error}")
 
+            print("\n" + "=" * 70)
             if success:
-                print("\n" + "=" * 70)
-                print("[SUCCESS] Daily report sent successfully!")
-                print("=" * 70 + "\n")
+                self._log("OK", "daily report sent successfully")
             else:
-                print("\n" + "=" * 70)
-                print("[ERROR] Daily report sending failed!")
-                print("=" * 70 + "\n")
-
-        except Exception as e:
-            print(f"\n[ERROR] Error occurred while sending daily report: {e}")
+                self._log("ERROR", "daily report sending failed")
             print("=" * 70 + "\n")
 
-            # Log the error
+        except Exception as e:
+            self._log("ERROR", f"error while sending daily report: {e}")
+            print("=" * 70 + "\n")
+
             try:
                 log_email_send(
-                    recipients=self.recipients if hasattr(self, 'recipients') else [],
+                    recipients=self.recipients if hasattr(self, "recipients") else [],
                     status="error",
                     error_message=str(e),
-                    triggered_by="scheduler:daily_report"
+                    triggered_by="scheduler:daily_report",
                 )
             except Exception as log_error:
-                print(f"[WARNING] Failed to log email error: {log_error}")
+                self._log("WARN", f"failed to log email error: {log_error}")
 
+    def start(self, quiet: bool = False) -> bool:
+        """Start scheduler."""
+        if not self._acquire_leader_lock():
+            if not quiet:
+                self._log("INFO", f"scheduler lock held by another worker, skip start ({self._lock_file})")
+            return False
 
-    def start(self):
-        """Start scheduler"""
-        # Add daily report scheduled task (includes production data and downtime summary)
         if not self.enabled:
-            print("[INFO] Email sending is disabled in configuration")
+            if not quiet:
+                self._log("INFO", "email sending disabled in configuration")
         elif not self.recipients:
-            print("[WARNING] Daily report recipients not configured")
+            if not quiet:
+                self._log("WARN", "daily report recipients not configured")
         else:
-            # Parse send time
             try:
                 hour, minute = map(int, self.report_time.split(":"))
-            except:
-                print(f"[WARNING] Invalid send time format: {self.report_time}")
-                print("   Using default time 18:00")
+            except (ValueError, AttributeError):
+                if not quiet:
+                    self._log("WARN", f"invalid send time format: {self.report_time}, fallback to 18:00")
                 hour, minute = 18, 0
 
-            # Add scheduled task: execute at specified time every day
             ca_tz = ZoneInfo("America/Los_Angeles")
             self.scheduler.add_job(
                 func=self.send_daily_report,
                 trigger=CronTrigger(hour=hour, minute=minute, timezone=ca_tz),
-                id='daily_report',
-                name='Daily Production Report',
-                replace_existing=True
+                id="daily_report",
+                name="Daily Production Report",
+                replace_existing=True,
             )
-            print(f"[SUCCESS] Daily report configured: Every day at {self.report_time}")
-            print(f"   Recipients: {', '.join(self.recipients)}")
+            if not quiet:
+                self._log("OK", f"daily report configured at {self.report_time} PT")
+                self._log("INFO", f"recipients: {self._recipients_summary()}")
 
-        # Start scheduler
-        self.scheduler.start()
+        try:
+            self.scheduler.start()
+        except Exception:
+            self._release_leader_lock()
+            raise
 
-        print("\n" + "=" * 70)
-        print("[SUCCESS] Scheduled task scheduler started")
-        print("=" * 70 + "\n")
+        if not quiet:
+            print("\n" + "=" * 70)
+            self._log("OK", "scheduled task scheduler started")
+            print("=" * 70 + "\n")
+        return True
 
-    def stop(self):
-        """Stop scheduler"""
+    def stop(self, quiet: bool = False):
+        """Stop scheduler."""
         if self.scheduler.running:
             self.scheduler.shutdown()
-            print("[INFO] Scheduler stopped")
+            if not quiet:
+                self._log("INFO", "scheduler stopped")
+        self._release_leader_lock()
 
     def trigger_now(self):
-        """
-        Manually trigger report sending once (for testing)
-        """
-        print("[TEST] Manually triggering report sending...")
+        """Manually trigger report sending once (for testing)."""
+        self._log("TEST", "manually triggering report sending")
         self.send_daily_report()
 
     def get_next_run_time(self):
-        """Get next run time"""
-        job = self.scheduler.get_job('daily_report')
+        """Get next run time."""
+        job = self.scheduler.get_job("daily_report")
         if job:
             return job.next_run_time
         return None
 
     def reload_schedule(self):
         """
-        Dynamically reload schedule from database
-        This method is called when email settings are updated via API
+        Dynamically reload schedule from database.
+        Called when email settings are updated via API.
         """
         print("\n" + "=" * 70)
-        print("[INFO] Reloading scheduler configuration...")
+        self._log("INFO", "reloading scheduler configuration")
         print("=" * 70)
 
-        # 1. Reload configuration from database
         self._load_config()
 
-        # 2. Remove existing job if it exists
-        if self.scheduler.get_job('daily_report'):
-            self.scheduler.remove_job('daily_report')
-            print("[INFO] Removed existing scheduled job")
+        if not self._is_leader and not self.scheduler.running:
+            self._log("INFO", "scheduler is not active on this worker, config refreshed only")
+            print("=" * 70 + "\n")
+            return
 
-        # 3. Re-add job with new configuration
+        if self.scheduler.get_job("daily_report"):
+            self.scheduler.remove_job("daily_report")
+            self._log("INFO", "removed existing scheduled job")
+
         if not self.enabled:
-            print("[INFO] Email sending is disabled - scheduler job not added")
+            self._log("INFO", "email sending disabled, scheduler job not added")
         elif not self.recipients:
-            print("[WARNING] No recipients configured - scheduler job not added")
+            self._log("WARN", "no recipients configured, scheduler job not added")
         else:
             try:
-                # Parse send time
                 hour, minute = map(int, self.report_time.split(":"))
                 ca_tz = ZoneInfo("America/Los_Angeles")
 
-                # Add new scheduled job
                 self.scheduler.add_job(
                     func=self.send_daily_report,
                     trigger=CronTrigger(hour=hour, minute=minute, timezone=ca_tz),
-                    id='daily_report',
-                    name='Daily Production Report',
-                    replace_existing=True
+                    id="daily_report",
+                    name="Daily Production Report",
+                    replace_existing=True,
                 )
 
-                print(f"[SUCCESS] Schedule reloaded successfully")
-                print(f"   Send time: {self.report_time} (Pacific Time)")
-                print(f"   Enabled: {self.enabled}")
-                print(f"   Recipients: {', '.join(self.recipients)}")
+                self._log("OK", "schedule reloaded successfully")
+                self._log("INFO", f"send time: {self.report_time} PT")
+                self._log("INFO", f"enabled: {self.enabled}")
+                self._log("INFO", f"recipients: {self._recipients_summary()}")
 
                 try:
                     next_run = self.get_next_run_time()
                     if next_run:
-                        print(f"   Next run: {next_run.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+                        self._log("INFO", f"next run: {next_run.strftime('%Y-%m-%d %H:%M:%S %Z')}")
                 except Exception:
-                    pass  # Ignore if next_run_time is not available yet
+                    pass
 
             except ValueError as e:
-                print(f"[ERROR] Invalid send time format: {self.report_time}")
-                print(f"   Error: {e}")
+                self._log("ERROR", f"invalid send time format: {self.report_time}, error: {e}")
             except Exception as e:
-                print(f"[ERROR] Failed to reload schedule: {e}")
+                self._log("ERROR", f"failed to reload schedule: {e}")
 
         print("=" * 70 + "\n")
 
@@ -270,54 +393,47 @@ class ReportScheduler:
 _scheduler_instance = None
 
 
-def get_scheduler() -> ReportScheduler:
-    """Get global scheduler instance (singleton pattern)"""
+def get_scheduler(emit_init_log: bool = True) -> ReportScheduler:
+    """Get global scheduler instance (singleton pattern)."""
     global _scheduler_instance
     if _scheduler_instance is None:
-        _scheduler_instance = ReportScheduler()
+        _scheduler_instance = ReportScheduler(emit_init_log=emit_init_log)
     return _scheduler_instance
 
 
-def start_scheduler():
-    """Start scheduler (called in main.py)"""
-    scheduler = get_scheduler()
-    scheduler.start()
+def start_scheduler(quiet: bool = False) -> bool:
+    """Start scheduler (called in main.py)."""
+    scheduler = get_scheduler(emit_init_log=not quiet)
+    return scheduler.start(quiet=quiet)
 
 
-def stop_scheduler():
-    """Stop scheduler"""
+def stop_scheduler(quiet: bool = False):
+    """Stop scheduler."""
     global _scheduler_instance
     if _scheduler_instance:
-        _scheduler_instance.stop()
+        _scheduler_instance.stop(quiet=quiet)
 
 
-# Test code
 if __name__ == "__main__":
-    import sys
     from dotenv import load_dotenv
 
-    # Load environment variables
     load_dotenv()
 
-    # Create scheduler
     scheduler = ReportScheduler()
 
-    # Check arguments
     if len(sys.argv) > 1 and sys.argv[1] == "test":
-        # Test mode: send once immediately
-        print("[TEST] Test mode: Sending report immediately")
+        scheduler._log("TEST", "test mode: sending report immediately")
         scheduler.trigger_now()
     else:
-        # Normal mode: start scheduled tasks
         scheduler.start()
 
         try:
             print("Press Ctrl+C to stop scheduler...")
-            # Keep program running
             import time
             while True:
                 time.sleep(1)
         except KeyboardInterrupt:
-            print("\n\n[INFO] Stopping scheduler...")
+            print("\n")
+            scheduler._log("INFO", "stopping scheduler")
             scheduler.stop()
-            print("[SUCCESS] Exited")
+            scheduler._log("OK", "exited")

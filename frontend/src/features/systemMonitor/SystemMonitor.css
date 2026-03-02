@@ -1,0 +1,22 @@
+/* SystemMonitor — minimal custom CSS (Tailwind handles most styling) */
+
+.monitor-tab-active {
+  border-bottom: 2px solid #0d9488;
+  color: #0d9488;
+  font-weight: 600;
+}
+
+.monitor-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.monitor-status-dot.ok { background-color: #10b981; }
+.monitor-status-dot.missing { background-color: #ef4444; }
+
+.monitor-stack-toggle {
+  cursor: pointer;
+  user-select: none;
+}

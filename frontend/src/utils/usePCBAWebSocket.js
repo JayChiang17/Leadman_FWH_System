@@ -6,10 +6,13 @@ import { WS_BASE, isTokenExpired, getReconnectDelay, RECONNECT_CONFIG } from './
 // 本地別名，保持向下兼容
 const isExpired = isTokenExpired;
 
+// 單例追蹤器 - 防止 HMR 造成的重複連線
+let activePCBAConnection = null;
+
 /* ============================================================== */
 export const usePCBAWebSocket = (onMessage) => {
   const [wsStatus, setWsStatus] = useState('disconnected'); 
-  const [reconnectAttempt, setReconnectAttempt] = useState(0);
+  const reconnectAttemptRef = useRef(0);
   const [lastError, setLastError] = useState(null);
 
   const onMessageRef = useRef(onMessage);
@@ -21,6 +24,7 @@ export const usePCBAWebSocket = (onMessage) => {
   const messageQueueRef = useRef([]);
   const isConnectingRef = useRef(false);
   const connectionAttemptsRef = useRef(0);
+  const connectionTimeoutRef = useRef(null);
 
   // StrictMode / 初始化守護
   const mountedRef = useRef(false);
@@ -116,21 +120,31 @@ export const usePCBAWebSocket = (onMessage) => {
         try { wsRef.current.close(1000, 'Reconnecting'); } catch {}
         wsRef.current = null;
       }
-      
+
       cleanupTimers();
       setWsStatus('connecting');
 
-      const wsUrl = `${WS_BASE}/ws/pcba?token=${encodeURIComponent(validToken)}`;
+      // 首次連線時，先發送 warmup HTTP 請求確保 proxy 的 upgrade handler 已就緒
+      if (connectionAttemptsRef.current <= 1) {
+        try {
+          await fetch('/api/health').catch(() => {});
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (e) {
+          // Ignore warmup errors
+        }
+      }
+
+      const wsUrl = `${WS_BASE}/realtime/pcba?token=${encodeURIComponent(validToken)}`;
       const ws = new WebSocket(wsUrl);
 
-      const connectionTimeout = setTimeout(() => {
+      connectionTimeoutRef.current = setTimeout(() => {
         if (ws.readyState === WebSocket.CONNECTING) ws.close();
       }, 10000);
 
       ws.onopen = () => {
-        clearTimeout(connectionTimeout);
+        clearTimeout(connectionTimeoutRef.current);
         setWsStatus('connected');
-        setReconnectAttempt(0);
+        reconnectAttemptRef.current = 0;
         connectionAttemptsRef.current = 0;
         setLastError(null);
 
@@ -152,20 +166,21 @@ export const usePCBAWebSocket = (onMessage) => {
       };
 
       ws.onerror = () => {
-        clearTimeout(connectionTimeout);
+        clearTimeout(connectionTimeoutRef.current);
         setWsStatus('error');
         setLastError('Connection error');
       };
 
       ws.onclose = (event) => {
-        clearTimeout(connectionTimeout);
+        clearTimeout(connectionTimeoutRef.current);
         setWsStatus('disconnected');
         cleanupTimers();
 
         let shouldReconnect = true;
-        if (event.code === 4003 || event.code === 1002) {
+        if (event.code === 4003 || event.code === 1002 || event.code === 1008) {
           // 認證失敗／資料格式錯誤 → 通常不再無限重連
           setLastError('Authentication expired');
+          shouldReconnect = false;
         } else if (event.code === 1000) {
           // 正常關閉 → 不重連
           shouldReconnect = false;
@@ -173,11 +188,10 @@ export const usePCBAWebSocket = (onMessage) => {
           setLastError('Connection lost');
         }
 
-        if (shouldReconnect && reconnectAttempt < RECONNECT_CONFIG.maxAttempts) {
-          // 使用共享的重連延遲計算（指數退避 + 抖動）
-          const delay = getReconnectDelay(reconnectAttempt);
+        if (shouldReconnect && reconnectAttemptRef.current < RECONNECT_CONFIG.maxAttempts) {
+          const delay = getReconnectDelay(reconnectAttemptRef.current);
           reconnectTimeoutRef.current = setTimeout(() => {
-            setReconnectAttempt((n) => n + 1);
+            reconnectAttemptRef.current++;
             connect();
           }, delay);
         } else if (shouldReconnect) {
@@ -194,23 +208,27 @@ export const usePCBAWebSocket = (onMessage) => {
     } finally {
       isConnectingRef.current = false;
     }
-  }, [ensureFreshToken, cleanupTimers, flushMessageQueue, reconnectAttempt, logout]);
+  }, [ensureFreshToken, cleanupTimers, flushMessageQueue, logout]);
 
   const disconnect = useCallback(() => {
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
     cleanupTimers();
     if (wsRef.current) {
       try { wsRef.current.close(1000, 'Manual disconnect'); } catch {}
       wsRef.current = null;
     }
     setWsStatus('disconnected');
-    setReconnectAttempt(0);
+    reconnectAttemptRef.current = 0;
     connectionAttemptsRef.current = 0;
     setLastError(null);
     isConnectingRef.current = false;
   }, [cleanupTimers]);
 
   const reconnect = useCallback(() => {
-    setReconnectAttempt(0);
+    reconnectAttemptRef.current = 0;
     connectionAttemptsRef.current = 0;
     disconnect();
     // 輕微延遲讓舊連線確實結束
@@ -222,6 +240,17 @@ export const usePCBAWebSocket = (onMessage) => {
     if (mountedRef.current) return;
     mountedRef.current = true;
 
+    // 單例模式：如果已有連線，先關閉舊的（防止 HMR 重複連線）
+    if (activePCBAConnection && activePCBAConnection !== disconnect) {
+      console.log("[PCBA WS] Closing existing connection before creating new one");
+      try {
+        activePCBAConnection();
+      } catch (e) {
+        // 忽略關閉錯誤
+      }
+    }
+    activePCBAConnection = disconnect;
+
     // 僅首次掛載時，如果已有 token，建立連線
     if (token && !startedRef.current) {
       startedRef.current = true;
@@ -232,6 +261,9 @@ export const usePCBAWebSocket = (onMessage) => {
       mountedRef.current = false;
       startedRef.current = false;
       disconnect();
+      if (activePCBAConnection === disconnect) {
+        activePCBAConnection = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -298,7 +330,7 @@ export const usePCBAWebSocket = (onMessage) => {
     isConnecting: wsStatus === 'connecting',
     hasError: wsStatus === 'error' || wsStatus === 'failed',
     lastError,
-    reconnectAttempt
+    reconnectAttempt: reconnectAttemptRef.current
   };
 };
 

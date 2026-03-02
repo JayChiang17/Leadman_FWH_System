@@ -11,6 +11,7 @@ from datetime import datetime
 
 from core.deps import get_current_user, require_admin
 from core.rate_limiter import get_rate_limiter
+from core.monitor_db import log_audit
 from core.email_db import (
     get_email_config,
     update_email_config,
@@ -39,7 +40,7 @@ class EmailConfigResponse(BaseModel):
     id: int
     send_time: str
     enabled: bool
-    updated_at: str
+    updated_at: Optional[datetime]
     updated_by: str
 
 class EmailRecipient(BaseModel):
@@ -53,13 +54,13 @@ class EmailRecipientResponse(BaseModel):
     email: str
     display_name: Optional[str]
     is_active: bool
-    created_at: str
+    created_at: Optional[datetime]
     created_by: str
 
 class EmailHistoryResponse(BaseModel):
     """Email history response model"""
     id: int
-    sent_at: str
+    sent_at: Optional[datetime]
     recipients: str
     status: str
     error_message: Optional[str]
@@ -134,6 +135,9 @@ async def update_config(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update email configuration"
         )
+
+    log_audit(user=current_user.username, action="email_config_update",
+              target="email_config", new_value=f"time={config.send_time}, enabled={config.enabled}")
 
     # Reload scheduler to apply new configuration immediately
     try:
@@ -359,7 +363,7 @@ async def send_test_email(
         }
 
     except Exception as e:
-        logger.error(f"❌ Test email error: {e}", exc_info=True)
+        logger.error(f"Test email error: {e}", exc_info=True)
 
         # Log failed attempt
         log_email_send(

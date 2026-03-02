@@ -1,127 +1,23 @@
 # ============================================================
 # Data Collection Service - Provides data for email system
+# PostgreSQL version
 # ============================================================
 
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict
-import sqlite3
 import os
-from contextlib import contextmanager
-import time
 
 from core.time_utils import ca_day_bounds, ca_now, ca_today
+from core.pg import get_cursor
 
 logger = logging.getLogger(__name__)
 
 class DataCollectionService:
-    """Data Collection Service with connection pooling"""
+    """Data Collection Service using PostgreSQL connection pool"""
 
     def __init__(self):
-        # Use model.db and assembly.db from backend root directory
-        backend_dir = os.path.join(os.path.dirname(__file__), "..")
-        self.model_db_path = os.path.join(backend_dir, "model.db")
-        self.assembly_db_path = os.path.join(backend_dir, "assembly.db")
-        self.downtime_db_path = os.path.join(backend_dir, "downtime.db")
-
-        # Initialize connection pool
-        self._connections = {
-            'model': None,
-            'assembly': None,
-            'downtime': None
-        }
-
-        # Enable WAL mode for better concurrency
-        self._enable_wal_mode()
-
-        logger.info(f"Data collection service initialized with connection pooling")
-        logger.info(f"  Model DB: {self.model_db_path}")
-        logger.info(f"  Assembly DB: {self.assembly_db_path}")
-        logger.info(f"  Downtime DB: {self.downtime_db_path}")
-
-    def _enable_wal_mode(self):
-        """Enable WAL mode for all databases to reduce locking"""
-        for db_name, db_path in [
-            ('model', self.model_db_path),
-            ('assembly', self.assembly_db_path),
-            ('downtime', self.downtime_db_path)
-        ]:
-            try:
-                conn = sqlite3.connect(db_path)
-                conn.execute("PRAGMA journal_mode=WAL")
-                conn.execute("PRAGMA synchronous=NORMAL")
-                conn.execute("PRAGMA busy_timeout=30000")  # 30 seconds timeout
-                conn.close()
-                logger.info(f"  WAL mode enabled for {db_name} database")
-            except Exception as e:
-                logger.warning(f"  Failed to enable WAL mode for {db_name}: {e}")
-
-    @contextmanager
-    def _get_connection(self, db_type: str, max_retries: int = 3):
-        """
-        Context manager for database connections with retry logic
-
-        Args:
-            db_type: 'model', 'assembly', or 'downtime'
-            max_retries: Maximum number of retry attempts for locked database
-        """
-        db_paths = {
-            'model': self.model_db_path,
-            'assembly': self.assembly_db_path,
-            'downtime': self.downtime_db_path
-        }
-
-        if db_type not in db_paths:
-            raise ValueError(f"Invalid db_type: {db_type}")
-
-        # Reuse existing connection or create new one
-        if not self._connections[db_type]:
-            self._connections[db_type] = sqlite3.connect(
-                db_paths[db_type],
-                check_same_thread=False,
-                timeout=30.0
-            )
-
-        conn = self._connections[db_type]
-        retry_count = 0
-
-        while retry_count < max_retries:
-            try:
-                yield conn
-                break
-            except sqlite3.OperationalError as e:
-                if "database is locked" in str(e) and retry_count < max_retries - 1:
-                    retry_count += 1
-                    wait_time = 0.1 * (2 ** retry_count)  # Exponential backoff
-                    logger.warning(f"Database locked, retry {retry_count}/{max_retries} after {wait_time}s")
-                    time.sleep(wait_time)
-                else:
-                    logger.error(f"Database operation failed after {retry_count} retries: {e}")
-                    raise
-
-    def _get_model_db_connection(self):
-        """Legacy method - kept for compatibility"""
-        return sqlite3.connect(self.model_db_path, timeout=30.0)
-
-    def _get_assembly_db_connection(self):
-        """Legacy method - kept for compatibility"""
-        return sqlite3.connect(self.assembly_db_path, timeout=30.0)
-
-    def _get_downtime_db_connection(self):
-        """Legacy method - kept for compatibility"""
-        return sqlite3.connect(self.downtime_db_path, timeout=30.0)
-
-    def close_all_connections(self):
-        """Close all pooled connections"""
-        for db_type, conn in self._connections.items():
-            if conn:
-                try:
-                    conn.close()
-                    logger.info(f"Closed {db_type} connection")
-                except Exception as e:
-                    logger.warning(f"Error closing {db_type} connection: {e}")
-                finally:
-                    self._connections[db_type] = None
+        logger.info("Data collection service initialized (PostgreSQL pool)")
 
     def _get_california_date(self, days_ago: int = 0) -> str:
         """Get California time date"""
@@ -130,11 +26,37 @@ class DataCollectionService:
     def get_daily_report_data(self) -> Dict:
         """
         Synchronous version of collect_daily_report_data for non-async contexts
-
-        Returns:
-            Dictionary containing report data
         """
         return self._collect_report_data()
+
+    def get_today_production_counts(self) -> Dict[str, int]:
+        """
+        Lightweight production counters for skip/send guard logic.
+        """
+        start_ts, end_ts = ca_day_bounds(ca_today())
+        module_count = 0
+        assembly_count = 0
+
+        with get_cursor('model') as cur:
+            cur.execute(
+                "SELECT COUNT(*) AS cnt FROM scans WHERE scanned_at >= %s AND scanned_at < %s",
+                (start_ts, end_ts),
+            )
+            row = cur.fetchone()
+            module_count = int(row["cnt"] or 0) if row else 0
+
+        with get_cursor('assembly') as cur:
+            cur.execute(
+                "SELECT COUNT(*) AS cnt FROM scans WHERE scanned_at >= %s AND scanned_at < %s",
+                (start_ts, end_ts),
+            )
+            row = cur.fetchone()
+            assembly_count = int(row["cnt"] or 0) if row else 0
+
+        return {
+            "module_production": module_count,
+            "assembly_production": assembly_count,
+        }
 
     def _collect_report_data(self) -> Dict:
         """Internal method to collect report data (synchronous) with error handling"""
@@ -150,28 +72,24 @@ class DataCollectionService:
             days_since_monday = weekday
             week_start = (ca_now_dt - timedelta(days=days_since_monday)).strftime('%Y-%m-%d')
 
-            # 1. Get today's module production with connection pool
-            with self._get_connection('model') as model_conn:
-                model_cursor = model_conn.cursor()
-
-                # Get module count with safe fetchone
-                model_cursor.execute("""
-                    SELECT COUNT(*) FROM scans
-                    WHERE ts >= ? AND ts < ?
+            # 1. Get today's module production
+            with get_cursor('model') as cur:
+                cur.execute("""
+                    SELECT COUNT(*) AS cnt FROM scans
+                    WHERE scanned_at >= %s AND scanned_at < %s
                 """, (start_ts, end_ts))
-                result = model_cursor.fetchone()
-                module_count = result[0] if result and result[0] is not None else 0
+                result = cur.fetchone()
+                module_count = int(result["cnt"] or 0) if result else 0
 
-                # Get module plan with JSON error handling
-                model_cursor.execute("""
+                cur.execute("""
                     SELECT plan_json FROM weekly_plan
-                    WHERE week_start = ?
+                    WHERE week_start = %s
                 """, (week_start,))
-                plan_row = model_cursor.fetchone()
+                plan_row = cur.fetchone()
 
                 if plan_row and weekday < 5:
                     try:
-                        plan_array = json.loads(plan_row[0])
+                        plan_array = json.loads(plan_row["plan_json"])
                         module_plan = plan_array[weekday] if weekday < len(plan_array) else 120
                     except (json.JSONDecodeError, IndexError, TypeError) as e:
                         logger.warning(f"Failed to parse module plan JSON: {e}")
@@ -179,46 +97,40 @@ class DataCollectionService:
                 else:
                     module_plan = 120
 
-                # Get module NG count
-                model_cursor.execute("""
-                    SELECT COUNT(*) FROM scans
-                    WHERE ts >= ? AND ts < ? AND ng_reason IS NOT NULL AND TRIM(ng_reason) != ''
+                cur.execute("""
+                    SELECT COUNT(*) AS cnt FROM scans
+                    WHERE scanned_at >= %s AND scanned_at < %s AND ng_reason IS NOT NULL AND TRIM(ng_reason) != ''
                 """, (start_ts, end_ts))
-                result = model_cursor.fetchone()
-                module_ng = result[0] if result and result[0] is not None else 0
+                result = cur.fetchone()
+                module_ng = int(result["cnt"] or 0) if result else 0
 
-                # Get NG reasons
-                model_cursor.execute("""
+                cur.execute("""
                     SELECT MIN(TRIM(ng_reason)) AS reason, COUNT(*) as count
                     FROM scans
-                    WHERE ts >= ? AND ts < ? AND ng_reason IS NOT NULL AND TRIM(ng_reason) != ''
+                    WHERE scanned_at >= %s AND scanned_at < %s AND ng_reason IS NOT NULL AND TRIM(ng_reason) != ''
                     GROUP BY UPPER(TRIM(ng_reason))
                     ORDER BY count DESC
                 """, (start_ts, end_ts))
-                module_reason_rows = model_cursor.fetchall() or []
+                module_reason_rows = cur.fetchall() or []
 
-            # 2. Get today's assembly production with connection pool
-            with self._get_connection('assembly') as assy_conn:
-                assy_cursor = assy_conn.cursor()
-
-                # Get assembly count with safe fetchone
-                assy_cursor.execute("""
-                    SELECT COUNT(*) FROM scans
-                    WHERE ts >= ? AND ts < ?
+            # 2. Get today's assembly production
+            with get_cursor('assembly') as cur:
+                cur.execute("""
+                    SELECT COUNT(*) AS cnt FROM scans
+                    WHERE scanned_at >= %s AND scanned_at < %s
                 """, (start_ts, end_ts))
-                result = assy_cursor.fetchone()
-                assembly_count = result[0] if result and result[0] is not None else 0
+                result = cur.fetchone()
+                assembly_count = int(result["cnt"] or 0) if result else 0
 
-                # Get assembly plan with JSON error handling
-                assy_cursor.execute("""
+                cur.execute("""
                     SELECT plan_json FROM assembly_weekly_plan
-                    WHERE week_start = ?
+                    WHERE week_start = %s
                 """, (week_start,))
-                assy_plan_row = assy_cursor.fetchone()
+                assy_plan_row = cur.fetchone()
 
                 if assy_plan_row and weekday < 5:
                     try:
-                        assy_plan_array = json.loads(assy_plan_row[0])
+                        assy_plan_array = json.loads(assy_plan_row["plan_json"])
                         assembly_plan = assy_plan_array[weekday] if weekday < len(assy_plan_array) else 120
                     except (json.JSONDecodeError, IndexError, TypeError) as e:
                         logger.warning(f"Failed to parse assembly plan JSON: {e}")
@@ -226,118 +138,115 @@ class DataCollectionService:
                 else:
                     assembly_plan = 120
 
-                # Get assembly NG count
-                assy_cursor.execute("""
-                    SELECT COUNT(*) FROM scans
-                    WHERE ts >= ? AND ts < ? AND ng_reason IS NOT NULL AND TRIM(ng_reason) != ''
+                cur.execute("""
+                    SELECT COUNT(*) AS cnt FROM scans
+                    WHERE scanned_at >= %s AND scanned_at < %s AND ng_reason IS NOT NULL AND TRIM(ng_reason) != ''
                 """, (start_ts, end_ts))
-                result = assy_cursor.fetchone()
-                assembly_ng = result[0] if result and result[0] is not None else 0
+                result = cur.fetchone()
+                assembly_ng = int(result["cnt"] or 0) if result else 0
 
-                # Get NG reasons
-                assy_cursor.execute("""
+                cur.execute("""
                     SELECT MIN(TRIM(ng_reason)) AS reason, COUNT(*) as count
                     FROM scans
-                    WHERE ts >= ? AND ts < ? AND ng_reason IS NOT NULL AND TRIM(ng_reason) != ''
+                    WHERE scanned_at >= %s AND scanned_at < %s AND ng_reason IS NOT NULL AND TRIM(ng_reason) != ''
                     GROUP BY UPPER(TRIM(ng_reason))
                     ORDER BY count DESC
                 """, (start_ts, end_ts))
-                assembly_reason_rows = assy_cursor.fetchall() or []
+                assembly_reason_rows = cur.fetchall() or []
 
-            # 3. Get downtime data with connection pool
-            with self._get_connection('downtime') as downtime_conn:
-                downtime_cursor = downtime_conn.cursor()
-
-                # Get total downtime minutes with safe fetchone
-                downtime_cursor.execute("""
+            # 3. Get downtime data
+            with get_cursor('downtime') as cur:
+                cur.execute("""
                     SELECT SUM(duration_min) as total_minutes
                     FROM downtime_logs
-                    WHERE start_local >= ? AND start_local < ?
+                    WHERE start_local >= %s AND start_local < %s
                 """, (start_ts, end_ts))
-                result = downtime_cursor.fetchone()
-                downtime_minutes = result[0] if result and result[0] is not None else 0
+                result = cur.fetchone()
+                downtime_minutes = float(result["total_minutes"] or 0) if result else 0
                 downtime_hours = round(downtime_minutes / 60, 1)
 
-            # Get downtime details
-            downtime_cursor.execute("""
-                SELECT line, station, start_local, end_local, duration_min
-                FROM downtime_logs
-                WHERE start_local >= ? AND start_local < ?
-                ORDER BY duration_min DESC
-                LIMIT 5
-            """, (start_ts, end_ts))
+                cur.execute("""
+                    SELECT line, station, start_local, end_local, duration_min
+                    FROM downtime_logs
+                    WHERE start_local >= %s AND start_local < %s
+                    ORDER BY duration_min DESC
+                    LIMIT 5
+                """, (start_ts, end_ts))
 
-            downtime_details = []
-            for row in downtime_cursor.fetchall():
-                downtime_details.append({
-                    'line': row[0] or 'Unknown',
-                    'station': row[1] or 'Unknown',
-                    'start_time': row[2] or '',
-                    'end_time': row[3] or 'Ongoing',
-                    'duration_minutes': row[4] or 0
-                })
+                downtime_details = []
+                for row in cur.fetchall():
+                    downtime_details.append({
+                        'line': row["line"] or 'Unknown',
+                        'station': row["station"] or 'Unknown',
+                        'start_time': row["start_local"] or '',
+                        'end_time': row["end_local"] or 'Ongoing',
+                        'duration_minutes': row["duration_min"] or 0
+                    })
 
-            # Get downtime by line
-            downtime_cursor.execute("""
-                SELECT line, COUNT(*) as count, SUM(duration_min) as total_minutes
-                FROM downtime_logs
-                WHERE start_local >= ? AND start_local < ?
-                GROUP BY line
-                ORDER BY total_minutes DESC
-            """, (start_ts, end_ts))
+                cur.execute("""
+                    SELECT line, COUNT(*) as count, SUM(duration_min) as total_minutes
+                    FROM downtime_logs
+                    WHERE start_local >= %s AND start_local < %s
+                    GROUP BY line
+                    ORDER BY total_minutes DESC
+                """, (start_ts, end_ts))
 
-            downtime_by_line = []
-            for row in downtime_cursor.fetchall():
-                downtime_by_line.append({
-                    'line': row[0] or 'Unknown',
-                    'count': row[1],
-                    'total_minutes': row[2],
-                    'total_hours': round(row[2] / 60, 1)
-                })
+                downtime_by_line = []
+                for row in cur.fetchall():
+                    downtime_by_line.append({
+                        'line': row["line"] or 'Unknown',
+                        'count': row["count"],
+                        'total_minutes': row["total_minutes"],
+                        'total_hours': round(float(row["total_minutes"] or 0) / 60, 1)
+                    })
 
-            # Downtime hourly breakdown for UPH vs Downtime charts
-            downtime_cursor.execute("""
-                SELECT line, start_local, end_local, duration_min
-                FROM downtime_logs
-                WHERE start_local >= ? AND start_local < ?
-                ORDER BY start_local ASC
-            """, (start_ts, end_ts))
+                # Downtime hourly breakdown for UPH vs Downtime charts
+                cur.execute("""
+                    SELECT line, start_local, end_local, duration_min
+                    FROM downtime_logs
+                    WHERE start_local >= %s AND start_local < %s
+                    ORDER BY start_local ASC
+                """, (start_ts, end_ts))
 
-            day_start = datetime.strptime(start_ts, "%Y-%m-%d %H:%M:%S")
-            day_end = datetime.strptime(end_ts, "%Y-%m-%d %H:%M:%S")
-            cell_downtime_map = {}
-            assembly_downtime_map = {}
+                day_start = datetime.strptime(start_ts, "%Y-%m-%d %H:%M:%S")
+                day_end = datetime.strptime(end_ts, "%Y-%m-%d %H:%M:%S")
+                cell_downtime_map = {}
+                assembly_downtime_map = {}
 
-            for line, start_local, end_local, _duration_min in downtime_cursor.fetchall():
-                line_key = (line or "").lower()
-                if line_key not in ("cell", "assembly"):
-                    continue
-                if not start_local or not end_local:
-                    continue
-                try:
-                    start_dt = datetime.strptime(start_local, "%Y-%m-%d %H:%M:%S")
-                    end_dt = datetime.strptime(end_local, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    continue
-                if end_dt <= start_dt:
-                    continue
+                for row in cur.fetchall():
+                    line = row["line"]
+                    start_local = row["start_local"]
+                    end_local = row["end_local"]
+                    line_key = (line or "").lower()
+                    if line_key not in ("cell", "assembly"):
+                        continue
+                    if not start_local or not end_local:
+                        continue
+                    # TIMESTAMPTZ returns datetime objects
+                    start_dt = start_local if isinstance(start_local, datetime) else datetime.fromisoformat(str(start_local))
+                    end_dt = end_local if isinstance(end_local, datetime) else datetime.fromisoformat(str(end_local))
+                    # Strip timezone for naive comparison with day_start/day_end
+                    start_dt = start_dt.replace(tzinfo=None) if start_dt.tzinfo else start_dt
+                    end_dt = end_dt.replace(tzinfo=None) if end_dt.tzinfo else end_dt
+                    if end_dt <= start_dt:
+                        continue
 
-                if start_dt < day_start:
-                    start_dt = day_start
-                if end_dt > day_end:
-                    end_dt = day_end
-                if end_dt <= start_dt:
-                    continue
+                    if start_dt < day_start:
+                        start_dt = day_start
+                    if end_dt > day_end:
+                        end_dt = day_end
+                    if end_dt <= start_dt:
+                        continue
 
-                target = cell_downtime_map if line_key == "cell" else assembly_downtime_map
-                cur = start_dt
-                while cur < end_dt:
-                    hour_start = cur.replace(minute=0, second=0, microsecond=0)
-                    next_hour = hour_start + timedelta(hours=1)
-                    seg_end = end_dt if end_dt < next_hour else next_hour
-                    minutes = (seg_end - cur).total_seconds() / 60.0
-                    target[cur.hour] = target.get(cur.hour, 0) + minutes
-                    cur = seg_end
+                    target = cell_downtime_map if line_key == "cell" else assembly_downtime_map
+                    cur_dt = start_dt
+                    while cur_dt < end_dt:
+                        hour_start = cur_dt.replace(minute=0, second=0, microsecond=0)
+                        next_hour = hour_start + timedelta(hours=1)
+                        seg_end = end_dt if end_dt < next_hour else next_hour
+                        minutes = (seg_end - cur_dt).total_seconds() / 60.0
+                        target[cur_dt.hour] = target.get(cur_dt.hour, 0) + minutes
+                        cur_dt = seg_end
 
             downtime_cell_hourly = [
                 {'hour': h, 'minutes': round(m, 1)}
@@ -349,15 +258,14 @@ class DataCollectionService:
                 for h, m in sorted(assembly_downtime_map.items())
                 if m > 0
             ]
-            downtime_conn.close()
 
             # 4. Combine NG counts and reasons (case-insensitive merging)
             total_ng = module_ng + assembly_ng
-            reason_counts = {}  # key: uppercase reason, value: {'display': original, 'count': count}
+            reason_counts = {}
 
             for row in module_reason_rows:
-                reason = row[0]
-                count = row[1] or 0
+                reason = row["reason"]
+                count = row["count"] or 0
                 if reason:
                     key = reason.upper()
                     if key not in reason_counts:
@@ -365,8 +273,8 @@ class DataCollectionService:
                     reason_counts[key]['count'] += count
 
             for row in assembly_reason_rows:
-                reason = row[0]
-                count = row[1] or 0
+                reason = row["reason"]
+                count = row["count"] or 0
                 if reason:
                     key = reason.upper()
                     if key not in reason_counts:
@@ -387,29 +295,24 @@ class DataCollectionService:
             assembly_efficiency = round((assembly_count / assembly_plan * 100), 1) if assembly_plan > 0 else 0
 
             # 6. Get hourly production data for charts (by line A/B)
-            model_conn2 = self._get_model_db_connection()
-            model_cursor2 = model_conn2.cursor()
+            with get_cursor('model') as cur:
+                cur.execute("""
+                    SELECT TO_CHAR(scanned_at, 'HH24') as hour, COUNT(*) as count
+                    FROM scans
+                    WHERE scanned_at >= %s AND scanned_at < %s AND kind = 'A'
+                    GROUP BY TO_CHAR(scanned_at, 'HH24')
+                    ORDER BY hour
+                """, (start_ts, end_ts))
+                module_a_hourly = [{'hour': int(row["hour"]), 'count': row["count"]} for row in cur.fetchall()]
 
-            # Module Line A hourly production
-            model_cursor2.execute("""
-                SELECT strftime('%H', ts) as hour, COUNT(*) as count
-                FROM scans
-                WHERE ts >= ? AND ts < ? AND kind = 'A'
-                GROUP BY hour
-                ORDER BY hour
-            """, (start_ts, end_ts))
-            module_a_hourly = [{'hour': int(row[0]), 'count': row[1]} for row in model_cursor2.fetchall()]
-
-            # Module Line B hourly production
-            model_cursor2.execute("""
-                SELECT strftime('%H', ts) as hour, COUNT(*) as count
-                FROM scans
-                WHERE ts >= ? AND ts < ? AND kind = 'B'
-                GROUP BY hour
-                ORDER BY hour
-            """, (start_ts, end_ts))
-            module_b_hourly = [{'hour': int(row[0]), 'count': row[1]} for row in model_cursor2.fetchall()]
-            model_conn2.close()
+                cur.execute("""
+                    SELECT TO_CHAR(scanned_at, 'HH24') as hour, COUNT(*) as count
+                    FROM scans
+                    WHERE scanned_at >= %s AND scanned_at < %s AND kind = 'B'
+                    GROUP BY TO_CHAR(scanned_at, 'HH24')
+                    ORDER BY hour
+                """, (start_ts, end_ts))
+                module_b_hourly = [{'hour': int(row["hour"]), 'count': row["count"]} for row in cur.fetchall()]
 
             module_total_map = {}
             for row in module_a_hourly:
@@ -424,17 +327,18 @@ class DataCollectionService:
             ]
 
             # Assembly hourly production
-            assy_conn2 = self._get_assembly_db_connection()
-            assy_cursor2 = assy_conn2.cursor()
-            assy_cursor2.execute("""
-                SELECT strftime('%H', ts) as hour, COUNT(*) as count
-                FROM scans
-                WHERE ts >= ? AND ts < ?
-                GROUP BY hour
-                ORDER BY hour
-            """, (start_ts, end_ts))
-            assembly_hourly = [{'hour': int(row[0]), 'count': row[1]} for row in assy_cursor2.fetchall()]
-            assy_conn2.close()
+            with get_cursor('assembly') as cur:
+                cur.execute("""
+                    SELECT TO_CHAR(scanned_at, 'HH24') as hour, COUNT(*) as count
+                    FROM scans
+                    WHERE scanned_at >= %s AND scanned_at < %s
+                    GROUP BY TO_CHAR(scanned_at, 'HH24')
+                    ORDER BY hour
+                """, (start_ts, end_ts))
+                assembly_hourly = [{'hour': int(row["hour"]), 'count': row["count"]} for row in cur.fetchall()]
+
+            # 7. Get weekly cumulative data
+            weekly_data = self.get_weekly_cumulative_data()
 
             report_data = {
                 'module_production': module_count,
@@ -455,10 +359,22 @@ class DataCollectionService:
                 'assembly_total_hourly': assembly_hourly,
                 'downtime_cell_hourly': downtime_cell_hourly,
                 'downtime_assembly_hourly': downtime_assembly_hourly,
-                'date': today
+                'date': today,
+                # Weekly cumulative data
+                'weekly_module_count': weekly_data.get('weekly_module_count', 0),
+                'weekly_module_plan': weekly_data.get('weekly_module_plan', 0),
+                'weekly_module_efficiency': weekly_data.get('weekly_module_efficiency', 0),
+                'weekly_assembly_count': weekly_data.get('weekly_assembly_count', 0),
+                'weekly_assembly_plan': weekly_data.get('weekly_assembly_plan', 0),
+                'weekly_assembly_efficiency': weekly_data.get('weekly_assembly_efficiency', 0),
+                'weekly_total_ng': weekly_data.get('weekly_total_ng', 0),
+                'week_start': weekly_data.get('week_start', ''),
+                'day_range': weekly_data.get('day_range', 'N/A'),
+                'days_counted': weekly_data.get('days_counted', 0),
+                'plan_days': weekly_data.get('plan_days', 0)
             }
 
-            logger.info(f"Daily report data collection completed: Module={module_count}, Assembly={assembly_count}, NG={total_ng}")
+            logger.info(f"Daily report data collection completed: Module={module_count}, Assembly={assembly_count}, NG={total_ng}, Weekly Module={weekly_data.get('weekly_module_count', 0)}")
             return report_data
 
         except Exception as e:
@@ -481,25 +397,175 @@ class DataCollectionService:
                 'downtime_cell_hourly': [],
                 'downtime_assembly_hourly': [],
                 'date': self._get_california_date(1),
+                # Weekly cumulative data (fallback)
+                'weekly_module_count': 0,
+                'weekly_module_plan': 0,
+                'weekly_module_efficiency': 0,
+                'weekly_assembly_count': 0,
+                'weekly_assembly_plan': 0,
+                'weekly_assembly_efficiency': 0,
+                'weekly_total_ng': 0,
+                'week_start': '',
+                'day_range': 'N/A',
+                'days_counted': 0,
+                'plan_days': 0,
                 'error': str(e)
             }
 
     async def collect_daily_report_data(self) -> Dict:
         """
-        Async version of collect_daily_report_data
-
-        Returns:
-            Dictionary containing report data
+        Async version - runs in thread pool to avoid blocking event loop.
         """
-        return self._collect_report_data()
+        import asyncio
+        return await asyncio.to_thread(self._collect_report_data)
+
+    def get_weekly_cumulative_data(self) -> Dict:
+        """
+        Get weekly cumulative data (Monday to current day, California time)
+        """
+        import json
+
+        try:
+            ca_now_dt = ca_now()
+            weekday = ca_now_dt.weekday()  # 0=Monday, 6=Sunday
+
+            if weekday == 6:
+                days_since_monday = 0
+                week_start_date = ca_now_dt.date()
+            else:
+                days_since_monday = weekday
+                week_start_date = (ca_now_dt - timedelta(days=days_since_monday)).date()
+
+            week_start_str = week_start_date.strftime('%Y-%m-%d')
+            week_start_ts = f"{week_start_str} 00:00:00"
+            today_str = ca_now_dt.strftime('%Y-%m-%d')
+            week_end_ts = f"{today_str} 23:59:59"
+
+            plan_days_count = min(weekday + 1, 5) if weekday < 6 else 5
+
+            weekly_module_count = 0
+            weekly_module_plan = 0
+            weekly_module_ng = 0
+            weekly_assembly_count = 0
+            weekly_assembly_plan = 0
+            weekly_assembly_ng = 0
+
+            # 1. Get weekly module production
+            with get_cursor('model') as cur:
+                cur.execute("""
+                    SELECT COUNT(*) AS cnt FROM scans
+                    WHERE scanned_at >= %s AND scanned_at <= %s
+                """, (week_start_ts, week_end_ts))
+                result = cur.fetchone()
+                weekly_module_count = int(result["cnt"] or 0) if result else 0
+
+                cur.execute("""
+                    SELECT COUNT(*) AS cnt FROM scans
+                    WHERE scanned_at >= %s AND scanned_at <= %s AND ng_reason IS NOT NULL AND TRIM(ng_reason) != ''
+                """, (week_start_ts, week_end_ts))
+                result = cur.fetchone()
+                weekly_module_ng = int(result["cnt"] or 0) if result else 0
+
+                cur.execute("""
+                    SELECT plan_json FROM weekly_plan
+                    WHERE week_start = %s
+                """, (week_start_str,))
+                plan_row = cur.fetchone()
+
+                if plan_row:
+                    try:
+                        plan_array = json.loads(plan_row["plan_json"])
+                        for i in range(plan_days_count):
+                            if i < len(plan_array):
+                                weekly_module_plan += plan_array[i] if plan_array[i] else 0
+                    except (json.JSONDecodeError, IndexError, TypeError) as e:
+                        logger.warning(f"Failed to parse module weekly plan JSON: {e}")
+                        weekly_module_plan = plan_days_count * 120
+
+            # 2. Get weekly assembly production
+            with get_cursor('assembly') as cur:
+                cur.execute("""
+                    SELECT COUNT(*) AS cnt FROM scans
+                    WHERE scanned_at >= %s AND scanned_at <= %s
+                """, (week_start_ts, week_end_ts))
+                result = cur.fetchone()
+                weekly_assembly_count = int(result["cnt"] or 0) if result else 0
+
+                cur.execute("""
+                    SELECT COUNT(*) AS cnt FROM scans
+                    WHERE scanned_at >= %s AND scanned_at <= %s AND ng_reason IS NOT NULL AND TRIM(ng_reason) != ''
+                """, (week_start_ts, week_end_ts))
+                result = cur.fetchone()
+                weekly_assembly_ng = int(result["cnt"] or 0) if result else 0
+
+                cur.execute("""
+                    SELECT plan_json FROM assembly_weekly_plan
+                    WHERE week_start = %s
+                """, (week_start_str,))
+                assy_plan_row = cur.fetchone()
+
+                if assy_plan_row:
+                    try:
+                        assy_plan_array = json.loads(assy_plan_row["plan_json"])
+                        for i in range(plan_days_count):
+                            if i < len(assy_plan_array):
+                                weekly_assembly_plan += assy_plan_array[i] if assy_plan_array[i] else 0
+                    except (json.JSONDecodeError, IndexError, TypeError) as e:
+                        logger.warning(f"Failed to parse assembly weekly plan JSON: {e}")
+                        weekly_assembly_plan = plan_days_count * 120
+
+            weekly_module_efficiency = round((weekly_module_count / weekly_module_plan * 100), 1) if weekly_module_plan > 0 else 0
+            weekly_assembly_efficiency = round((weekly_assembly_count / weekly_assembly_plan * 100), 1) if weekly_assembly_plan > 0 else 0
+            weekly_total_ng = weekly_module_ng + weekly_assembly_ng
+
+            day_names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+            if weekday == 0:
+                day_range = 'Mon'
+            elif weekday == 6:
+                day_range = 'Sun (Week Start)'
+            else:
+                day_range = f"Mon-{day_names[weekday]}"
+
+            weekly_data = {
+                'weekly_module_count': weekly_module_count,
+                'weekly_module_plan': weekly_module_plan,
+                'weekly_module_ng': weekly_module_ng,
+                'weekly_module_efficiency': weekly_module_efficiency,
+                'weekly_assembly_count': weekly_assembly_count,
+                'weekly_assembly_plan': weekly_assembly_plan,
+                'weekly_assembly_ng': weekly_assembly_ng,
+                'weekly_assembly_efficiency': weekly_assembly_efficiency,
+                'weekly_total_ng': weekly_total_ng,
+                'week_start': week_start_str,
+                'day_range': day_range,
+                'days_counted': weekday + 1 if weekday < 6 else 0,
+                'plan_days': plan_days_count
+            }
+
+            logger.info(f"Weekly cumulative data: Module={weekly_module_count}/{weekly_module_plan}, Assembly={weekly_assembly_count}/{weekly_assembly_plan}, NG={weekly_total_ng}")
+            return weekly_data
+
+        except Exception as e:
+            logger.error(f"Failed to collect weekly cumulative data: {e}", exc_info=True)
+            return {
+                'weekly_module_count': 0,
+                'weekly_module_plan': 0,
+                'weekly_module_ng': 0,
+                'weekly_module_efficiency': 0,
+                'weekly_assembly_count': 0,
+                'weekly_assembly_plan': 0,
+                'weekly_assembly_ng': 0,
+                'weekly_assembly_efficiency': 0,
+                'weekly_total_ng': 0,
+                'week_start': '',
+                'day_range': 'N/A',
+                'days_counted': 0,
+                'plan_days': 0,
+                'error': str(e)
+            }
 
     async def get_production_risks(self) -> List[Dict]:
-        """
-        Get current production risks
-
-        Returns:
-            List of risks
-        """
+        """Get current production risks"""
         try:
             logger.info("Production risks method called")
             return []

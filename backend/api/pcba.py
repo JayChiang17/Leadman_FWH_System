@@ -3,13 +3,11 @@ from __future__ import annotations
 import logging
 import os
 import re
-import sqlite3
 import json
 import hashlib
 import time
 import threading
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Iterable
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request, Response
@@ -17,7 +15,11 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, Field
 from zoneinfo import ZoneInfo
 
+import psycopg2
+import psycopg2.extras
+
 from core.deps import get_current_user, User
+from core.pg import pg_connection, get_conn, get_cursor
 
 # === 專用 Pydantic models（你的專案已分離） ===
 from models.pcba_models import (
@@ -198,7 +200,6 @@ MODEL_PREFIXES = {
 FLOW = ("aging", "coating", "completed")
 FLOW_ORDER = {s: i for i, s in enumerate(FLOW)}
 LA = ZoneInfo("America/Los_Angeles")
-AUTO_REPAIR = os.getenv("PCBA_AUTO_REPAIR", "1") == "1"
 ENFORCE_SLIP_TARGET = os.getenv("PCBA_ENFORCE_SLIP_TARGET", "1") == "1"
 
 SERIAL_NORM_EXPR = "REPLACE(REPLACE(UPPER(serial_number), '-', ''), ' ', '')"
@@ -208,9 +209,9 @@ SERIAL_NORM_EXPR = "REPLACE(REPLACE(UPPER(serial_number), '-', ''), ' ', '')"
 # - stage X -> Y       : 流程站別變更
 # - scan <stage>       : 同站別重掃(允許跨日，但同日防重複)
 _SCAN_NOTES_SQL_TPL = (
-    "(COALESCE({col}, '') LIKE 'create%' "
-    "OR COALESCE({col}, '') LIKE 'stage %' "
-    "OR COALESCE({col}, '') LIKE 'scan %')"
+    "(COALESCE({col}, '') LIKE 'create%%' "
+    "OR COALESCE({col}, '') LIKE 'stage %%' "
+    "OR COALESCE({col}, '') LIKE 'scan %%')"
 )
 
 
@@ -288,152 +289,19 @@ def next_stage_of(curr: Optional[str]) -> Optional[str]:
 
 
 # ========== DB ==========
-def resolve_db_path() -> Path:
-    return Path(os.getenv("PCBA_DB_PATH") or "pcba.db")
-
-
-def resolve_assembly_db_path() -> Path:
-    """Get assembly.db path from environment or default"""
-    return Path(os.getenv("ASSEMBLY_DB_PATH") or "assembly.db")
-
-
-def _open_conn_raw(db_path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(db_path), timeout=30.0, check_same_thread=False, isolation_level=None)
-    conn.row_factory = sqlite3.Row
-    # PRAGMAs for performance & concurrency (WAL)
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA busy_timeout = 8000")
-    conn.execute("PRAGMA synchronous = NORMAL")
-    conn.execute("PRAGMA temp_store = MEMORY")
-    conn.execute("PRAGMA cache_size = -20000")   # ~20MB
-    try:
-        conn.execute("PRAGMA mmap_size = 134217728")  # 128MB if supported
-    except Exception:
-        pass
-    return conn
-
-
-def _create_empty_schema(db_path: Path):
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    with sqlite3.connect(str(db_path)) as conn:
-        c = conn.cursor()
-        c.execute("PRAGMA foreign_keys = ON")
-        c.execute("PRAGMA journal_mode = WAL")
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS boards (
-                id            TEXT PRIMARY KEY,
-                serial_number TEXT UNIQUE NOT NULL,
-                batch_number  TEXT NOT NULL,
-                model         TEXT NOT NULL CHECK(UPPER(model) IN ('AM7','AU8')),
-                stage         TEXT NOT NULL CHECK(stage IN ('aging','coating','completed')),
-                start_time    TEXT NOT NULL,
-                last_update   TEXT NOT NULL,
-                operator      TEXT NOT NULL,
-                slip_number   TEXT,
-                ng_flag       INTEGER NOT NULL DEFAULT 0,
-                ng_reason     TEXT,
-                ng_time       TEXT,
-                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )""")
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS board_history (
-                id        INTEGER PRIMARY KEY AUTOINCREMENT,
-                board_id  TEXT NOT NULL,
-                stage     TEXT NOT NULL CHECK(stage IN ('aging','coating','completed')),
-                timestamp TEXT NOT NULL,
-                operator  TEXT NOT NULL,
-                notes     TEXT,
-                FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE
-            )""")
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS slips (
-                slip_number  TEXT PRIMARY KEY,
-                target_pairs INTEGER NOT NULL DEFAULT 0,
-                created_at   TEXT NOT NULL,
-                updated_at   TEXT NOT NULL
-            )""")
-        # 索引
-        c.execute("CREATE INDEX IF NOT EXISTS idx_boards_serial      ON boards(serial_number)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_boards_stage       ON boards(stage)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_boards_batch       ON boards(batch_number)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_boards_model       ON boards(model)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_boards_slip        ON boards(slip_number)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_boards_last_update ON boards(last_update DESC)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_history_board      ON board_history(board_id)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_history_ts         ON board_history(timestamp DESC)")
-        c.execute(
-            "CREATE INDEX IF NOT EXISTS idx_boards_serial_norm "
-            "ON boards (REPLACE(REPLACE(UPPER(serial_number), '-', ''), ' ', ''))"
-        )
-        conn.commit()
-        logger.info("✅ ensured pcba DB at %s", db_path.resolve())
-
-
-def _backup_and_recreate(db_path: Path, tag: str = "") -> sqlite3.Connection:
-    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    for ext in ("", "-wal", "-shm"):
-        p = Path(str(db_path) + ext)
-        if p.exists():
-            backup = Path(f"{db_path}.corrupt-{ts}{('-' + tag) if tag else ''}{ext}")
-            try:
-                p.replace(backup)
-                logger.warning("backed up corrupt file -> %s", backup)
-            except Exception as e:
-                logger.error("backup failed for %s: %s", p, e)
-    _create_empty_schema(db_path)
-    return _open_conn_raw(db_path)
-
-
-def open_conn() -> sqlite3.Connection:
-    db_path = resolve_db_path()
-    try:
-        conn = _open_conn_raw(db_path)
-        row = conn.execute("PRAGMA integrity_check").fetchone()
-        ok = (row and str(row[0]).lower() == "ok")
-        if not ok:
-            conn.close()
-            if not AUTO_REPAIR:
-                raise sqlite3.DatabaseError(f"integrity_check failed: {row[0] if row else 'unknown'}")
-            logger.error("PCBA DB corrupted. Auto-repairing...")
-            return _backup_and_recreate(db_path, "integrity_check")
-        return conn
-    except sqlite3.DatabaseError as e:
-        if not AUTO_REPAIR:
-            raise
-        logger.error("PCBA DB open failed. Auto-repairing... %s", e)
-        return _backup_and_recreate(db_path, "open")
-
-
-def init_pcba_database():
-    try:
-        _create_empty_schema(resolve_db_path())
-    except sqlite3.DatabaseError as e:
-        if not AUTO_REPAIR:
-            raise
-        logger.error("init db failed; recreating... %s", e)
-        _backup_and_recreate(resolve_db_path(), "init")
-
-
-init_pcba_database()
-
-
 def get_pcba_db():
-    conn = open_conn()
-    try:
-        yield conn
-    finally:
-        conn.close()
+    """FastAPI dependency yielding (conn, cur) for the pcba schema."""
+    return pg_connection("pcba")
 
 
 # ========== 內部 helpers ==========
-def _row_to_board(cursor: sqlite3.Cursor, row: sqlite3.Row) -> Dict[str, Any]:
-    cursor.execute(
-        "SELECT stage, timestamp, operator, notes FROM board_history WHERE board_id=? ORDER BY timestamp ASC",
+def _row_to_board(cur, row: Dict[str, Any]) -> Dict[str, Any]:
+    cur.execute(
+        "SELECT stage, occurred_at AS timestamp, operator, notes FROM board_history WHERE board_id=%s ORDER BY occurred_at ASC",
         (row["id"],),
     )
     history = [{"stage": h["stage"], "timestamp": h["timestamp"], "operator": h["operator"], "notes": h["notes"]}
-               for h in cursor.fetchall()]
+               for h in cur.fetchall()]
     version = get_model_version(row["serial_number"])
     return {
         "id": row["id"],
@@ -453,7 +321,7 @@ def _row_to_board(cursor: sqlite3.Cursor, row: sqlite3.Row) -> Dict[str, Any]:
     }
 
 
-def _row_to_board_light(row: sqlite3.Row) -> Dict[str, Any]:
+def _row_to_board_light(row: Dict[str, Any]) -> Dict[str, Any]:
     version = get_model_version(row["serial_number"])
     return {
         "id": row["id"],
@@ -473,27 +341,27 @@ def _row_to_board_light(row: sqlite3.Row) -> Dict[str, Any]:
     }
 
 
-def _get_board_row(conn: sqlite3.Connection, serial_number: str) -> Optional[sqlite3.Row]:
-    c = conn.cursor()
+def _get_board_row(cur, serial_number: str) -> Optional[Dict[str, Any]]:
     s_norm = _normalize_serial_str(serial_number)
-    c.execute(
+    cur.execute(
         f"""SELECT id, serial_number, batch_number, model, stage, start_time, last_update,
                    operator, slip_number, ng_flag, ng_reason, ng_time
-            FROM boards WHERE {SERIAL_NORM_EXPR} = ?""",
+            FROM boards WHERE {SERIAL_NORM_EXPR} = %s""",
         (s_norm,),
     )
-    return c.fetchone()
+    return cur.fetchone()
 
 
-def _get_board_by_serial(conn: sqlite3.Connection, serial_number: str) -> Optional[Dict]:
-    row = _get_board_row(conn, serial_number)
+def _get_board_by_serial(cur, serial_number: str) -> Optional[Dict]:
+    row = _get_board_row(cur, serial_number)
     if not row:
         return None
-    return _row_to_board(conn.cursor(), row)
+    return _row_to_board(cur, row)
 
 
 def _get_all_boards(
-    conn: sqlite3.Connection,
+    conn,
+    cur,
     stage: Optional[str] = None,
     search: Optional[str] = None,
     model: Optional[str] = None,
@@ -503,132 +371,88 @@ def _get_all_boards(
     include_history: bool = False,
 ) -> List[Dict]:
     """
-    Get all boards with filtering, using SQL-level filtering for consumed boards.
-    This avoids N+1 query pattern by using ATTACH DATABASE to filter in SQL.
+    Get all boards with filtering, using cross-schema JOIN to filter consumed boards.
+    Both pcba and assembly schemas are in the same PostgreSQL database.
     """
-    c = conn.cursor()
+    # Use cross-schema JOIN to filter out consumed boards at SQL level
+    q = """
+        SELECT b.id, b.serial_number, b.batch_number, b.model, b.stage,
+               b.start_time, b.last_update, b.operator, b.slip_number,
+               b.ng_flag, b.ng_reason, b.ng_time
+        FROM boards b
+        LEFT JOIN assembly.scans s_am7 ON
+            UPPER(b.model) = 'AM7' AND
+            REPLACE(REPLACE(UPPER(s_am7.am7), '-', ''), ' ', '') = REPLACE(REPLACE(UPPER(b.serial_number), '-', ''), ' ', '')
+        LEFT JOIN assembly.scans s_au8 ON
+            UPPER(b.model) = 'AU8' AND
+            REPLACE(REPLACE(UPPER(s_au8.au8), '-', ''), ' ', '') = REPLACE(REPLACE(UPPER(b.serial_number), '-', ''), ' ', '')
+        WHERE 1=1
+          AND (UPPER(b.model) NOT IN ('AM7', 'AU8') OR (s_am7.am7 IS NULL AND s_au8.au8 IS NULL))
+    """
 
-    # Attach assembly.db if it exists to filter consumed boards at SQL level
-    assembly_db_path = resolve_assembly_db_path()
-    has_assembly_db = assembly_db_path.exists()
+    params: List[Any] = []
 
-    if has_assembly_db:
-        try:
-            # Attach assembly.db to query consumed boards in SQL
-            c.execute(f"ATTACH DATABASE ? AS assembly", (str(assembly_db_path),))
-        except sqlite3.DatabaseError as e:
-            logger.warning(f"Failed to attach assembly.db: {e}, filtering in Python instead")
-            has_assembly_db = False
+    # Add filters
+    if stage and stage != "all":
+        q += " AND b.stage=%s"
+        params.append(stage)
+    if model and model.upper() in ALLOWED_HARD_MODELS:
+        q += " AND UPPER(b.model)=%s"
+        params.append(model.upper())
+    if slip:
+        q += " AND b.slip_number=%s"
+        params.append(slip)
+    if search:
+        like = f"%{search}%"
+        q += " AND (b.serial_number LIKE %s OR b.batch_number LIKE %s)"
+        params.extend([like, like])
 
-    try:
-        # Build base query
-        if has_assembly_db:
-            # Use LEFT JOIN to filter out consumed boards at SQL level
-            q = """
-                SELECT b.id, b.serial_number, b.batch_number, b.model, b.stage,
-                       b.start_time, b.last_update, b.operator, b.slip_number,
-                       b.ng_flag, b.ng_reason, b.ng_time
-                FROM boards b
-                LEFT JOIN assembly.scans s_am7 ON
-                    UPPER(b.model) = 'AM7' AND
-                    REPLACE(REPLACE(UPPER(s_am7.am7), '-', ''), ' ', '') = REPLACE(REPLACE(UPPER(b.serial_number), '-', ''), ' ', '')
-                LEFT JOIN assembly.scans s_au8 ON
-                    UPPER(b.model) = 'AU8' AND
-                    REPLACE(REPLACE(UPPER(s_au8.au8), '-', ''), ' ', '') = REPLACE(REPLACE(UPPER(b.serial_number), '-', ''), ' ', '')
-                WHERE 1=1
-                  AND (UPPER(b.model) NOT IN ('AM7', 'AU8') OR (s_am7.am7 IS NULL AND s_au8.au8 IS NULL))
-            """
-        else:
-            # Fallback to basic query without consumed filtering
-            q = ("SELECT id, serial_number, batch_number, model, stage, start_time, last_update, "
-                 "operator, slip_number, ng_flag, ng_reason, ng_time FROM boards WHERE 1=1")
+    q += " ORDER BY b.last_update DESC"
+    q += " LIMIT %s OFFSET %s"
+    params.extend([int(limit), int(offset)])
 
-        params: List[Any] = []
+    cur.execute(q, params)
+    rows = cur.fetchall()
 
-        # Add filters
-        if stage and stage != "all":
-            q += " AND b.stage=?" if has_assembly_db else " AND stage=?"
-            params.append(stage)
-        if model and model.upper() in ALLOWED_HARD_MODELS:
-            q += " AND UPPER(b.model)=?" if has_assembly_db else " AND UPPER(model)=?"
-            params.append(model.upper())
-        if slip:
-            q += " AND b.slip_number=?" if has_assembly_db else " AND slip_number=?"
-            params.append(slip)
-        if search:
-            like = f"%{search}%"
-            q += " AND (b.serial_number LIKE ? OR b.batch_number LIKE ?)" if has_assembly_db else " AND (serial_number LIKE ? OR batch_number LIKE ?)"
-            params.extend([like, like])
-
-        q += " ORDER BY b.last_update DESC" if has_assembly_db else " ORDER BY last_update DESC"
-        q += " LIMIT ? OFFSET ?"
-        params.extend([int(limit), int(offset)])
-
-        c.execute(q, params)
-        rows = c.fetchall()
-
-        # If assembly.db was not available, filter in Python (fallback)
-        if not has_assembly_db:
-            consumed_am7, consumed_au8 = _get_all_consumed_sns()
-            filtered_rows = []
-            for r in rows:
-                sn = r["serial_number"].strip()
-                mdl = (r["model"] or "").upper()
-                if mdl == "AM7" and sn in consumed_am7:
-                    continue
-                if mdl == "AU8" and sn in consumed_au8:
-                    continue
-                filtered_rows.append(r)
-            rows = filtered_rows
-
-        return [_row_to_board(c, r) if include_history else _row_to_board_light(r) for r in rows]
-
-    finally:
-        # Detach assembly.db
-        if has_assembly_db:
-            try:
-                c.execute("DETACH DATABASE assembly")
-            except Exception:
-                pass
+    return [_row_to_board(cur, r) if include_history else _row_to_board_light(r) for r in rows]
 
 
-def _ensure_slip(conn: sqlite3.Connection, slip_number: Optional[str], target_pairs: Optional[int] = None):
+def _ensure_slip(cur, slip_number: Optional[str], target_pairs: Optional[int] = None):
     if not slip_number:
         return
-    c = conn.cursor()
     now = now_utc_iso()
-    c.execute("SELECT slip_number, target_pairs FROM slips WHERE slip_number=?", (slip_number,))
-    row = c.fetchone()
+    cur.execute("SELECT slip_number, target_pairs FROM slips WHERE slip_number=%s", (slip_number,))
+    row = cur.fetchone()
     if row:
         if target_pairs is not None and int(target_pairs) != int(row["target_pairs"] or 0):
-            c.execute("UPDATE slips SET target_pairs=?, updated_at=? WHERE slip_number=?",
-                      (int(target_pairs), now, slip_number))
+            cur.execute("UPDATE slips SET target_pairs=%s, updated_at=%s WHERE slip_number=%s",
+                        (int(target_pairs), now, slip_number))
     else:
-        c.execute("INSERT INTO slips (slip_number, target_pairs, created_at, updated_at) VALUES (?, ?, ?, ?)",
-                  (slip_number, int(target_pairs or 0), now, now))
+        cur.execute("INSERT INTO slips (slip_number, target_pairs, created_at, updated_at) VALUES (%s, %s, %s, %s)",
+                    (slip_number, int(target_pairs or 0), now, now))
 
 
-def _touch_slip(conn: sqlite3.Connection, slip_number: Optional[str]):
+def _touch_slip(cur, slip_number: Optional[str]):
     if not slip_number:
         return
-    conn.execute("UPDATE slips SET updated_at=? WHERE slip_number=?", (now_utc_iso(), slip_number))
+    cur.execute("UPDATE slips SET updated_at=%s WHERE slip_number=%s", (now_utc_iso(), slip_number))
 
 
-def _get_slip_target(conn: sqlite3.Connection, slip_number: str) -> int:
-    r = conn.execute("SELECT target_pairs FROM slips WHERE slip_number=?", (slip_number,)).fetchone()
+def _get_slip_target(cur, slip_number: str) -> int:
+    cur.execute("SELECT target_pairs FROM slips WHERE slip_number=%s", (slip_number,))
+    r = cur.fetchone()
     return int(r["target_pairs"] or 0) if r else 0
 
 
-def _slip_completed_counts(conn: sqlite3.Connection, slip_number: str) -> Dict[str, int]:
+def _slip_completed_counts(cur, slip_number: str) -> Dict[str, int]:
     res = {"AM7": 0, "AU8": 0}
-    c = conn.cursor()
-    c.execute("""
+    cur.execute("""
         SELECT UPPER(model) AS model, COUNT(*) AS cnt
           FROM boards
-         WHERE stage='completed' AND (ng_flag IS NULL OR ng_flag=0) AND slip_number=?
+         WHERE stage='completed' AND (ng_flag IS NULL OR ng_flag=0) AND slip_number=%s
          GROUP BY UPPER(model)
     """, (slip_number,))
-    for r in c.fetchall():
+    for r in cur.fetchall():
         mdl = r["model"]
         if mdl in res:
             res[mdl] = int(r["cnt"] or 0)
@@ -640,11 +464,12 @@ def _validate_create_stage(stage: str):
         raise HTTPException(status_code=400, detail="Must start with Aging")
 
 
-def _validate_update_sequential(conn: sqlite3.Connection, serial: str, new_stage: str):
-    row = conn.execute(
-        f"SELECT stage FROM boards WHERE {SERIAL_NORM_EXPR} = ?",
+def _validate_update_sequential(cur, serial: str, new_stage: str):
+    cur.execute(
+        f"SELECT stage FROM boards WHERE {SERIAL_NORM_EXPR} = %s",
         (_normalize_serial_str(serial),)
-    ).fetchone()
+    )
+    row = cur.fetchone()
     if not row:
         return
     curr = row["stage"]
@@ -658,16 +483,15 @@ def _validate_update_sequential(conn: sqlite3.Connection, serial: str, new_stage
         raise HTTPException(status_code=400, detail=f"Invalid order. Current: {curr} → Next should be {expected}")
 
 
-def _validate_no_duplicate_today(conn: sqlite3.Connection, board_id: str, stage: str):
+def _validate_no_duplicate_today(cur, board_id: str, stage: str):
     la_today = today_la_key()
-    c = conn.cursor()
-    c.execute(
-        f"SELECT timestamp FROM board_history "
-        f"WHERE board_id=? AND stage=? AND {_scan_notes_where('notes')} "
-        f"ORDER BY timestamp DESC LIMIT 5",
+    cur.execute(
+        f"SELECT occurred_at AS timestamp FROM board_history "
+        f"WHERE board_id=%s AND stage=%s AND {_scan_notes_where('notes')} "
+        f"ORDER BY occurred_at DESC LIMIT 5",
         (board_id, stage),
     )
-    for r in c.fetchall():
+    for r in cur.fetchall():
         if parse_to_la_date_key(r["timestamp"]) == la_today:
             raise HTTPException(status_code=409, detail=f"Already scanned {stage} today")
 
@@ -680,10 +504,10 @@ def _effective_target_pairs_from_admin(patch: BoardAdminUpdate) -> Optional[int]
     return patch.targetPairs if patch.targetPairs is not None else patch.slipPairs
 
 
-def _create_board_internal(conn: sqlite3.Connection, data: BoardCreate, username: str, *, commit: bool = True) -> Dict:
-    c = conn.cursor()
+def _create_board_internal(conn, cur, data: BoardCreate, username: str, *, commit: bool = True) -> Dict:
     s_norm = _normalize_serial_str(data.serialNumber)
-    if c.execute(f"SELECT 1 FROM boards WHERE {SERIAL_NORM_EXPR} = ?", (s_norm,)).fetchone():
+    cur.execute(f"SELECT 1 FROM boards WHERE {SERIAL_NORM_EXPR} = %s", (s_norm,))
+    if cur.fetchone():
         raise HTTPException(status_code=400, detail=f"Board {data.serialNumber} already exists")
     _validate_create_stage(data.stage)
 
@@ -706,7 +530,7 @@ def _create_board_internal(conn: sqlite3.Connection, data: BoardCreate, username
         raise HTTPException(status_code=400, detail="Unrecognized/invalid model (AM7/AU8 only)")
 
     if data.slipNumber:
-        _ensure_slip(conn, data.slipNumber, _effective_target_pairs_from_create(data))
+        _ensure_slip(cur, data.slipNumber, _effective_target_pairs_from_create(data))
 
     now = now_utc_iso()
     la_day = today_la_key()
@@ -714,34 +538,35 @@ def _create_board_internal(conn: sqlite3.Connection, data: BoardCreate, username
     ts = int(datetime.now(timezone.utc).timestamp() * 1000)
     board_id = f"{data.slipNumber}-{la_day}-{ts}" if data.slipNumber else f"PCB-{ts}"
 
-    c.execute(
+    cur.execute(
         "INSERT INTO boards (id, serial_number, batch_number, model, stage, start_time, last_update, operator, slip_number) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
         (board_id, data.serialNumber, batch, model, data.stage, now, now, username, data.slipNumber),
     )
     version_label = get_model_version_label(data.serialNumber, model)
-    c.execute(
-        "INSERT INTO board_history (board_id, stage, timestamp, operator, notes) VALUES (?, ?, ?, ?, ?)",
+    cur.execute(
+        "INSERT INTO board_history (board_id, stage, occurred_at, operator, notes) VALUES (%s, %s, %s, %s, %s)",
         (board_id, data.stage, now, username, f"create (model={version_label})"),
     )
     if commit:
         conn.commit()
-    return _get_board_by_serial(conn, data.serialNumber)
+    return _get_board_by_serial(cur, data.serialNumber)
 
 
 def _update_board_stage_internal(
-    conn: sqlite3.Connection,
+    conn,
+    cur,
     serial_number: str,
     stage: str,
     username: str,
     *,
     commit: bool = True,
 ) -> Dict:
-    c = conn.cursor()
-    row = c.execute(
-        f"SELECT id, stage, model, slip_number, ng_flag FROM boards WHERE {SERIAL_NORM_EXPR} = ?",
+    cur.execute(
+        f"SELECT id, stage, model, slip_number, ng_flag FROM boards WHERE {SERIAL_NORM_EXPR} = %s",
         (_normalize_serial_str(serial_number),)
-    ).fetchone()
+    )
+    row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail=f"Board {serial_number} not found")
 
@@ -753,49 +578,48 @@ def _update_board_stage_internal(
 
     # 同站別重掃：更新 last_update + 寫入 history（同日防重複）
     if old_stage == stage:
-        _validate_no_duplicate_today(conn, board_id, stage)
+        _validate_no_duplicate_today(cur, board_id, stage)
         now = now_utc_iso()
-        c.execute("UPDATE boards SET last_update=?, operator=? WHERE id=?", (now, username, board_id))
-        c.execute(
-            "INSERT INTO board_history (board_id, stage, timestamp, operator, notes) VALUES (?, ?, ?, ?, ?)",
+        cur.execute("UPDATE boards SET last_update=%s, operator=%s WHERE id=%s", (now, username, board_id))
+        cur.execute(
+            "INSERT INTO board_history (board_id, stage, occurred_at, operator, notes) VALUES (%s, %s, %s, %s, %s)",
             (board_id, stage, now, username, f"scan {stage}"),
         )
         if commit:
             conn.commit()
-        return _get_board_by_serial(conn, serial_number)
+        return _get_board_by_serial(cur, serial_number)
 
-    _validate_update_sequential(conn, serial_number, stage)
-    _validate_no_duplicate_today(conn, board_id, stage)
+    _validate_update_sequential(cur, serial_number, stage)
+    _validate_no_duplicate_today(cur, board_id, stage)
 
     if ENFORCE_SLIP_TARGET and stage == "completed" and slip_no and is_ok:
-        target = _get_slip_target(conn, slip_no)
+        target = _get_slip_target(cur, slip_no)
         if target > 0:
-            counts = _slip_completed_counts(conn, slip_no)
+            counts = _slip_completed_counts(cur, slip_no)
             counts[(mdl or "").upper()] = counts.get((mdl or "").upper(), 0) + 1
             if min(counts.get("AM7", 0), counts.get("AU8", 0)) > target:
                 raise HTTPException(status_code=409, detail=f"Slip {slip_no} target {target} reached; cannot complete more pairs")
 
     now = now_utc_iso()
-    c.execute("UPDATE boards SET stage=?, last_update=?, operator=? WHERE id=?", (stage, now, username, board_id))
-    c.execute(
-        "INSERT INTO board_history (board_id, stage, timestamp, operator, notes) VALUES (?, ?, ?, ?, ?)",
+    cur.execute("UPDATE boards SET stage=%s, last_update=%s, operator=%s WHERE id=%s", (stage, now, username, board_id))
+    cur.execute(
+        "INSERT INTO board_history (board_id, stage, occurred_at, operator, notes) VALUES (%s, %s, %s, %s, %s)",
         (board_id, stage, now, username, f"stage {old_stage} -> {stage}"),
     )
     if commit:
         conn.commit()
-    return _get_board_by_serial(conn, serial_number)
+    return _get_board_by_serial(cur, serial_number)
 
 
 # ===== 統計 =====
-def _assembly_usage_counts_limited_to_pcba(conn_pcba: sqlite3.Connection) -> Dict[str, int]:
-    # 只讀 assembly.db；失敗視為 0
+def _assembly_usage_counts_limited_to_pcba(cur) -> Dict[str, int]:
+    # 只讀 assembly schema；失敗視為 0
     def _fetch_completed_serials_by_model() -> Dict[str, List[str]]:
-        c = conn_pcba.cursor()
         result = {"AM7": [], "AU8": []}
         for mdl in ("AM7", "AU8"):
-            c.execute("""SELECT serial_number FROM boards
-                         WHERE stage='completed' AND (ng_flag IS NULL OR ng_flag=0) AND UPPER(model)=?""", (mdl,))
-            result[mdl] = [_normalize_serial_str(r["serial_number"]) for r in c.fetchall()]
+            cur.execute("""SELECT serial_number FROM boards
+                         WHERE stage='completed' AND (ng_flag IS NULL OR ng_flag=0) AND UPPER(model)=%s""", (mdl,))
+            result[mdl] = [_normalize_serial_str(r["serial_number"]) for r in cur.fetchall()]
         return result
 
     serials = _fetch_completed_serials_by_model()
@@ -810,47 +634,44 @@ def _assembly_usage_counts_limited_to_pcba(conn_pcba: sqlite3.Connection) -> Dic
         if not values:
             return 0
         try:
-            assembly_db_path = resolve_assembly_db_path()
-            if not assembly_db_path.exists():
-                logger.warning(f"assembly.db not found at {assembly_db_path}")
-                return 0
-
-            with sqlite3.connect(str(assembly_db_path)) as adb:
-                adb.row_factory = sqlite3.Row
-                ac = adb.cursor()
-                ac.execute("DROP TABLE IF EXISTS _tmp_pcba_serials")
-                ac.execute("CREATE TEMP TABLE _tmp_pcba_serials (serial TEXT PRIMARY KEY)")
-                ac.executemany("INSERT OR IGNORE INTO _tmp_pcba_serials(serial) VALUES (?)", [(v,) for v in values])
-                # Safe to use f-string after whitelist validation
-                norm = f"REPLACE(REPLACE(UPPER(s.{column}), '-', ''), ' ', '')"
-                ac.execute(f"""
-                    SELECT COUNT(DISTINCT {norm}) AS c
-                      FROM scans s
-                      JOIN _tmp_pcba_serials t ON t.serial = {norm}
-                     WHERE s.{column} IS NOT NULL AND TRIM(UPPER(s.{column})) <> 'N/A'
-                """)
-                used = int(ac.fetchone()["c"] or 0)
-                ac.execute("DROP TABLE IF EXISTS _tmp_pcba_serials")
-                return used
-        except sqlite3.DatabaseError as e:
-            logger.error(f"Database error reading assembly.db usage: {e}")
-            return 0
+            # Use cross-schema query with temp table
+            cur.execute("CREATE TEMP TABLE _tmp_pcba_serials(serial TEXT PRIMARY KEY) ON COMMIT PRESERVE ROWS")
+            # Batch insert using execute_values
+            psycopg2.extras.execute_values(
+                cur,
+                "INSERT INTO _tmp_pcba_serials(serial) VALUES %s ON CONFLICT DO NOTHING",
+                [(v,) for v in values],
+                page_size=1000,
+            )
+            # Safe to use f-string after whitelist validation
+            norm = f"REPLACE(REPLACE(UPPER(s.{column}), '-', ''), ' ', '')"
+            cur.execute(f"""
+                SELECT COUNT(DISTINCT {norm}) AS c
+                  FROM assembly.scans s
+                  JOIN _tmp_pcba_serials t ON t.serial = {norm}
+                 WHERE s.{column} IS NOT NULL AND TRIM(UPPER(s.{column})) <> 'N/A'
+            """)
+            used = int(cur.fetchone()["c"] or 0)
+            cur.execute("DROP TABLE IF EXISTS _tmp_pcba_serials")
+            return used
         except Exception as e:
-            logger.warning(f"Failed to read assembly.db usage: {e}")
+            logger.warning(f"Failed to read assembly usage: {e}")
+            try:
+                cur.execute("DROP TABLE IF EXISTS _tmp_pcba_serials")
+            except Exception:
+                pass
             return 0
 
     return {"AM7": _count_used("am7", serials["AM7"]), "AU8": _count_used("au8", serials["AU8"])}
 
 
-def _get_statistics(conn: sqlite3.Connection) -> StageStats:
+def _get_statistics(conn, cur) -> StageStats:
     """
     Get statistics using SQL GROUP BY for better performance.
     CRITICAL FIX: Do NOT filter consumed boards in statistics query!
     Filtering consumed boards causes massive performance issues with LEFT JOINs.
     Statistics show ALL boards regardless of consumption status.
     """
-    c = conn.cursor()
-
     # Simple, fast GROUP BY - no consumed filtering!
     query = """
         SELECT
@@ -862,8 +683,8 @@ def _get_statistics(conn: sqlite3.Connection) -> StageStats:
         GROUP BY model, stage, ng_flag
     """
 
-    c.execute(query)
-    rows = c.fetchall()
+    cur.execute(query)
+    rows = cur.fetchall()
 
     # Process grouped results
     total = 0
@@ -913,7 +734,7 @@ def _get_statistics(conn: sqlite3.Connection) -> StageStats:
             completed=data["completed"],
         )
 
-    used = _assembly_usage_counts_limited_to_pcba(conn)
+    used = _assembly_usage_counts_limited_to_pcba(cur)
     am7_used, au8_used = used["AM7"], used["AU8"]
     avail_am7 = max(completed_by_model["AM7"] - am7_used, 0)
     avail_au8 = max(completed_by_model["AU8"] - au8_used, 0)
@@ -936,20 +757,19 @@ def _current_week_range_la() -> Tuple[datetime, datetime, str]:
     return monday_la.astimezone(timezone.utc), sunday_la.astimezone(timezone.utc), f"{fmt(monday_la)} – {fmt(sunday_la)}"
 
 
-def _weekly_stats(conn: sqlite3.Connection) -> WeeklyStats:
+def _weekly_stats(cur) -> WeeklyStats:
     week_start_utc, week_end_utc, label = _current_week_range_la()
-    c = conn.cursor()
-    c.execute(f"""
-        SELECT h.stage, h.timestamp, b.serial_number, b.model
+    cur.execute(f"""
+        SELECT h.stage, h.occurred_at AS timestamp, b.serial_number, b.model
           FROM board_history h
           JOIN boards b ON b.id = h.board_id
-         WHERE h.timestamp BETWEEN ? AND ?
+         WHERE h.occurred_at BETWEEN %s AND %s
            AND h.stage IN ('aging','coating','completed')
            AND {_scan_notes_where('h.notes')}
     """, (week_start_utc.isoformat(), week_end_utc.isoformat()))
     latest: Dict[str, Tuple[str, str]] = {}
     completed_am7, completed_au8 = set(), set()
-    for r in c.fetchall():
+    for r in cur.fetchall():
         st, sn, ts, mdl = r["stage"], r["serial_number"], r["timestamp"], (r["model"] or "").upper()
         if sn not in latest or ts > latest[sn][1] or (ts == latest[sn][1] and FLOW_ORDER[st] > FLOW_ORDER[latest[sn][0]]):
             latest[sn] = (st, ts)
@@ -1034,7 +854,7 @@ def _default_last_n_days_keys(n: int = 14) -> Tuple[str, str, List[str]]:
 
 
 def _get_all_consumed_sns() -> Tuple[set, set]:
-    """Get all consumed serial numbers from assembly.db.
+    """Get all consumed serial numbers from assembly schema.
     Returns: (consumed_am7_set, consumed_au8_set)
     Cache TTL: 60 seconds
     """
@@ -1045,18 +865,10 @@ def _get_all_consumed_sns() -> Tuple[set, set]:
         return set(cached["am7"]), set(cached["au8"])
 
     try:
-        assembly_db_path = resolve_assembly_db_path()
-        if not assembly_db_path.exists():
-            logger.warning(f"assembly.db not found at {assembly_db_path}")
-            return set(), set()
-
         consumed_am7 = set()
         consumed_au8 = set()
 
-        with sqlite3.connect(str(assembly_db_path)) as adb:
-            adb.row_factory = sqlite3.Row
-            ac = adb.cursor()
-
+        with get_cursor("assembly") as ac:
             # Get all AM7 consumed
             ac.execute("SELECT am7 FROM scans WHERE am7 IS NOT NULL AND am7 != ''")
             consumed_am7 = {row["am7"].strip() for row in ac.fetchall()}
@@ -1070,63 +882,44 @@ def _get_all_consumed_sns() -> Tuple[set, set]:
 
         logger.info(f"Loaded consumed SNs: AM7={len(consumed_am7)}, AU8={len(consumed_au8)}")
         return consumed_am7, consumed_au8
-    except sqlite3.DatabaseError as e:
-        logger.error(f"Database error reading consumed SNs from assembly.db: {e}")
-        return set(), set()
     except Exception as e:
-        logger.warning(f"Failed to read consumed SNs from assembly.db: {e}")
+        logger.warning(f"Failed to read consumed SNs from assembly schema: {e}")
         return set(), set()
 
 
 def _count_consumed_by_day(date_key: str) -> Tuple[int, int]:
-    """Count consumed boards from assembly.db for a specific LA date.
-    Note: assembly.db ts column uses LA local time strings (YYYY-MM-DD HH:MM:SS)
+    """Count consumed boards from assembly schema for a specific LA date.
+    assembly.scans uses scanned_at (TIMESTAMPTZ stored as UTC).
+    Uses half-open interval [start, next_day_start) to avoid microsecond gaps.
     """
     try:
-        assembly_db_path = resolve_assembly_db_path()
-        if not assembly_db_path.exists():
-            logger.warning(f"assembly.db not found at {assembly_db_path}")
-            return 0, 0
+        y, m, d = map(int, date_key.split("-"))
+        start_la = datetime(y, m, d, 0, 0, 0, tzinfo=LA)
+        next_la  = start_la + timedelta(days=1)
+        start_utc = start_la.astimezone(timezone.utc)
+        next_utc  = next_la.astimezone(timezone.utc)
 
-        # assembly.db uses LA local time strings, so we compare with LA date bounds
-        start_la = f"{date_key} 00:00:00"
-        end_la = f"{date_key} 23:59:59"
-
-        with sqlite3.connect(str(assembly_db_path)) as adb:
-            adb.row_factory = sqlite3.Row
-            ac = adb.cursor()
-            # Count AM7 consumed
+        with get_cursor("assembly") as ac:
             ac.execute("""
-                SELECT COUNT(*) c FROM scans
-                WHERE am7 IS NOT NULL AND am7 != ''
-                AND ts BETWEEN ? AND ?
-            """, (start_la, end_la))
-            am7_consumed = int(ac.fetchone()["c"] or 0)
-
-            # Count AU8 consumed
-            ac.execute("""
-                SELECT COUNT(*) c FROM scans
-                WHERE au8 IS NOT NULL AND au8 != ''
-                AND ts BETWEEN ? AND ?
-            """, (start_la, end_la))
-            au8_consumed = int(ac.fetchone()["c"] or 0)
-
-            return am7_consumed, au8_consumed
-    except sqlite3.DatabaseError as e:
-        logger.error(f"Database error reading assembly.db daily consumption: {e}")
-        return 0, 0
+                SELECT
+                    COUNT(*) FILTER (WHERE am7 IS NOT NULL AND TRIM(UPPER(am7)) <> 'N/A') AS am7_c,
+                    COUNT(*) FILTER (WHERE au8 IS NOT NULL AND TRIM(UPPER(au8)) <> 'N/A') AS au8_c
+                FROM scans
+                WHERE scanned_at >= %s AND scanned_at < %s
+            """, (start_utc, next_utc))
+            row = ac.fetchone()
+            return int(row["am7_c"] or 0), int(row["au8_c"] or 0)
     except Exception as e:
-        logger.warning(f"Failed to read assembly.db daily consumption: {e}")
+        logger.warning(f"Failed to read assembly daily consumption: {e}")
         return 0, 0
 
 
-def _daily_stats(conn: sqlite3.Connection, start_key: Optional[str], end_key: Optional[str], days: int = 14) -> DailyStats:
+def _daily_stats(conn, cur, start_key: Optional[str], end_key: Optional[str], days: int = 14) -> DailyStats:
     if not start_key or not end_key:
         start_key, end_key, keys = _default_last_n_days_keys(days)
     else:
         keys = _la_date_keys_between(start_key, end_key)
 
-    c = conn.cursor()
     rows: List[DailyRow] = []
     totals = {k: 0 for k in ("aging", "coating", "completed", "completedOK", "completedAM7", "completedAU8",
                              "completedAM7OK", "completedAU8OK", "pairs", "pairsOK",
@@ -1134,36 +927,36 @@ def _daily_stats(conn: sqlite3.Connection, start_key: Optional[str], end_key: Op
 
     for dk in keys:
         start_utc, end_utc = _la_day_bounds(dk)
-        c.execute(f"""SELECT h.stage s, COUNT(*) cnt
+        cur.execute(f"""SELECT h.stage s, COUNT(*) cnt
                        FROM board_history h
-                      WHERE h.timestamp BETWEEN ? AND ?
+                      WHERE h.occurred_at BETWEEN %s AND %s
                         AND h.stage IN ('aging','coating','completed')
                         AND {_scan_notes_where('h.notes')}
                       GROUP BY h.stage""",
                   (start_utc.isoformat(), end_utc.isoformat()))
-        stage_counts = {r["s"]: int(r["cnt"] or 0) for r in c.fetchall()}
+        stage_counts = {r["s"]: int(r["cnt"] or 0) for r in cur.fetchall()}
 
-        c.execute(f"""SELECT UPPER(b.model) m, COUNT(*) cnt
+        cur.execute(f"""SELECT UPPER(b.model) m, COUNT(*) cnt
                        FROM board_history h
                        JOIN boards b ON b.id = h.board_id
-                      WHERE h.timestamp BETWEEN ? AND ?
+                      WHERE h.occurred_at BETWEEN %s AND %s
                         AND h.stage='completed'
                         AND {_scan_notes_where('h.notes')}
                       GROUP BY UPPER(b.model)""",
                   (start_utc.isoformat(), end_utc.isoformat()))
-        comp_by_model = {r["m"]: int(r["cnt"] or 0) for r in c.fetchall()}
+        comp_by_model = {r["m"]: int(r["cnt"] or 0) for r in cur.fetchall()}
         comp_am7, comp_au8 = comp_by_model.get("AM7", 0), comp_by_model.get("AU8", 0)
 
-        c.execute(f"""SELECT UPPER(b.model) m, COUNT(*) cnt
+        cur.execute(f"""SELECT UPPER(b.model) m, COUNT(*) cnt
                        FROM board_history h
                        JOIN boards b ON b.id = h.board_id
-                      WHERE h.timestamp BETWEEN ? AND ?
+                      WHERE h.occurred_at BETWEEN %s AND %s
                         AND h.stage='completed'
                         AND {_scan_notes_where('h.notes')}
                         AND (b.ng_flag IS NULL OR b.ng_flag=0)
                       GROUP BY UPPER(b.model)""",
                   (start_utc.isoformat(), end_utc.isoformat()))
-        comp_ok_by_model = {r["m"]: int(r["cnt"] or 0) for r in c.fetchall()}
+        comp_ok_by_model = {r["m"]: int(r["cnt"] or 0) for r in cur.fetchall()}
         comp_am7_ok, comp_au8_ok = comp_ok_by_model.get("AM7", 0), comp_ok_by_model.get("AU8", 0)
 
         # Get consumption data for this day
@@ -1222,8 +1015,8 @@ class InventorySummary(BaseModel):
     pairsAvailable: int
 
 
-def _inventory_summary(conn: sqlite3.Connection) -> InventorySummary:
-    stats = _get_statistics(conn)
+def _inventory_summary(conn, cur) -> InventorySummary:
+    stats = _get_statistics(conn, cur)
     return InventorySummary(
         availableAM7=stats.availableAM7,
         availableAU8=stats.availableAU8,
@@ -1240,15 +1033,14 @@ def _inventory_summary(conn: sqlite3.Connection) -> InventorySummary:
 # ========== WS 廣播 ==========
 async def _broadcast_stats_async():
     from core.ws_manager import ws_manager
-    conn = None
     try:
-        conn = open_conn()
-        stats = _get_statistics(conn)
-        payload = stats.model_dump() if hasattr(stats, "model_dump") else stats.__dict__
-        await ws_manager.broadcast({"type": "statistics_update", "statistics": payload})
-    finally:
-        if conn:
-            conn.close()
+        with get_conn("pcba") as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            stats = _get_statistics(conn, cur)
+            payload = stats.model_dump() if hasattr(stats, "model_dump") else stats.__dict__
+            await ws_manager.broadcast({"type": "statistics_update", "statistics": payload})
+    except Exception as e:
+        logger.warning(f"Failed to broadcast stats: {e}")
 
 
 # ========== REST（僅保留前端需要的）==========
@@ -1262,20 +1054,22 @@ async def get_boards(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     includeHistory: bool = Query(False),
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
 ):
+    conn, cur = db
     mdl = model.upper() if model else None
-    return _get_all_boards(db, stage, search, mdl, slip, limit, offset, include_history=includeHistory)
+    return _get_all_boards(conn, cur, stage, search, mdl, slip, limit, offset, include_history=includeHistory)
 
 
 @router.get("/boards/{serial_number}", response_model=BoardResponse)
 async def get_board(
     serial_number: str,
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
 ):
-    b = _get_board_by_serial(db, serial_number)
+    conn, cur = db
+    b = _get_board_by_serial(cur, serial_number)
     if not b:
         raise HTTPException(status_code=404, detail=f"Board {serial_number} not found")
     return b
@@ -1284,15 +1078,16 @@ async def get_board(
 @router.post("/boards", response_model=BoardResponse, status_code=status.HTTP_201_CREATED)
 async def create_board(
     board_data: BoardCreate,
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
 ):
     """
     Create new board with proper cache invalidation.
     Fixes issue #6: Cache invalidation happens in finally to ensure consistency.
     """
+    conn, cur = db
     require_editor(current_user)
-    b = _create_board_internal(db, board_data, current_user.username)
+    b = _create_board_internal(conn, cur, board_data, current_user.username)
     await safe_broadcast_with_cache_invalidation(b, "create", [b.get("slipNumber")])
     return b
 
@@ -1301,11 +1096,12 @@ async def create_board(
 async def update_board(
     serial_number: str,
     update_data: BoardUpdate,
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
 ):
+    conn, cur = db
     require_editor(current_user)
-    b = _update_board_stage_internal(db, serial_number, update_data.stage, current_user.username)
+    b = _update_board_stage_internal(conn, cur, serial_number, update_data.stage, current_user.username)
     from core.ws_manager import ws_manager
     await ws_manager.broadcast({"type": "board_update", "action": "update", "board": b})
     await _broadcast_stats_async()
@@ -1323,15 +1119,16 @@ class SlipAssignPatch(BaseModel):
 async def change_board_slip(
     serial_number: str,
     patch: SlipAssignPatch,
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
 ):
+    conn, cur = db
     require_editor(current_user)
-    c = db.cursor()
-    row = c.execute(
-        f"SELECT id, slip_number, stage, model, ng_flag FROM boards WHERE {SERIAL_NORM_EXPR} = ?",
+    cur.execute(
+        f"SELECT id, slip_number, stage, model, ng_flag FROM boards WHERE {SERIAL_NORM_EXPR} = %s",
         (_normalize_serial_str(serial_number),)
-    ).fetchone()
+    )
+    row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail=f"Board {serial_number} not found")
 
@@ -1341,33 +1138,33 @@ async def change_board_slip(
     new_slip = patch.slipNumber if (patch.slipNumber or "") != "" else None
 
     if old_slip == new_slip:
-        return _get_board_by_serial(db, serial_number)
+        return _get_board_by_serial(cur, serial_number)
 
     if ENFORCE_SLIP_TARGET and old_stage == "completed" and new_slip and is_ok:
-        tgt = _get_slip_target(db, new_slip)
+        tgt = _get_slip_target(cur, new_slip)
         if tgt > 0:
-            counts = _slip_completed_counts(db, new_slip)
+            counts = _slip_completed_counts(cur, new_slip)
             counts[mdl] = counts.get(mdl, 0) + 1
             if min(counts.get("AM7", 0), counts.get("AU8", 0)) > tgt:
                 raise HTTPException(status_code=409, detail=f"Slip {new_slip} target {tgt} reached; cannot move more pairs in")
 
     now = now_utc_iso()
     if new_slip:
-        _ensure_slip(db, new_slip, patch.targetPairs)
+        _ensure_slip(cur, new_slip, patch.targetPairs)
 
-    c.execute("UPDATE boards SET slip_number=?, last_update=?, operator=? WHERE id=?",
+    cur.execute("UPDATE boards SET slip_number=%s, last_update=%s, operator=%s WHERE id=%s",
               (new_slip, now, current_user.username, board_id))
 
     note = ("move slip {0} -> {1}".format(old_slip, new_slip) if old_slip and new_slip
             else f"attach slip {new_slip}" if new_slip
             else f"detach slip {old_slip}")
-    c.execute("INSERT INTO board_history (board_id, stage, timestamp, operator, notes) VALUES (?, ?, ?, ?, ?)",
+    cur.execute("INSERT INTO board_history (board_id, stage, occurred_at, operator, notes) VALUES (%s, %s, %s, %s, %s)",
               (board_id, old_stage, now, current_user.username, note))
 
-    _touch_slip(db, old_slip); _touch_slip(db, new_slip)
-    db.commit()
+    _touch_slip(cur, old_slip); _touch_slip(cur, new_slip)
+    conn.commit()
 
-    b = _get_board_by_serial(db, serial_number)
+    b = _get_board_by_serial(cur, serial_number)
     from core.ws_manager import ws_manager
     await ws_manager.broadcast({"type": "board_update", "action": "slip_changed", "board": b})
     await _broadcast_stats_async()
@@ -1379,15 +1176,16 @@ async def change_board_slip(
 async def admin_edit_board(
     serial_number: str,
     patch: BoardAdminUpdate,
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
 ):
+    conn, cur = db
     require_editor(current_user)
-    c = db.cursor()
-    row = c.execute(
-        f"SELECT id, serial_number, stage, slip_number, model, ng_flag FROM boards WHERE {SERIAL_NORM_EXPR} = ?",
+    cur.execute(
+        f"SELECT id, serial_number, stage, slip_number, model, ng_flag FROM boards WHERE {SERIAL_NORM_EXPR} = %s",
         (_normalize_serial_str(serial_number),)
-    ).fetchone()
+    )
+    row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail=f"Board {serial_number} not found")
 
@@ -1400,7 +1198,7 @@ async def admin_edit_board(
     params: List[Any] = []
 
     if patch.batchNumber is not None:
-        sets.append("batch_number=?"); params.append(patch.batchNumber)
+        sets.append("batch_number=%s"); params.append(patch.batchNumber)
 
     if patch.model is not None:
         mdl = (patch.model or "").upper()
@@ -1408,11 +1206,11 @@ async def admin_edit_board(
             mdl = infer_model(old_sn) or mdl
         if mdl not in ALLOWED_HARD_MODELS:
             raise HTTPException(status_code=400, detail="Invalid model (AM7/AU8 only)")
-        sets.append("model=?"); params.append(mdl); model_after = mdl
+        sets.append("model=%s"); params.append(mdl); model_after = mdl
 
     stage_history: List[Tuple[str, str]] = []
     if patch.stage is not None:
-        sets.append("stage=?"); params.append(patch.stage)
+        sets.append("stage=%s"); params.append(patch.stage)
         if patch.stage != old_stage:
             stage_history.append((patch.stage, patch.note or "admin edit"))
 
@@ -1425,10 +1223,10 @@ async def admin_edit_board(
         if normalized_new != old_slip:
             slip_changed = True
             new_slip_value = normalized_new
-            sets.append("slip_number=?"); params.append(new_slip_value)
+            sets.append("slip_number=%s"); params.append(new_slip_value)
             eff_pairs = _effective_target_pairs_from_admin(patch)
             if new_slip_value:
-                _ensure_slip(db, new_slip_value, eff_pairs)
+                _ensure_slip(cur, new_slip_value, eff_pairs)
 
     # slip target enforcement：需用「更新後」stage/slip/model 來判斷，避免同筆 PATCH 繞過限制
     slip_after = new_slip_value
@@ -1439,14 +1237,14 @@ async def admin_edit_board(
             or model_before != model_after
         )
         if need_target_check:
-            tgt = _get_slip_target(db, slip_after)
+            tgt = _get_slip_target(cur, slip_after)
             if slip_changed:
                 eff_pairs = _effective_target_pairs_from_admin(patch)
                 if eff_pairs is not None:
                     tgt = int(eff_pairs)
 
             if tgt > 0:
-                counts = _slip_completed_counts(db, slip_after)
+                counts = _slip_completed_counts(cur, slip_after)
                 if old_stage != "completed" or old_slip != slip_after:
                     counts[model_after] = counts.get(model_after, 0) + 1
                 elif model_before != model_after:
@@ -1460,37 +1258,37 @@ async def admin_edit_board(
                     )
 
     if patch.startTime is not None:
-        sets.append("start_time=?"); params.append(patch.startTime)
+        sets.append("start_time=%s"); params.append(patch.startTime)
 
     now = now_utc_iso()
-    sets.append("last_update=?"); params.append(patch.lastUpdate or now)
-    sets.append("operator=?");    params.append(patch.operator or current_user.username)
+    sets.append("last_update=%s"); params.append(patch.lastUpdate or now)
+    sets.append("operator=%s");    params.append(patch.operator or current_user.username)
 
     if sets:
         params.append(board_id)
-        c.execute(f"UPDATE boards SET {', '.join(sets)} WHERE id=?", params)
+        cur.execute(f"UPDATE boards SET {', '.join(sets)} WHERE id=%s", params)
 
     for st, note in stage_history:
-        c.execute("INSERT INTO board_history (board_id, stage, timestamp, operator, notes) VALUES (?, ?, ?, ?, ?)",
+        cur.execute("INSERT INTO board_history (board_id, stage, occurred_at, operator, notes) VALUES (%s, %s, %s, %s, %s)",
                   (board_id, st, now, current_user.username, note))
 
     if slip_changed:
         note = ("move slip {0} -> {1}".format(old_slip, new_slip_value) if old_slip and new_slip_value
                 else f"attach slip {new_slip_value}" if new_slip_value
                 else f"detach slip {old_slip}")
-        c.execute("INSERT INTO board_history (board_id, stage, timestamp, operator, notes) VALUES (?, ?, ?, ?, ?)",
+        cur.execute("INSERT INTO board_history (board_id, stage, occurred_at, operator, notes) VALUES (%s, %s, %s, %s, %s)",
                   (board_id, (patch.stage or old_stage), now, current_user.username, note))
-        _touch_slip(db, old_slip); _touch_slip(db, new_slip_value)
+        _touch_slip(cur, old_slip); _touch_slip(cur, new_slip_value)
 
     if patch.newSerialNumber and patch.newSerialNumber != old_sn:
-        if c.execute("SELECT 1 FROM boards WHERE serial_number=?", (patch.newSerialNumber,)).fetchone():
+        cur.execute("SELECT 1 FROM boards WHERE serial_number=%s", (patch.newSerialNumber,))
+        if cur.fetchone():
             raise HTTPException(status_code=400, detail=f"Serial {patch.newSerialNumber} already exists")
-        c.execute("UPDATE boards SET serial_number=? WHERE id=?", (patch.newSerialNumber, board_id))
+        cur.execute("UPDATE boards SET serial_number=%s WHERE id=%s", (patch.newSerialNumber, board_id))
 
-    db.commit()
+    conn.commit()
     new_sn = patch.newSerialNumber or old_sn
-    b = _get_board_by_serial(db, new_sn)
-
+    b = _get_board_by_serial(cur, new_sn)
     from core.ws_manager import ws_manager
     await ws_manager.broadcast({"type": "board_update", "action": "admin_edit", "board": b})
     await _broadcast_stats_async()
@@ -1501,20 +1299,22 @@ async def admin_edit_board(
 @router.delete("/boards/{serial_number}")
 async def delete_board(
     serial_number: str,
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
 ):
+    conn, cur = db
     require_editor(current_user)
-    row = db.execute(
-        f"SELECT id, slip_number FROM boards WHERE {SERIAL_NORM_EXPR} = ?",
+    cur.execute(
+        f"SELECT id, slip_number FROM boards WHERE {SERIAL_NORM_EXPR} = %s",
         (_normalize_serial_str(serial_number),)
-    ).fetchone()
+    )
+    row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail=f"Board {serial_number} not found")
     bid, slip_no = row["id"], row["slip_number"]
-    db.execute("DELETE FROM board_history WHERE board_id=?", (bid,))
-    db.execute("DELETE FROM boards WHERE id=?", (bid,))
-    db.commit()
+    cur.execute("DELETE FROM board_history WHERE board_id=%s", (bid,))
+    cur.execute("DELETE FROM boards WHERE id=%s", (bid,))
+    conn.commit()
 
     from core.ws_manager import ws_manager
     await ws_manager.broadcast({"type": "board_deleted", "serialNumber": serial_number})
@@ -1526,15 +1326,16 @@ async def delete_board(
 @router.post("/scan", response_model=BoardResponse, summary="Scan upsert（存在就更新，不存在就建立；強制流程順序＋同日防重複）")
 async def scan_upsert(
     payload: BoardCreate,
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
 ):
+    conn, cur = db
     require_editor(current_user)
     serial = payload.serialNumber
     if not serial:
         raise HTTPException(status_code=400, detail="serialNumber required")
 
-    # ✅ 只有 Aging 允許指定/變更 slip；其他站一律忽略 slip 欄位
+    # 只有 Aging 允許指定/變更 slip；其他站一律忽略 slip 欄位
     req_stage = (payload.stage or "").lower()
     if req_stage != "aging":
         payload.slipNumber = None
@@ -1543,13 +1344,12 @@ async def scan_upsert(
 
     affected_slips: List[Optional[str]] = []
     try:
-        # 一次 scan 內同時包含「站別掃描 + (aging 才允許的) slip 變更」要保持原子性
-        db.execute("BEGIN")
+        # Transaction is already started by the pg pool (autocommit=False)
 
         if req_stage == "aging" and payload.slipNumber:
-            _ensure_slip(db, payload.slipNumber, _effective_target_pairs_from_create(payload))
+            _ensure_slip(cur, payload.slipNumber, _effective_target_pairs_from_create(payload))
 
-        row = _get_board_row(db, serial)
+        row = _get_board_row(cur, serial)
         if row:
             old_slip = row["slip_number"]
             old_stage = row["stage"]
@@ -1558,10 +1358,9 @@ async def scan_upsert(
             if req_stage == "aging" and old_stage == "aging" and (payload.slipNumber is not None):
                 new_slip = payload.slipNumber if (payload.slipNumber or "").strip() != "" else None
                 if new_slip != old_slip:
-                    c = db.cursor()
                     now = now_utc_iso()
-                    c.execute(
-                        "UPDATE boards SET slip_number=?, last_update=?, operator=? WHERE id=?",
+                    cur.execute(
+                        "UPDATE boards SET slip_number=%s, last_update=%s, operator=%s WHERE id=%s",
                         (new_slip, now, current_user.username, row["id"]),
                     )
                     note = (
@@ -1569,19 +1368,19 @@ async def scan_upsert(
                         else f"attach slip {new_slip}" if new_slip
                         else f"detach slip {old_slip}"
                     )
-                    c.execute(
-                        "INSERT INTO board_history (board_id, stage, timestamp, operator, notes) VALUES (?, ?, ?, ?, ?)",
+                    cur.execute(
+                        "INSERT INTO board_history (board_id, stage, occurred_at, operator, notes) VALUES (%s, %s, %s, %s, %s)",
                         (row["id"], old_stage, now, current_user.username, note),
                     )
-                    _touch_slip(db, old_slip)
-                    _touch_slip(db, new_slip)
+                    _touch_slip(cur, old_slip)
+                    _touch_slip(cur, new_slip)
                     affected_slips.append(old_slip)
 
-            b = _update_board_stage_internal(db, serial, payload.stage, current_user.username, commit=False)
+            b = _update_board_stage_internal(conn, cur, serial, payload.stage, current_user.username, commit=False)
         else:
-            b = _create_board_internal(db, payload, current_user.username, commit=False)
+            b = _create_board_internal(conn, cur, payload, current_user.username, commit=False)
 
-        db.commit()
+        conn.commit()
 
         from core.ws_manager import ws_manager
         await ws_manager.broadcast({"type": "board_update", "board": b})
@@ -1592,13 +1391,13 @@ async def scan_upsert(
 
     except HTTPException:
         try:
-            db.rollback()
+            conn.rollback()
         except Exception:
             pass
         raise
     except Exception:
         try:
-            db.rollback()
+            conn.rollback()
         except Exception:
             pass
         logger.exception("scan_upsert unexpected error | serial=%s stage=%s", serial, payload.stage)
@@ -1609,34 +1408,35 @@ async def scan_upsert(
 async def mark_ng(
     serial_number: str,
     payload: NGPatch,
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
 ):
+    conn, cur = db
     require_editor(current_user)
-    c = db.cursor()
-    row = c.execute(
-        f"SELECT id, stage, ng_flag, ng_reason, slip_number FROM boards WHERE {SERIAL_NORM_EXPR} = ?",
+    cur.execute(
+        f"SELECT id, stage, ng_flag, ng_reason, slip_number FROM boards WHERE {SERIAL_NORM_EXPR} = %s",
         (_normalize_serial_str(serial_number),)
-    ).fetchone()
+    )
+    row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail=f"Board {serial_number} not found")
 
     board_id, stage, prev_reason, slip_no = row["id"], row["stage"], row["ng_reason"], row["slip_number"]
     now = now_utc_iso()
     if payload.ng:
-        c.execute("UPDATE boards SET ng_flag=1, ng_reason=?, ng_time=?, last_update=?, operator=? WHERE id=?",
+        cur.execute("UPDATE boards SET ng_flag=1, ng_reason=%s, ng_time=%s, last_update=%s, operator=%s WHERE id=%s",
                   (payload.reason or "", now, now, current_user.username, board_id))
         note = f"NG set: {(payload.reason or '').strip()}"
     else:
-        c.execute("UPDATE boards SET ng_flag=0, ng_reason=NULL, ng_time=NULL, last_update=?, operator=? WHERE id=?",
+        cur.execute("UPDATE boards SET ng_flag=0, ng_reason=NULL, ng_time=NULL, last_update=%s, operator=%s WHERE id=%s",
                   (now, current_user.username, board_id))
         note = f"NG cleared (was: {(prev_reason or '').strip()})"
 
-    c.execute("INSERT INTO board_history (board_id, stage, timestamp, operator, notes) VALUES (?, ?, ?, ?, ?)",
+    cur.execute("INSERT INTO board_history (board_id, stage, occurred_at, operator, notes) VALUES (%s, %s, %s, %s, %s)",
               (board_id, stage, now, current_user.username, note))
-    db.commit()
+    conn.commit()
 
-    b = _get_board_by_serial(db, serial_number)
+    b = _get_board_by_serial(cur, serial_number)
     from core.ws_manager import ws_manager
     await ws_manager.broadcast({"type": "board_update", "action": "ng", "board": b})
     await _broadcast_stats_async()
@@ -1647,11 +1447,12 @@ async def mark_ng(
 # ===== 統計 & 儀表板（前端用） =====
 @router.get("/statistics", response_model=StageStats)
 async def get_statistics(
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
     request: Request = None,
     response: Response = None,
 ):
+    conn, cur = db
     key = "stats:global"
     cached = CACHE.get(key)
     if cached:
@@ -1659,7 +1460,7 @@ async def get_statistics(
             return Response(status_code=304)
         _add_cache_headers(response, TTL_STATS, cached)
         return cached
-    v = _get_statistics(db)
+    v = _get_statistics(conn, cur)
     CACHE.set(key, v, TTL_STATS)
     _add_cache_headers(response, TTL_STATS, v)
     return v
@@ -1670,11 +1471,12 @@ async def get_daily_stats(
     start: Optional[str] = Query(None, description="YYYY-MM-DD (LA)"),
     end: Optional[str] = Query(None, description="YYYY-MM-DD (LA)"),
     days: int = Query(14, ge=1, le=365),
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
     request: Request = None,
     response: Response = None,
 ):
+    conn, cur = db
     s_key = _safe_date_key_or_none(start)
     e_key = _safe_date_key_or_none(end)
     key = f"daily:{s_key or ''}:{e_key or ''}:{days}"
@@ -1684,7 +1486,7 @@ async def get_daily_stats(
             return Response(status_code=304)
         _add_cache_headers(response, TTL_DAILY, cached)
         return cached
-    v = _daily_stats(db, s_key, e_key, days)
+    v = _daily_stats(conn, cur, s_key, e_key, days)
     CACHE.set(key, v, TTL_DAILY)
     _add_cache_headers(response, TTL_DAILY, v)
     return v
@@ -1692,11 +1494,12 @@ async def get_daily_stats(
 
 @router.get("/statistics/today", response_model=DailyRow, summary="今日產出（LA）")
 async def get_today_stats(
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
     request: Request = None,
     response: Response = None,
 ):
+    conn, cur = db
     today = today_la_key()
     key = f"daily:today:{today}"
     cached = CACHE.get(key)
@@ -1705,7 +1508,7 @@ async def get_today_stats(
             return Response(status_code=304)
         _add_cache_headers(response, TTL_TODAY, cached)
         return cached
-    ds = _daily_stats(db, today, today, days=1)
+    ds = _daily_stats(conn, cur, today, today, days=1)
     row = ds.rows[0] if ds.rows else DailyRow(date=today)
     CACHE.set(key, row, TTL_TODAY)
     _add_cache_headers(response, TTL_TODAY, row)
@@ -1733,11 +1536,12 @@ async def get_consumption_stats(
     start: Optional[str] = Query(None, description="YYYY-MM-DD (LA)"),
     end: Optional[str] = Query(None, description="YYYY-MM-DD (LA)"),
     days: int = Query(7, ge=1, le=365),
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
     request: Request = None,
     response: Response = None,
 ):
+    conn, cur = db
     s_key = _safe_date_key_or_none(start)
     e_key = _safe_date_key_or_none(end)
     key = f"consumption:{s_key or ''}:{e_key or ''}:{days}"
@@ -1794,11 +1598,12 @@ class DashboardSummary(BaseModel):
 
 @router.get("/dashboard/summary", response_model=DashboardSummary, summary="前端儀表板彙整（今日/每日/每週/庫存）")
 async def get_dashboard_summary(
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
     request: Request = None,
     response: Response = None,
 ):
+    conn, cur = db
     key = "dash:summary"
     cached = CACHE.get(key)
     if cached:
@@ -1812,7 +1617,7 @@ async def get_dashboard_summary(
     daily_key = "daily:::14"  # 與 /statistics/daily 的 key 規格對齊（起迄空字串＋天數）
     daily = CACHE.get(daily_key)
     if not daily:
-        daily = _daily_stats(db, None, None, 14)
+        daily = _daily_stats(conn, cur, None, None, 14)
         CACHE.set(daily_key, daily, TTL_DAILY)
     elif isinstance(daily, dict):
         # 從緩存取出的是字典，需轉換回 Pydantic 模型
@@ -1821,7 +1626,7 @@ async def get_dashboard_summary(
     weekly_key = "weekly:current"
     weekly = CACHE.get(weekly_key)
     if not weekly:
-        weekly = _weekly_stats(db)
+        weekly = _weekly_stats(cur)
         CACHE.set(weekly_key, weekly, TTL_WEEKLY)
     elif isinstance(weekly, dict):
         weekly = WeeklyStats(**weekly)
@@ -1829,7 +1634,7 @@ async def get_dashboard_summary(
     inv_key = "inventory:summary"
     inventory = CACHE.get(inv_key)
     if not inventory:
-        inventory = _inventory_summary(db)
+        inventory = _inventory_summary(conn, cur)
         CACHE.set(inv_key, inventory, TTL_STATS)
     elif isinstance(inventory, dict):
         inventory = InventorySummary(**inventory)
@@ -1853,11 +1658,12 @@ async def list_active_ng(
     # Allow up to 5000 for NG boards (typically much fewer than total boards)
     limit: int = Query(1000, ge=1, le=5000),
     offset: int = Query(0, ge=0),
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
     request: Request = None,
     response: Response = None,
 ):
+    conn, cur = db
     key = f"ng:active:{stage or ''}:{model or ''}:{limit}:{offset}"
     cached = CACHE.get(key)
     if cached:
@@ -1866,18 +1672,17 @@ async def list_active_ng(
         _add_cache_headers(response, TTL_NG_ACTIVE, cached)
         return cached
 
-    c = db.cursor()
     q = ("SELECT id, serial_number, batch_number, model, stage, start_time, last_update, "
          "operator, slip_number, ng_flag, ng_reason, ng_time FROM boards WHERE ng_flag=1")
     params: List[Any] = []
     if stage:
-        q += " AND stage=?"; params.append(stage)
+        q += " AND stage=%s"; params.append(stage)
     if model:
-        q += " AND UPPER(model)=?"; params.append(model.upper())
-    q += " ORDER BY last_update DESC LIMIT ? OFFSET ?"
+        q += " AND UPPER(model)=%s"; params.append(model.upper())
+    q += " ORDER BY last_update DESC LIMIT %s OFFSET %s"
     params.extend([int(limit), int(offset)])
-    c.execute(q, params)
-    out = [_row_to_board_light(r) for r in c.fetchall()]
+    cur.execute(q, params)
+    out = [_row_to_board_light(r) for r in cur.fetchall()]
 
     CACHE.set(key, out, TTL_NG_ACTIVE)
     _add_cache_headers(response, TTL_NG_ACTIVE, out)
@@ -1888,23 +1693,24 @@ async def list_active_ng(
 @router.post("/slips", summary="建立/更新 Packing Slip 目標對數")
 async def upsert_slip(
     slip: SlipUpsert,
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
 ):
+    conn, cur = db
     require_editor(current_user)
-    _ensure_slip(db, slip.slipNumber, slip.targetPairs)
-    db.commit()
+    _ensure_slip(cur, slip.slipNumber, slip.targetPairs)
+    conn.commit()
     invalidate_after_write([slip.slipNumber])
     return {"message": "OK"}
 
 
 @router.get("/slips", response_model=List[SlipListItem], summary="列出所有 Packing Slips（含分站別統計）")
 async def list_slips(
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
 ):
-    c = db.cursor()
-    c.execute("""
+    conn, cur = db
+    cur.execute("""
         SELECT s.slip_number AS slip, s.target_pairs AS target_pairs, s.updated_at AS updated_at,
                COALESCE(SUM(CASE WHEN b.stage='aging'     THEN 1 ELSE 0 END), 0) AS aging,
                COALESCE(SUM(CASE WHEN b.stage='coating'   THEN 1 ELSE 0 END), 0) AS coating,
@@ -1913,10 +1719,10 @@ async def list_slips(
                COALESCE(SUM(CASE WHEN b.stage='completed' AND (b.ng_flag IS NULL OR b.ng_flag=0) AND UPPER(b.model)='AU8' THEN 1 ELSE 0 END), 0) AS completed_au8_ok
           FROM slips s
      LEFT JOIN boards b ON b.slip_number = s.slip_number
-      GROUP BY s.slip_number
+      GROUP BY s.slip_number, s.target_pairs, s.updated_at
       ORDER BY s.updated_at DESC
     """)
-    rows = c.fetchall()
+    rows = cur.fetchall()
     out: List[SlipListItem] = []
     for r in rows:
         out.append(SlipListItem(
@@ -1935,19 +1741,20 @@ async def list_slips(
 async def update_slip_target(
     slip_number: str,
     patch: SlipTargetPatch,
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
 ):
+    conn, cur = db
     require_editor(current_user)
     now = now_utc_iso()
-    c = db.cursor()
-    if not c.execute("SELECT 1 FROM slips WHERE slip_number=?", (slip_number,)).fetchone():
-        c.execute("INSERT INTO slips (slip_number, target_pairs, created_at, updated_at) VALUES (?, ?, ?, ?)",
+    cur.execute("SELECT 1 FROM slips WHERE slip_number=%s", (slip_number,))
+    if not cur.fetchone():
+        cur.execute("INSERT INTO slips (slip_number, target_pairs, created_at, updated_at) VALUES (%s, %s, %s, %s)",
                   (slip_number, int(patch.targetPairs), now, now))
     else:
-        c.execute("UPDATE slips SET target_pairs=?, updated_at=? WHERE slip_number=?",
+        cur.execute("UPDATE slips SET target_pairs=%s, updated_at=%s WHERE slip_number=%s",
                   (int(patch.targetPairs), now, slip_number))
-    db.commit()
+    conn.commit()
     invalidate_after_write([slip_number])
     return {"message": "OK"}
 
@@ -1955,16 +1762,17 @@ async def update_slip_target(
 @router.delete("/slips/{slip_number}", summary="刪除 slip（無關聯板件時才允許）")
 async def delete_slip(
     slip_number: str,
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
 ):
+    conn, cur = db
     require_editor(current_user)
-    c = db.cursor()
-    cnt = int(c.execute("SELECT COUNT(*) AS cnt FROM boards WHERE slip_number=?", (slip_number,)).fetchone()["cnt"] or 0)
+    cur.execute("SELECT COUNT(*) AS cnt FROM boards WHERE slip_number=%s", (slip_number,))
+    cnt = int(cur.fetchone()["cnt"] or 0)
     if cnt > 0:
         raise HTTPException(status_code=409, detail="Cannot delete: related boards exist")
-    c.execute("DELETE FROM slips WHERE slip_number=?", (slip_number,))
-    db.commit()
+    cur.execute("DELETE FROM slips WHERE slip_number=%s", (slip_number,))
+    conn.commit()
     invalidate_after_write([slip_number])
     return {"message": f"Slip {slip_number} deleted"}
 
@@ -1972,11 +1780,12 @@ async def delete_slip(
 @router.get("/slips/status", response_model=SlipStatus, summary="查詢單一 Packing Slip 進度")
 async def slip_status(
     slip_number: str = Query(..., description="Slip number (can contain '/' for combined slips like 124798/124796)"),
-    db: sqlite3.Connection = Depends(get_pcba_db),
+    db=Depends(get_pcba_db()),
     current_user: User = Depends(get_current_user),
     request: Request = None,
     response: Response = None,
 ):
+    conn, cur = db
     key = f"slip:status:{slip_number}"
     cached = CACHE.get(key)
     if cached:
@@ -1985,24 +1794,26 @@ async def slip_status(
         _add_cache_headers(response, TTL_SLIP_STATUS, cached)
         return cached
 
-    c = db.cursor()
-    srow = c.execute("SELECT slip_number, target_pairs, updated_at FROM slips WHERE slip_number=?", (slip_number,)).fetchone()
+    cur.execute("SELECT slip_number, target_pairs, updated_at FROM slips WHERE slip_number=%s", (slip_number,))
+    srow = cur.fetchone()
     target_pairs = int(srow["target_pairs"] or 0) if srow else 0
     updated_at = srow["updated_at"] if srow else now_utc_iso()
 
     def _pairs_at(stage: str, only_ok_completed: bool = False) -> Tuple[int, Dict[str, int]]:
-        base = "SELECT UPPER(model) m, COUNT(*) cnt FROM boards WHERE slip_number=? AND stage=?"
+        base = "SELECT UPPER(model) m, COUNT(*) cnt FROM boards WHERE slip_number=%s AND stage=%s"
         params = [slip_number, stage]
         if only_ok_completed:
             base += " AND (ng_flag IS NULL OR ng_flag=0)"
         base += " GROUP BY UPPER(model)"
-        rows = c.execute(base, params).fetchall()
+        cur.execute(base, params)
+        rows = cur.fetchall()
         by_m = {r["m"]: int(r["cnt"] or 0) for r in rows}
         return min(by_m.get("AM7", 0), by_m.get("AU8", 0)), by_m
 
-    completed_boards = int(c.execute(
-        "SELECT COUNT(*) cnt FROM boards WHERE slip_number=? AND stage='completed'", (slip_number,)
-    ).fetchone()["cnt"] or 0)
+    cur.execute(
+        "SELECT COUNT(*) cnt FROM boards WHERE slip_number=%s AND stage='completed'", (slip_number,)
+    )
+    completed_boards = int(cur.fetchone()["cnt"] or 0)
     completed_pairs_ok, comp_ok_by_m = _pairs_at("completed", only_ok_completed=True)
     _completed_pairs_all, _comp_by_m_all = _pairs_at("completed", only_ok_completed=False)
     aging_pairs, aging_by_m = _pairs_at("aging")

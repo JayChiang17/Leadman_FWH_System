@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import {
   BatteryMedium, Download, X, AlertCircle,
-  CheckCircle, XCircle, Activity
+  CheckCircle, XCircle
 } from "lucide-react";
 import api from "../../services/api";
 import { openDashboardSocket } from "../../utils/wsConnect";
@@ -239,7 +239,7 @@ export default function ModuleInventoryLog() {
       }
     });
     return () => ws.destroy();
-  }, [fetchCounts, cntA, cntB]);
+  }, [fetchCounts]);
 
   // NG / Fixed
   const callNgApi = async (action) => {
@@ -454,13 +454,13 @@ export default function ModuleInventoryLog() {
     <div className="module-container">
       <div className="max-w-[1800px] mx-auto relative z-10">
         {/* Main card */}
-        <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-6 mb-4">
+        <div className="bg-white rounded-xl border border-slate-200/80 p-5 md:p-6 mb-5">
 
             {/* Header actions */}
             <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-              <h1 className="text-2xl font-semibold text-stone-800 flex items-center gap-3">
-                <div className="p-2.5 bg-blue-100 rounded-lg">
-                  <BatteryMedium className="w-6 h-6 text-blue-700" />
+              <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-3">
+                <div className="p-2.5 bg-teal-50 rounded-lg">
+                  <BatteryMedium className="w-5 h-5 text-teal-600" />
                 </div>
                 Module Line Production
               </h1>
@@ -489,13 +489,13 @@ export default function ModuleInventoryLog() {
 
             {/* Export Panel */}
             {showExport && (
-              <div className="mb-4 p-3 bg-stone-50 rounded-lg border border-stone-200 space-y-3">
-                <div className="flex items-center gap-2 text-stone-700">
+              <div className="mb-4 p-4 bg-slate-100 rounded-lg space-y-3">
+                <div className="flex items-center gap-2 text-slate-700">
                   <Download className="w-4 h-4" />
-                  <span className="font-medium text-sm uppercase tracking-wide">Export Options</span>
+                  <span className="font-medium text-sm">Export Options</span>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-4 text-stone-700 text-sm">
+                <div className="flex flex-wrap items-center gap-4 text-slate-600 text-sm">
                   <span className="font-medium">Type:</span>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -503,7 +503,7 @@ export default function ModuleInventoryLog() {
                       name="exportType"
                       checked={exportType === "details"}
                       onChange={() => setExportType("details")}
-                      className="text-teal-700 focus:ring-teal-600"
+                      className="text-teal-600 focus:ring-teal-500"
                     />
                     All details
                   </label>
@@ -513,7 +513,7 @@ export default function ModuleInventoryLog() {
                       name="exportType"
                       checked={exportType === "per_day"}
                       onChange={() => setExportType("per_day")}
-                      className="text-teal-700 focus:ring-teal-600"
+                      className="text-teal-600 focus:ring-teal-500"
                     />
                     Units per day
                   </label>
@@ -523,29 +523,29 @@ export default function ModuleInventoryLog() {
                       name="exportType"
                       checked={exportType === "per_hour"}
                       onChange={() => setExportType("per_hour")}
-                      className="text-teal-700 focus:ring-teal-600"
+                      className="text-teal-600 focus:ring-teal-500"
                     />
                     Units per hour
                   </label>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 text-stone-700 text-sm">
+                <div className="flex flex-wrap items-center gap-3 text-slate-600 text-sm">
                   <span className="font-medium">Range:</span>
                   <input
                     type="date"
                     name="from"
                     value={range.from}
                     onChange={onRange}
-                    className="px-3 py-2 bg-white border border-stone-300 rounded-md
+                    className="px-3 py-2 bg-white border border-slate-200 rounded-lg
                              focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                   />
-                  <span className="text-stone-400">to</span>
+                  <span className="text-slate-400">to</span>
                   <input
                     type="date"
                     name="to"
                     value={range.to}
                     onChange={onRange}
-                    className="px-3 py-2 bg-white border border-stone-300 rounded-md
+                    className="px-3 py-2 bg-white border border-slate-200 rounded-lg
                              focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                   />
 
@@ -554,7 +554,7 @@ export default function ModuleInventoryLog() {
                     <select
                       value={statusFilter}
                       onChange={(e) => setStatusFilter(e.target.value)}
-                      className="px-3 py-2 bg-white border border-stone-300 rounded-md
+                      className="px-3 py-2 bg-white border border-slate-200 rounded-lg
                                focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                     >
                       <option value="all">All</option>
@@ -571,56 +571,52 @@ export default function ModuleInventoryLog() {
                       min={1}
                       value={maxRows}
                       onChange={(e) => setMaxRows(Number(e.target.value || 1))}
-                      className="w-24 px-3 py-2 bg-white border border-stone-300 rounded-md
+                      className="w-24 px-3 py-2 bg-white border border-slate-200 rounded-lg
                                focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                     />
                   </div>
 
                   <button
                     onClick={exportCsv}
-                    className="ml-auto px-5 py-2 bg-teal-700 hover:bg-teal-800 text-white font-medium
-                             rounded-md transition-colors"
+                    className="ml-auto px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-medium
+                             rounded-md transition-colors duration-150"
                   >
                     Download CSV
                   </button>
                 </div>
 
                 {exportType === "per_hour" && range.from !== range.to && (
-                  <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-2">
+                  <div className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2">
                     Units-per-hour export only supports a single date. Set From and To to the same day.
                   </div>
                 )}
               </div>
             )}
 
-            {/* Production stats - Premium Design */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div className="stat-card-a relative overflow-hidden">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-bold uppercase tracking-widest opacity-90">A-Modules</span>
-                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                    <Activity className="w-5 h-5" />
-                  </div>
+            {/* Production stats - Unified Mini Metric Pattern */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-white border border-slate-200/80 rounded-xl p-5">
+                <div className="text-[11px] font-medium uppercase tracking-wider text-slate-400 mb-2">
+                  A-Modules Today
                 </div>
-                <div className={`text-6xl font-black mb-2 ${cntA !== prevCntA ? 'number-change' : ''}`}>{cntA}</div>
-                <div className="text-sm opacity-80 font-medium">units produced today</div>
+                <div className={`text-5xl md:text-6xl font-bold tabular-nums text-teal-600 ${cntA !== prevCntA ? 'number-change' : ''}`}>
+                  {cntA}
+                </div>
               </div>
 
-              <div className="stat-card-b relative overflow-hidden">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-bold uppercase tracking-widest opacity-90">B-Modules</span>
-                  <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-                    <Activity className="w-5 h-5" />
-                  </div>
+              <div className="bg-white border border-slate-200/80 rounded-xl p-5">
+                <div className="text-[11px] font-medium uppercase tracking-wider text-slate-400 mb-2">
+                  B-Modules Today
                 </div>
-                <div className={`text-6xl font-black mb-2 ${cntB !== prevCntB ? 'number-change' : ''}`}>{cntB}</div>
-                <div className="text-sm opacity-80 font-medium">units produced today</div>
+                <div className={`text-5xl md:text-6xl font-bold tabular-nums text-orange-500 ${cntB !== prevCntB ? 'number-change' : ''}`}>
+                  {cntB}
+                </div>
               </div>
             </div>
 
-            {/* Scan form - Premium Design */}
+            {/* Scan form */}
             <form onSubmit={(e) => e.preventDefault()} className="mb-6">
-              <label htmlFor="snInput" className="block text-sm font-semibold text-stone-700 mb-2 uppercase tracking-wide">
+              <label htmlFor="snInput" className="block text-sm font-medium text-slate-600 mb-2">
                 Serial Number
               </label>
               <div className="flex gap-2">
@@ -632,23 +628,23 @@ export default function ModuleInventoryLog() {
                   onKeyDown={onKey}
                   disabled={isSubmitting}
                   autoFocus
-                  className={`flex-1 px-3 py-3.5 bg-white border rounded-md text-stone-800 text-lg
+                  className={`flex-1 px-3 py-3 bg-white border rounded-lg text-slate-800 text-base
                            focus:ring-2 focus:ring-teal-500 focus:border-teal-500
                            disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150
                            ${isSubmitting ? "border-amber-400 bg-amber-50" :
                              flashOK ? "border-emerald-400 bg-emerald-50" :
-                             flashErr ? "border-red-400 bg-red-50" : "border-stone-300"}`}
+                             flashErr ? "border-red-400 bg-red-50" : "border-slate-200"}`}
                   placeholder={isSubmitting ? "Processing..." : "Scan or enter serial number"}
                 />
                 <button
                   type="button"
                   onClick={submit}
                   disabled={isSubmitting || !sn.trim()}
-                  className={`px-6 py-3.5 font-medium rounded-md transition-colors duration-150
-                           flex items-center justify-center min-w-[60px]
+                  className={`px-5 py-3 font-medium rounded-lg transition-colors duration-150
+                           flex items-center justify-center min-w-[56px]
                            ${isSubmitting || !sn.trim()
-                      ? "bg-stone-300 text-stone-500 cursor-not-allowed"
-                      : "bg-stone-700 hover:bg-stone-800 text-white"
+                      ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                      : "bg-teal-600 hover:bg-teal-700 text-white"
                     }`}
                 >
                   {isSubmitting ? (
@@ -679,31 +675,31 @@ export default function ModuleInventoryLog() {
 
       {/* NG/Update Modal */}
       {showNg && (
-        <div className="fixed inset-0 bg-stone-900/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full border border-stone-200">
-            <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex items-center justify-between rounded-t-lg">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg max-w-md w-full border border-slate-200/80">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-md bg-amber-100 text-amber-700">
+                <div className="p-2 rounded-lg bg-amber-50 text-amber-600">
                   <AlertCircle className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold text-stone-800">NG / Fixed / Update</h3>
-                  <p className="text-xs text-stone-500">Manage module status</p>
+                  <h3 className="text-base font-semibold text-slate-800">NG / Fixed / Update</h3>
+                  <p className="text-xs text-slate-500">Manage module status</p>
                 </div>
               </div>
               <button
                 onClick={resetNgModal}
-                className="p-1.5 rounded-md hover:bg-stone-200 transition-colors"
+                className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors duration-150"
                 aria-label="Close"
               >
-                <X size={16} className="text-stone-500" />
+                <X size={16} className="text-slate-500" />
               </button>
             </div>
 
             <div className="p-5 space-y-4">
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-stone-600 mb-1.5">
+                  <label className="block text-sm font-medium text-slate-600 mb-1.5">
                     Serial Number
                   </label>
                   <input
@@ -711,14 +707,14 @@ export default function ModuleInventoryLog() {
                     value={ngSn}
                     onChange={(e) => setNgSn(e.target.value)}
                     placeholder="Scan or enter SN"
-                    className="w-full px-3 py-2.5 bg-stone-50 border border-stone-300 rounded-md
+                    className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg
                              focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                   />
                 </div>
 
                 {/* NG reason */}
                 <div>
-                  <label className="block text-sm font-medium text-stone-600 mb-1.5">
+                  <label className="block text-sm font-medium text-slate-600 mb-1.5">
                     NG Reason (required for NG)
                   </label>
                   <textarea
@@ -726,21 +722,21 @@ export default function ModuleInventoryLog() {
                     onChange={(e) => setNgReason(e.target.value)}
                     rows={2}
                     placeholder="Describe the reason..."
-                    className="w-full px-3 py-2.5 bg-stone-50 border border-stone-300 rounded-md
+                    className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg
                              focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-none"
                   />
                 </div>
 
                 {showUpdate && (
                   <div>
-                    <label className="block text-sm font-medium text-stone-600 mb-1.5">
+                    <label className="block text-sm font-medium text-slate-600 mb-1.5">
                       New Serial Number
                     </label>
                     <input
                       value={newSn}
                       onChange={(e) => setNewSn(e.target.value)}
                       placeholder="Enter new SN"
-                      className="w-full px-3 py-2.5 bg-stone-50 border border-stone-300 rounded-md
+                      className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg
                                focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                     />
                   </div>
@@ -750,7 +746,7 @@ export default function ModuleInventoryLog() {
               <div className="grid grid-cols-2 gap-2 pt-2">
                 <button
                   onClick={() => callNgApi("NG")}
-                  className="px-3 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-md transition-colors flex items-center justify-center gap-1.5 text-sm"
+                  className="px-3 py-2.5 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors duration-150 flex items-center justify-center gap-1.5 text-sm"
                 >
                   <XCircle size={14} />
                   NG
@@ -758,7 +754,7 @@ export default function ModuleInventoryLog() {
 
                 <button
                   onClick={() => callNgApi("FIX")}
-                  className="px-3 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-md transition-colors flex items-center justify-center gap-1.5 text-sm"
+                  className="px-3 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors duration-150 flex items-center justify-center gap-1.5 text-sm"
                 >
                   <CheckCircle size={14} />
                   Fixed
@@ -767,14 +763,14 @@ export default function ModuleInventoryLog() {
                 {showUpdate ? (
                   <button
                     onClick={() => updateSn(ngSn.trim(), newSn.trim())}
-                    className="px-3 py-2.5 bg-stone-700 hover:bg-stone-800 text-white font-medium rounded-md transition-colors text-sm"
+                    className="px-3 py-2.5 bg-slate-700 hover:bg-slate-800 text-white font-medium rounded-lg transition-colors duration-150 text-sm"
                   >
                     Save
                   </button>
                 ) : (
                   <button
                     onClick={() => setShowUpdate(true)}
-                    className="px-3 py-2.5 bg-stone-700 hover:bg-stone-800 text-white font-medium rounded-md transition-colors text-sm"
+                    className="px-3 py-2.5 bg-slate-700 hover:bg-slate-800 text-white font-medium rounded-lg transition-colors duration-150 text-sm"
                   >
                     Update
                   </button>
@@ -782,7 +778,7 @@ export default function ModuleInventoryLog() {
 
                 <button
                   onClick={resetNgModal}
-                  className="px-3 py-2.5 bg-white hover:bg-stone-50 text-stone-600 font-medium rounded-md transition-colors border border-stone-300 col-span-2 text-sm"
+                  className="px-3 py-2.5 bg-white hover:bg-slate-50 text-slate-600 font-medium rounded-lg transition-colors duration-150 border border-slate-200 col-span-2 text-sm"
                 >
                   Cancel
                 </button>
@@ -794,36 +790,36 @@ export default function ModuleInventoryLog() {
 
       {/* Duplicate Warning Modal */}
       {showDup && (
-        <div className="fixed inset-0 bg-stone-900/40 flex items-center justify-center z-50 p-4">
-          <div className="w-full max-w-lg bg-white rounded-lg shadow-xl border border-red-200">
-            <div className="px-5 py-4 rounded-t-lg bg-red-600 text-white">
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-lg bg-white rounded-xl shadow-lg border border-slate-200/80">
+            <div className="px-5 py-4 rounded-t-xl bg-red-500 text-white">
               <div className="text-base font-semibold">Duplicate Serial Detected</div>
               <div className="text-sm opacity-90">This serial already exists in the database.</div>
             </div>
 
-            <div className="p-5 space-y-4 text-stone-700">
+            <div className="p-5 space-y-4 text-slate-700">
               <div className="grid grid-cols-3 gap-2 text-sm">
-                <div className="font-medium text-stone-500">Serial</div>
-                <div className="col-span-2 break-all text-stone-800">{dupInfo?.sn || "-"}</div>
+                <div className="font-medium text-slate-500">Serial</div>
+                <div className="col-span-2 break-all text-slate-800">{dupInfo?.sn || "-"}</div>
 
-                <div className="font-medium text-stone-500">Type</div>
-                <div className="col-span-2 text-stone-800">{dupInfo?.kind ? `${dupInfo.kind}-Module` : "-"}</div>
+                <div className="font-medium text-slate-500">Type</div>
+                <div className="col-span-2 text-slate-800">{dupInfo?.kind ? `${dupInfo.kind}-Module` : "-"}</div>
 
-                <div className="font-medium text-stone-500">Timestamp</div>
-                <div className="col-span-2 text-stone-800">{dupInfo?.ts || dupInfo?.timestamp || "-"}</div>
+                <div className="font-medium text-slate-500">Timestamp</div>
+                <div className="col-span-2 text-slate-800">{dupInfo?.ts || dupInfo?.timestamp || "-"}</div>
 
-                <div className="font-medium text-stone-500">Status</div>
-                <div className="col-span-2 text-stone-800">{dupInfo?.status || "OK"}</div>
+                <div className="font-medium text-slate-500">Status</div>
+                <div className="col-span-2 text-slate-800">{dupInfo?.status || "OK"}</div>
 
                 {(dupInfo?.status === "NG" || dupInfo?.ng_reason) && (
                   <>
-                    <div className="font-medium text-stone-500">NG Reason</div>
-                    <div className="col-span-2 whitespace-pre-wrap text-stone-800">{dupInfo?.ng_reason || "-"}</div>
+                    <div className="font-medium text-slate-500">NG Reason</div>
+                    <div className="col-span-2 whitespace-pre-wrap text-slate-800">{dupInfo?.ng_reason || "-"}</div>
                   </>
                 )}
               </div>
 
-              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">
+              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3">
                 Please check if the scanner double-triggered, or if the same module was scanned by mistake.
               </div>
 
@@ -833,14 +829,14 @@ export default function ModuleInventoryLog() {
                     const v = dupInfo?.sn ? String(dupInfo.sn) : "";
                     if (v) navigator.clipboard.writeText(v).catch(() => {});
                   }}
-                  className="px-4 py-2 rounded-md border border-stone-300 text-stone-600 hover:bg-stone-50 text-sm font-medium"
+                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium transition-colors duration-150"
                 >
                   Copy SN
                 </button>
 
                 <button
                   onClick={closeDuplicateModal}
-                  className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 text-sm font-medium"
+                  className="px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 text-sm font-medium transition-colors duration-150"
                 >
                   Close
                 </button>

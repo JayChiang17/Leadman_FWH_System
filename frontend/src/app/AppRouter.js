@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import React, { useContext, Suspense, lazy } from "react";
 import {
   BrowserRouter,
   Routes,
@@ -10,37 +10,43 @@ import {
 import { AuthProvider, AuthCtx } from "../auth/AuthContext";
 import PrivateRoute from "../auth/PrivateRoute";
 import AppLayout from "./AppLayout";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 /* ───── public ───── */
 import Login from "../auth/Login";
 
-/* ───── features ───── */
-import Dashboard from "../features/dashboard/Dashboard";
-import ModuleProduction from "../features/moduleProduction/ModuleProduction";
-import AssemblyProduction from "../features/assemblyProduction/AssemblyProduction";
-import Downtime from "../features/downtime/Downtime";
-import QCCheck from "../features/qcCheck/QCCheck";
-import UserPerm from "../features/userPerm/UserPerm";
-import Search from "../features/search/Search";
-import AIQuery from "../features/aiQuery/AIQuery";
-import ProductionCharts from "../features/productionCharts/ProductionCharts";
-import NGDashboard from "../features/ngDashboard/NGDashboard";
-import PCBATracking from "../features/pcbaTracking/PCBATracking";
-import Equipment from "../features/equipment/Equipment";
-import EmailSettings from "../features/emailSettings/EmailSettings";
-import ATETesting from "../features/ateTesting/ATETesting";
+/* ───── lazy-loaded features (code splitting) ───── */
+const Dashboard          = lazy(() => import("../features/dashboard/Dashboard"));
+const ModuleProduction   = lazy(() => import("../features/moduleProduction/ModuleProduction"));
+const AssemblyProduction = lazy(() => import("../features/assemblyProduction/AssemblyProduction"));
+const Downtime           = lazy(() => import("../features/downtime/Downtime"));
+const QCCheck            = lazy(() => import("../features/qcCheck/QCCheck"));
+const UserPerm           = lazy(() => import("../features/userPerm/UserPerm"));
+const Search             = lazy(() => import("../features/search/Search"));
+const AIQuery            = lazy(() => import("../features/aiQuery/AIQuery"));
+const ProductionCharts   = lazy(() => import("../features/productionCharts/ProductionCharts"));
+const NGDashboard        = lazy(() => import("../features/ngDashboard/NGDashboard"));
+const PCBATracking       = lazy(() => import("../features/pcbaTracking/PCBATracking"));
+const EmailSettings      = lazy(() => import("../features/emailSettings/EmailSettings"));
+const ATETesting         = lazy(() => import("../features/ateTesting/ATETesting"));
+const SystemMonitor      = lazy(() => import("../features/systemMonitor/SystemMonitor"));
+
+/* ───── loading fallback ───── */
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-screen bg-gray-50">
+    <div className="flex flex-col items-center gap-3">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
+      <span className="text-sm text-gray-400">Loading...</span>
+    </div>
+  </div>
+);
 
 /* ───── role guard (admin only) ───── */
 function AdminRoute() {
   const { role, isInitialized } = useContext(AuthCtx);
 
-  // 等待認證初始化完成，避免閃爍/錯誤重定向
   if (!isInitialized) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return role === "admin" ? <Outlet /> : <Navigate to="/" replace />;
@@ -50,42 +56,45 @@ export default function AppRouter() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          {/* -------- public -------- */}
-          <Route path="/login" element={<Login />} />
+        <ErrorBoundary>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            {/* -------- public -------- */}
+            <Route path="/login" element={<Login />} />
 
-          {/* -------- private (needs auth) -------- */}
-          <Route element={<PrivateRoute />}>
-            <Route element={<AppLayout />}>
-              <Route index element={<Navigate to="/dashboard" replace />} />
+            {/* -------- private (needs auth) -------- */}
+            <Route element={<PrivateRoute />}>
+              <Route element={<AppLayout />}>
+                <Route index element={<Navigate to="/dashboard" replace />} />
 
-              {/* --- Production --- */}
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="production-charts" element={<ProductionCharts />} />
-              <Route path="ng-dashboard" element={<NGDashboard />} />        {/* ★ NEW */}
-              <Route path="pcba-tracking" element={<PCBATracking />} />
-              <Route path="module_production" element={<ModuleProduction />} />
-              <Route path="assembly_production" element={<AssemblyProduction />} />
-              <Route path="downtime" element={<Downtime />} />
-              <Route path="equipment" element={<Equipment />} />
+                {/* --- Production --- */}
+                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="production-charts" element={<ProductionCharts />} />
+                <Route path="ng-dashboard" element={<NGDashboard />} />
+                <Route path="pcba-tracking" element={<PCBATracking />} />
+                <Route path="module_production" element={<ModuleProduction />} />
+                <Route path="assembly_production" element={<AssemblyProduction />} />
+                <Route path="downtime" element={<Downtime />} />
+                {/* --- Monitoring & Tools --- */}
+                <Route path="search" element={<Search />} />
+                <Route path="ai-query" element={<AIQuery />} />
+                <Route path="qc-check" element={<QCCheck />} />
+                <Route path="ate-testing" element={<ATETesting />} />
 
-              {/* --- Monitoring & Tools --- */}
-              <Route path="search" element={<Search />} />
-              <Route path="ai-query" element={<AIQuery />} />
-              <Route path="qc-check" element={<QCCheck />} />
-              <Route path="ate-testing" element={<ATETesting />} />
-
-              {/* --- admin only --- */}
-              <Route element={<AdminRoute />}>
-                <Route path="user-perm" element={<UserPerm />} />
-                <Route path="email-settings" element={<EmailSettings />} />
+                {/* --- admin only --- */}
+                <Route element={<AdminRoute />}>
+                  <Route path="user-perm" element={<UserPerm />} />
+                  <Route path="email-settings" element={<EmailSettings />} />
+                  <Route path="system-monitor" element={<SystemMonitor />} />
+                </Route>
               </Route>
             </Route>
-          </Route>
 
-          {/* fallback */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
+            {/* fallback */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </Suspense>
+        </ErrorBoundary>
       </BrowserRouter>
     </AuthProvider>
   );

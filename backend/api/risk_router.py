@@ -1,9 +1,9 @@
-# backend/api/risk_router.py
-# 2025-08-11 aligned to Dashboard: same DB paths, persistent conns, local-day window, WS 'risk_update'
+# backend/api/risk_router.py — PostgreSQL version
+# Production risk assessment with shift-based scheduling
 
 from __future__ import annotations
 
-import os, json, logging, sqlite3
+import os, json, logging
 from datetime import datetime, time, timedelta, date
 from typing import Any, Dict, List, Tuple, Optional
 
@@ -12,6 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 
 from core.deps import get_current_user
 from core.ws_manager import ws_manager
+from core.pg import get_cursor
 
 # ─────────────────── 基本設定 ───────────────────
 router = APIRouter(prefix="/risk", tags=["risk"])
@@ -21,104 +22,48 @@ CA_TZ = pytz.timezone("America/Los_Angeles")
 UTC   = pytz.utc
 
 # 班別
-SHIFT_START      = time(7, 30)      # Mon–Fri
+SHIFT_START      = time(7, 30)
 SHIFT_END        = time(16, 0)
-SAT_SHIFT_START  = time(6, 0)       # Saturday
+SAT_SHIFT_START  = time(6, 0)
 SAT_SHIFT_END    = time(14, 0)
 
 LUNCH_MODEL      = (time(11, 30), time(12, 0))
 LUNCH_ASSY       = (time(11, 0),  time(11, 30))
 
-IDLE_THRESHOLD   = 12   # min
-MAX_IDLE_WINDOW  = 20   # min
-WORK_MIN         = 480  # 7h30 + 30min lunch
+IDLE_THRESHOLD   = 12
+MAX_IDLE_WINDOW  = 20
+WORK_MIN         = 480
 
-PROG_TH          = {"warning": 0.95, "critical": 0.80}   # done / expected
-NEED_TH          = {"warning": 1.05, "critical": 1.30}   # need_rate / tgt_rate
-
-# ─────────────────── DB 路徑對齊（與其他 router 一致） ───────────────────
-def _resolve_db_path(default_name: str) -> str:
-    """
-    1) 優先使用環境變數（若存在）
-    2) 專案根目錄同名檔案（assembly.db / model.db）
-    3) data/ 子目錄同名檔案（最後備援）
-    """
-    env = os.getenv(f"{default_name.upper()}_PATH")
-    if env and os.path.exists(env):
-        return env
-    cwd_path  = os.path.abspath(default_name + ".db")
-    data_path = os.path.abspath(os.path.join("data", default_name + ".db"))
-    if os.path.exists(cwd_path):
-        return cwd_path
-    return data_path  # 允許第一次不存在，等寫入方建立
-
-MODEL_DB_PATH = _resolve_db_path("model")
-ASSY_DB_PATH  = _resolve_db_path("assembly")
-
-# ─────────────────── 持久連線（不即開即關；不動 WAL 設定） ───────────────────
-def _open_ro(db_path: str) -> sqlite3.Connection:
-    """
-    以 read-only 優先；若檔案尚未建立或不支援 ro URI，回退可寫模式。
-    不修改 PRAGMA（尊重現有 WAL 設定）。
-    """
-    try:
-        uri = f"file:{db_path}?mode=ro&cache=shared"
-        conn = sqlite3.connect(uri, uri=True, check_same_thread=False, timeout=15)
-    except sqlite3.OperationalError:
-        conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout=5000")
-    return conn
-
-DB_MODEL = _open_ro(MODEL_DB_PATH)
-DB_ASSY  = _open_ro(ASSY_DB_PATH)
-
-# ─────────────────── 掃描表自動偵測（避免 no such table: scans） ───────────────────
-_SCAN_TABLE_CACHE: Dict[int, str] = {}
-
-def _pick_scan_table(conn: sqlite3.Connection) -> str:
-    key = id(conn)
-    if key in _SCAN_TABLE_CACHE:
-        return _SCAN_TABLE_CACHE[key]
-    cand = ["scans", "model_scans", "model_inventory", "inventory", "records"]
-    for name in cand:
-        try:
-            r = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name=?", (name,)
-            ).fetchone()
-            if not r: 
-                continue
-            cols = conn.execute(f"PRAGMA table_info({name})").fetchall()
-            if any(c["name"].lower() == "ts" for c in cols):
-                _SCAN_TABLE_CACHE[key] = name
-                logger.info("[risk] use table '%s' for conn %s", name, key)
-                return name
-        except sqlite3.OperationalError:
-            continue
-    raise RuntimeError("[risk] cannot find a scan table with 'ts' column")
+PROG_TH          = {"warning": 0.95, "critical": 0.80}
+NEED_TH          = {"warning": 1.05, "critical": 1.30}
 
 # ─────────────────── 共用 utils ───────────────────
 def _now() -> datetime:
     return datetime.now(CA_TZ)
 
-def _parse_ts(ts: str) -> datetime:
-    # 主要寫入格式：本地字串；若遇到 ISO/TZ 則轉換到 CA
-    if "T" in ts:
-        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+def _parse_ts(ts) -> datetime:
+    if isinstance(ts, datetime):
+        if ts.tzinfo is None:
+            ts = UTC.localize(ts)
+        return ts.astimezone(CA_TZ)
+    s = str(ts)
+    if "T" in s:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
         if dt.tzinfo is None:
             dt = UTC.localize(dt)
         return dt.astimezone(CA_TZ)
-    return CA_TZ.localize(datetime.strptime(ts, "%Y-%m-%d %H:%M:%S"))
+    return CA_TZ.localize(datetime.strptime(s, "%Y-%m-%d %H:%M:%S"))
 
 def _today_range_local() -> Tuple[str, str]:
     d = _now().date().strftime("%Y-%m-%d")
     return f"{d} 00:00:00", f"{d} 23:59:59"
 
-def _today_scans(conn: sqlite3.Connection) -> List[datetime]:
-    table = _pick_scan_table(conn)
+def _today_scans(schema: str) -> List[datetime]:
     s, e = _today_range_local()
-    rows = conn.execute(f"SELECT ts FROM {table} WHERE ts BETWEEN ? AND ? ORDER BY ts", (s, e)).fetchall()
-    return [_parse_ts(r["ts"]) for r in rows]
+    with get_cursor(schema) as cur:
+        cur.execute("SELECT scanned_at FROM scans WHERE scanned_at BETWEEN %s AND %s ORDER BY scanned_at", (s, e))
+        rows = cur.fetchall()
+    return [_parse_ts(r["scanned_at"]) for r in rows]
 
 def _overlap(a1, a2, b1, b2):
     s, e = max(a1, b1), min(a2, b2)
@@ -160,19 +105,22 @@ def _shift_bounds(day: date, is_sat: bool) -> Tuple[datetime, datetime]:
     en = CA_TZ.localize(datetime.combine(day, SAT_SHIFT_END  if is_sat else SHIFT_END))
     return st, en
 
-def _today_plan(conn: sqlite3.Connection, tbl: str) -> int:
+def _today_plan(schema: str, tbl: str) -> int:
     today  = _now().date()
     monday = today - timedelta(days=today.weekday())
-    row = conn.execute(
-        f"SELECT plan_json FROM {tbl} WHERE week_start = ?",
-        (monday.strftime("%Y-%m-%d"),)
-    ).fetchone()
+    with get_cursor(schema) as cur:
+        cur.execute(
+            f"SELECT plan_json FROM {tbl} WHERE week_start = %s",
+            (monday.strftime("%Y-%m-%d"),)
+        )
+        row = cur.fetchone()
     if not row:
         return 0
     try:
-        plan = json.loads(row["plan_json"])
+        pj = row["plan_json"]
+        plan = pj if isinstance(pj, (list, dict)) else json.loads(pj)
         idx  = today.weekday()
-        return int(plan[idx]) if 0 <= idx < len(plan) else 0
+        return int(plan[idx]) if isinstance(plan, list) and 0 <= idx < len(plan) else 0
     except Exception:
         return 0
 
@@ -218,7 +166,7 @@ def _risk(done, done_used, past_sched, target, cur_rate, frozen=False):
         done_display    = done_used,
         current_rate    = round(cur_rate, 2),
         target_rate     = round(tgt_rate, 2) if tgt_rate else None,
-        rate_ratio      = rate_ratio_pct,               # 前端用到
+        rate_ratio      = rate_ratio_pct,
         progress_ratio  = round(progress*100, 1) if target else None,
         need_rate       = round(need_rate, 2) if target else None,
         need_ratio      = round(need_ratio*100, 1) if target else None,
@@ -242,12 +190,12 @@ def _clean_freeze_cache():
             del _FREEZE[k]
 
 # ─────────────────── 核心計算 ───────────────────
-async def _calc(conn: sqlite3.Connection, tbl: str, lunch: Tuple[time, time], *, key: str):
+async def _calc(schema: str, tbl: str, lunch: Tuple[time, time], *, key: str):
     _clean_freeze_cache()
 
-    ts_all = _today_scans(conn)
+    ts_all = _today_scans(schema)
     done   = len(ts_all)
-    target = _today_plan(conn, tbl)
+    target = _today_plan(schema, tbl)
 
     if target == 0:
         _FREEZE.pop(key, None)
@@ -257,7 +205,7 @@ async def _calc(conn: sqlite3.Connection, tbl: str, lunch: Tuple[time, time], *,
     is_sat  = today.weekday() == 5
     shift_start, shift_end = _shift_bounds(today, is_sat)
 
-    now_clip  = min(_now(), shift_end)                       # 班尾後不再前進
+    now_clip  = min(_now(), shift_end)
     ts_work   = [t for t in ts_all if shift_start <= t <= now_clip]
     idle      = _find_idle(ts_work)
 
@@ -272,7 +220,7 @@ async def _calc(conn: sqlite3.Connection, tbl: str, lunch: Tuple[time, time], *,
                 timestamp=_now().isoformat(),
                 date=today.isoformat()
             )
-            logger.info("🎯 %s achieved target! rate frozen at %.1f/h", key, _FREEZE[key]["rate"])
+            logger.info("Target %s achieved! rate frozen at %.1f/h", key, _FREEZE[key]["rate"])
 
         frz       = _FREEZE[key]
         frozen    = True
@@ -319,28 +267,28 @@ async def _broadcast(mod, assy):
     }
     await ws_manager.broadcast(message)
     if mod.get("frozen") or assy.get("frozen"):
-        logger.info("📢 Broadcasting achievement: Module=%s, Assembly=%s",
+        logger.info("Broadcasting achievement: Module=%s, Assembly=%s",
                     mod.get('frozen'), assy.get('frozen'))
 
 # ────────────────────────── API 端點 ─────────────────────────
 @router.get("/module")
 async def module_risk(bg: BackgroundTasks, user=Depends(get_current_user)):
-    mod  = await _calc(DB_MODEL, "weekly_plan",          LUNCH_MODEL, key="module")
-    assy = await _calc(DB_ASSY,  "assembly_weekly_plan", LUNCH_ASSY,  key="assembly")
+    mod  = await _calc("model",    "weekly_plan",          LUNCH_MODEL, key="module")
+    assy = await _calc("assembly", "assembly_weekly_plan", LUNCH_ASSY,  key="assembly")
     bg.add_task(_broadcast, mod, assy)
     return mod
 
 @router.get("/assembly")
 async def assembly_risk(bg: BackgroundTasks, user=Depends(get_current_user)):
-    assy = await _calc(DB_ASSY,  "assembly_weekly_plan", LUNCH_ASSY,  key="assembly")
-    mod  = await _calc(DB_MODEL, "weekly_plan",          LUNCH_MODEL, key="module")
+    assy = await _calc("assembly", "assembly_weekly_plan", LUNCH_ASSY,  key="assembly")
+    mod  = await _calc("model",    "weekly_plan",          LUNCH_MODEL, key="module")
     bg.add_task(_broadcast, mod, assy)
     return assy
 
 @router.get("/alerts", summary="彙總風險警示")
 async def alerts(bg: BackgroundTasks, user=Depends(get_current_user)):
-    mod  = await _calc(DB_MODEL, "weekly_plan",          LUNCH_MODEL, key="module")
-    assy = await _calc(DB_ASSY,  "assembly_weekly_plan", LUNCH_ASSY,  key="assembly")
+    mod  = await _calc("model",    "weekly_plan",          LUNCH_MODEL, key="module")
+    assy = await _calc("assembly", "assembly_weekly_plan", LUNCH_ASSY,  key="assembly")
 
     alerts = []
     for typ, res in (("module", mod), ("assembly", assy)):
@@ -394,7 +342,7 @@ async def alerts(bg: BackgroundTasks, user=Depends(get_current_user)):
 async def reset_freeze(user=Depends(get_current_user)):
     old_freeze = dict(_FREEZE)
     _FREEZE.clear()
-    logger.info("🔄 Freeze cache reset by %s", user.get("username", "unknown"))
+    logger.info("Freeze cache reset by %s", user.get("username", "unknown"))
     return {
         "status": "success",
         "message": "Freeze cache cleared",

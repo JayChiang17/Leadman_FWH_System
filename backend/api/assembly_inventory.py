@@ -5,8 +5,12 @@ from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 from collections import defaultdict
 from typing import Optional, List, Dict, Any, Tuple
-import sqlite3, json, time, logging, os, calendar
+import json, time, logging, calendar, asyncio
 
+import psycopg2
+import psycopg2.extras
+
+from core.pg import get_conn, get_cursor
 from core.ws_manager import ws_manager
 from core.deps import require_roles, get_current_user
 from core.time_utils import normalize_to_ca_str
@@ -30,66 +34,104 @@ CACHE_TTL_SECONDS = 5
 _DAILY_COUNT_CACHE = TTLCache(CACHE_TTL_SECONDS)
 _WEEKLY_KPI_CACHE = TTLCache(CACHE_TTL_SECONDS)
 
+SCHEMA = "assembly"
+
 def _invalidate_kpi_cache() -> None:
     _DAILY_COUNT_CACHE.clear()
     _WEEKLY_KPI_CACHE.clear()
 
-# ────────────────────── SQLite & table initialization ─────────────────────
-DB = sqlite3.connect("assembly.db", check_same_thread=False)
-DB.row_factory = sqlite3.Row
-DB.execute("PRAGMA journal_mode=WAL")
-DB.executescript("""
-CREATE TABLE IF NOT EXISTS scans(
-  id        INTEGER PRIMARY KEY,
-  ts        TEXT,
-  cn_sn     TEXT,
-  us_sn     TEXT,
-  mod_a     TEXT,
-  mod_b     TEXT,
-  au8       TEXT,
-  am7       TEXT,
-  product_line TEXT,
-  status    TEXT DEFAULT '',
-  ng_reason TEXT DEFAULT '',
-  UNIQUE(cn_sn), UNIQUE(us_sn), UNIQUE(mod_a), UNIQUE(mod_b),
-  UNIQUE(au8), UNIQUE(am7)
-);
-CREATE TABLE IF NOT EXISTS daily_summary(
-  day   TEXT PRIMARY KEY,
-  total INTEGER DEFAULT 0,
-  ng    INTEGER DEFAULT 0,
-  fixed INTEGER DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS assembly_weekly_plan(
-  week_start TEXT PRIMARY KEY,
-  plan_json  TEXT
-);
-""")
-# Backfill columns for older schemas
-for col in ("ng", "fixed"):
-    try:
-        DB.execute(f"ALTER TABLE daily_summary ADD COLUMN {col} INTEGER DEFAULT 0")
-    except sqlite3.OperationalError:
-        pass
-try:
-    DB.execute("ALTER TABLE scans ADD COLUMN ng_reason TEXT DEFAULT ''")
-except sqlite3.OperationalError:
-    pass
-try:
-    DB.execute("ALTER TABLE scans ADD COLUMN product_line TEXT")
-except sqlite3.OperationalError:
-    pass
-DB.executescript("""
-CREATE INDEX IF NOT EXISTS idx_scans_ts ON scans(ts);
-CREATE INDEX IF NOT EXISTS idx_scans_status ON scans(status);
-CREATE INDEX IF NOT EXISTS idx_scans_product_line ON scans(product_line);
-""")
-DB.commit()
+# ────────────────────── PostgreSQL table setup ─────────────────────
+# NOTE: The init.sql placeholder schema only has (us_sn, am7, au8, operator, scanned_at).
+# The actual assembly.scans table needs the full schema below.
+# TODO: Update init.sql to match this schema:
+#
+# CREATE SCHEMA IF NOT EXISTS assembly;
+# CREATE TABLE IF NOT EXISTS assembly.scans(
+#   id             SERIAL PRIMARY KEY,
+#   scanned_at     TIMESTAMPTZ,
+#   cn_sn          TEXT,
+#   us_sn          TEXT,
+#   mod_a          TEXT,
+#   mod_b          TEXT,
+#   au8            TEXT,
+#   am7            TEXT,
+#   product_line   TEXT,
+#   status         TEXT DEFAULT '',
+#   ng_reason      TEXT DEFAULT '',
+#   start_time     TIMESTAMPTZ,
+#   production_seconds INTEGER,
+#   UNIQUE(cn_sn), UNIQUE(us_sn), UNIQUE(mod_a), UNIQUE(mod_b),
+#   UNIQUE(au8), UNIQUE(am7)
+# );
+# CREATE TABLE IF NOT EXISTS assembly.daily_summary(
+#   day   TEXT PRIMARY KEY,
+#   total INTEGER DEFAULT 0,
+#   ng    INTEGER DEFAULT 0,
+#   fixed INTEGER DEFAULT 0
+# );
+# CREATE TABLE IF NOT EXISTS assembly.assembly_weekly_plan(
+#   week_start TEXT PRIMARY KEY,
+#   plan_json  TEXT
+# );
+# CREATE INDEX IF NOT EXISTS idx_scans_scanned_at ON assembly.scans(scanned_at);
+# CREATE INDEX IF NOT EXISTS idx_scans_status ON assembly.scans(status);
+# CREATE INDEX IF NOT EXISTS idx_scans_product_line ON assembly.scans(product_line);
+# CREATE INDEX IF NOT EXISTS idx_scans_start_time ON assembly.scans(start_time);
+# CREATE INDEX IF NOT EXISTS idx_scans_us_sn ON assembly.scans(us_sn);
+# CREATE INDEX IF NOT EXISTS idx_scans_scanned_at_status ON assembly.scans(scanned_at, status);
+
+def _ensure_tables():
+    """Create assembly schema and tables if they don't exist.
+    Safe to call multiple times (idempotent)."""
+    with get_conn(SCHEMA) as conn:
+        cur = conn.cursor()
+        cur.execute("CREATE SCHEMA IF NOT EXISTS assembly")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS assembly.scans(
+              id             SERIAL PRIMARY KEY,
+              scanned_at     TIMESTAMPTZ,
+              cn_sn          TEXT,
+              us_sn          TEXT,
+              mod_a          TEXT,
+              mod_b          TEXT,
+              au8            TEXT,
+              am7            TEXT,
+              product_line   TEXT,
+              status         TEXT DEFAULT '',
+              ng_reason      TEXT DEFAULT '',
+              start_time     TIMESTAMPTZ,
+              production_seconds INTEGER,
+              UNIQUE(cn_sn), UNIQUE(us_sn), UNIQUE(mod_a), UNIQUE(mod_b),
+              UNIQUE(au8), UNIQUE(am7)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS assembly.daily_summary(
+              day   TEXT PRIMARY KEY,
+              total INTEGER DEFAULT 0,
+              ng    INTEGER DEFAULT 0,
+              fixed INTEGER DEFAULT 0
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS assembly.assembly_weekly_plan(
+              week_start TEXT PRIMARY KEY,
+              plan_json  TEXT
+            )
+        """)
+        # Indexes (IF NOT EXISTS available in PG 9.5+)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scans_scanned_at ON assembly.scans(scanned_at)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scans_status ON assembly.scans(status)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scans_product_line ON assembly.scans(product_line)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scans_start_time ON assembly.scans(start_time)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scans_us_sn ON assembly.scans(us_sn)")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_scans_scanned_at_status ON assembly.scans(scanned_at, status)")
+
 
 # Mapping US SN prefixes -> product_line tags
 PREFIX_PRODUCT_LINE = {
-    # US SN prefixes for assembly line
     "10050022": "apower_s",
+    "10050019": "apower_s",
     "10050018": "apower2",
     "10050028": "apower2",
     "10050030": "apower2",
@@ -98,14 +140,21 @@ PREFIX_PRODUCT_LINE = {
 
 def _backfill_product_line() -> None:
     """Fill product_line for existing rows based on us_sn prefix (idempotent, safe)."""
-    for prefix, name in PREFIX_PRODUCT_LINE.items():
-        DB.execute(
-            "UPDATE scans SET product_line=? WHERE us_sn LIKE ?",
-            (name, f"{prefix}%")
-        )
-    DB.commit()
+    with get_conn(SCHEMA) as conn:
+        cur = conn.cursor()
+        for prefix, name in PREFIX_PRODUCT_LINE.items():
+            cur.execute(
+                "UPDATE scans SET product_line=%s WHERE us_sn LIKE %s AND (product_line IS NULL OR product_line = '')",
+                (name, f"{prefix}%")
+            )
 
-_backfill_product_line()
+
+def init_assembly_module():
+    """Call at application startup after PG pool is initialised."""
+    _ensure_tables()
+    _backfill_product_line()
+    _load_ram_cache()
+
 
 # ────────────────────────── In-memory cache ──────────────────────────
 RAM_SN = set()                # for fast de-duplication
@@ -114,15 +163,26 @@ TODAY  = today()              # snapshot of current local day
 last_ip_time: Dict[str, float] = {}
 ip_req_hist  = defaultdict(list)
 
-# Load recent SNs into RAM and today's hourly counts on startup
-cut = (TODAY - timedelta(days=PURGE_DAYS)).strftime("%Y-%m-%d")
-for r in DB.execute("SELECT * FROM scans WHERE ts >= ?", (cut,)):
-    for f in ("cn_sn","us_sn","mod_a","mod_b","au8","am7"):
-        v = r[f]
-        if v and v.strip().upper() != "N/A":
-            RAM_SN.add(v.strip())
-    if r["ts"].startswith(TODAY.strftime("%Y-%m-%d")):
-        hourly[r["ts"][11:13]] += 1
+
+def _load_ram_cache():
+    """Load recent SNs into RAM and today's hourly counts on startup."""
+    global TODAY
+    TODAY = today()
+    cut = (TODAY - timedelta(days=PURGE_DAYS)).strftime("%Y-%m-%d")
+
+    RAM_SN.clear()
+    hourly.clear()
+
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("SELECT cn_sn, us_sn, mod_a, mod_b, au8, am7, scanned_at FROM scans WHERE scanned_at >= %s", (cut,))
+        for r in cur.fetchall():
+            for f in ("cn_sn", "us_sn", "mod_a", "mod_b", "au8", "am7"):
+                v = r[f]
+                if v and v.strip().upper() != "N/A":
+                    RAM_SN.add(v.strip())
+            if r["scanned_at"] and r["scanned_at"].date() == TODAY:
+                hourly[r["scanned_at"].strftime("%H")] += 1
+
 
 # ───────────────────────────── Helpers ──────────────────────────────
 def clean_u(s: Optional[str]) -> Optional[str]:
@@ -134,12 +194,32 @@ def clean_u(s: Optional[str]) -> Optional[str]:
         return None
     return v
 
+def _normalize_us_sn_key(s: Optional[str]) -> Optional[str]:
+    """Canonical US SN key for in-memory lookup (cache/timer operations)."""
+    v = clean_u(s)
+    if not v:
+        return None
+    return v.upper().replace("-", "").replace(" ", "")
+
+def calc_production_seconds(start_time: Optional[str], end_time: str) -> Optional[int]:
+    """Calculate production seconds between start_time and end_time.
+    Returns None if invalid, negative, or exceeds 24 hours."""
+    if not start_time:
+        return None
+    try:
+        start_dt = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
+        end_dt = datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S")
+        seconds = int((end_dt - start_dt).total_seconds())
+        return seconds if 0 <= seconds <= 86400 else None
+    except (ValueError, TypeError):
+        return None
+
 def infer_product_line(us_sn: Optional[str], explicit: Optional[str]) -> Optional[str]:
     """
     Return an explicit product_line if provided, otherwise infer by US SN prefix.
     apower     -> 10050014*
     apower2    -> 10050018*/10050028*
-    apower_s   -> 10050022*
+    apower_s   -> 10050019*/10050022*
     """
     if explicit:
         return explicit.strip()
@@ -151,15 +231,17 @@ def infer_product_line(us_sn: Optional[str], explicit: Optional[str]) -> Optiona
             return name
     return None
 
-def _counts_for_day(day_str: str) -> Tuple[int,int,int]:
+def _counts_for_day(day_str: str) -> Tuple[int, int, int]:
     """Return (total, ng_including_fixed, fixed) for a YYYY-MM-DD day."""
     start_ts, end_ts = day_range_str(datetime.strptime(day_str, "%Y-%m-%d").date())
-    row = DB.execute("""
-        SELECT COUNT(*) AS tot,
-               SUM(CASE WHEN UPPER(status) IN ('NG','FIXED') THEN 1 ELSE 0 END) AS ng_all,
-               SUM(CASE WHEN UPPER(status)='FIXED' THEN 1 ELSE 0 END) AS fixed
-        FROM scans WHERE ts >= ? AND ts < ?
-    """, (start_ts, end_ts)).fetchone()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("""
+            SELECT COUNT(*) AS tot,
+                   SUM(CASE WHEN UPPER(status) IN ('NG','FIXED') THEN 1 ELSE 0 END) AS ng_all,
+                   SUM(CASE WHEN UPPER(status)='FIXED' THEN 1 ELSE 0 END) AS fixed
+            FROM scans WHERE scanned_at >= %s AND scanned_at < %s
+        """, (start_ts, end_ts))
+        row = cur.fetchone()
     return int(row["tot"] or 0), int(row["ng_all"] or 0), int(row["fixed"] or 0)
 
 def rollover() -> None:
@@ -173,12 +255,12 @@ def rollover() -> None:
     if now_day != TODAY:
         y_str = TODAY.strftime("%Y-%m-%d")
         tot, ng_all, fixed = _counts_for_day(y_str)
-        DB.execute("""
-            INSERT INTO daily_summary(day,total,ng,fixed)
-            VALUES(?,?,?,?)
-            ON CONFLICT(day) DO UPDATE SET total=?, ng=?, fixed=?""",
-            (y_str, tot, ng_all, fixed, tot, ng_all, fixed))
-        DB.commit()
+        with get_cursor(SCHEMA) as cur:
+            cur.execute("""
+                INSERT INTO daily_summary(day, total, ng, fixed)
+                VALUES(%s, %s, %s, %s)
+                ON CONFLICT(day) DO UPDATE SET total=%s, ng=%s, fixed=%s""",
+                (y_str, tot, ng_all, fixed, tot, ng_all, fixed))
         TODAY = now_day
         hourly.clear()
 
@@ -211,117 +293,129 @@ def _append_date_range(conds: List[str], params: List[Any], from_date: Optional[
         try:
             d = datetime.strptime(from_date, "%Y-%m-%d").date()
             start_ts, _ = day_range_str(d)
-            conds.append("ts >= ?")
+            conds.append("scanned_at >= %s")
             params.append(start_ts)
         except ValueError:
-            conds.append("ts >= ?")
+            conds.append("scanned_at >= %s")
             params.append(from_date)
     if to_date:
         try:
             d = datetime.strptime(to_date, "%Y-%m-%d").date()
             _, end_ts = day_range_str(d)
-            conds.append("ts < ?")
+            conds.append("scanned_at < %s")
             params.append(end_ts)
         except ValueError:
-            conds.append("ts <= ?")
+            conds.append("scanned_at <= %s")
             params.append(to_date)
 
-# ───────── PCBA live inventory/statistics (read from pcba.db) ─────────
-def _pcba_db_path() -> str:
-    return str((os.getenv("PCBA_DB_PATH") or "pcba.db"))
+# ───────── PCBA live inventory/statistics (read from pcba schema) ─────────
 
-# === NEW: 嚴格比對 + 去重的使用量計算（僅計入 PCBA Completed 且非 NG 的序號） ===
 def _normalize_serial(s: Optional[str]) -> str:
     return (s or "").upper().replace(" ", "").replace("-", "")
 
-def _pcba_completed_serials_by_model(conn_pcba: sqlite3.Connection) -> Dict[str, List[str]]:
-    conn_pcba.row_factory = sqlite3.Row
-    rows = conn_pcba.execute("""
-        SELECT UPPER(model) AS m, serial_number
-        FROM boards
-        WHERE stage='completed' AND (ng_flag IS NULL OR ng_flag=0)
-    """).fetchall()
-    out = {"AM7": [], "AU8": []}
+def _pcba_completed_serials_by_model() -> Dict[str, List[str]]:
+    """Query pcba.boards for completed non-NG serials, grouped by model."""
+    with get_cursor("pcba") as cur:
+        cur.execute("""
+            SELECT UPPER(model) AS m, serial_number
+            FROM boards
+            WHERE stage='completed' AND (ng_flag IS NULL OR ng_flag=0)
+        """)
+        rows = cur.fetchall()
+    out: Dict[str, List[str]] = {"AM7": [], "AU8": []}
     for r in rows:
         out.setdefault(r["m"], []).append(_normalize_serial(r["serial_number"]))
-    # 保證 key 存在
     out.setdefault("AM7", [])
     out.setdefault("AU8", [])
     return out
 
-def _assembly_usage_counts_limited_to_pcba(conn_pcba: sqlite3.Connection) -> Dict[str, int]:
-    """只計算『存在於 PCBA 且已完成(非 NG)』的序號在 assembly.db 被掃描過的數量，且 DISTINCT 去重。"""
-    serials = _pcba_completed_serials_by_model(conn_pcba)
+def _assembly_usage_counts_limited_to_pcba() -> Dict[str, int]:
+    """Only count serials that exist in PCBA completed (non-NG), DISTINCT deduped."""
+    serials = _pcba_completed_serials_by_model()
 
     def _count_used(col: str, values: List[str]) -> int:
         if not values:
             return 0
-        cur = DB.cursor()
-        cur.execute("DROP TABLE IF EXISTS _tmp_pcba_serials")
-        cur.execute("CREATE TEMP TABLE _tmp_pcba_serials (serial TEXT PRIMARY KEY)")
-        cur.executemany("INSERT OR IGNORE INTO _tmp_pcba_serials(serial) VALUES (?)", [(v,) for v in values])
-        norm = f"REPLACE(REPLACE(UPPER(s.{col}), '-', ''), ' ', '')"
-        cur.execute(f"""
-            SELECT COUNT(DISTINCT {norm}) AS c
-            FROM scans s
-            JOIN _tmp_pcba_serials t ON t.serial = {norm}
-            WHERE s.{col} IS NOT NULL AND TRIM(UPPER(s.{col})) <> 'N/A'
-        """)
-        used = int(cur.fetchone()["c"] or 0)
-        cur.execute("DROP TABLE IF EXISTS _tmp_pcba_serials")
-        return used
+        with get_conn(SCHEMA) as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            # Create a temp table for the PCBA serials, use ON COMMIT DROP
+            cur.execute("CREATE TEMP TABLE _tmp_pcba_serials (serial TEXT PRIMARY KEY) ON COMMIT DROP")
+            # Batch insert using execute_values
+            psycopg2.extras.execute_values(
+                cur,
+                "INSERT INTO _tmp_pcba_serials(serial) VALUES %s ON CONFLICT DO NOTHING",
+                [(v,) for v in values],
+                page_size=1000
+            )
+            norm = f"REPLACE(REPLACE(UPPER(s.{col}), '-', ''), ' ', '')"
+            cur.execute(f"""
+                SELECT COUNT(DISTINCT {norm}) AS c
+                FROM scans s
+                JOIN _tmp_pcba_serials t ON t.serial = {norm}
+                WHERE s.{col} IS NOT NULL AND TRIM(UPPER(s.{col})) <> 'N/A'
+            """)
+            used = int(cur.fetchone()["c"] or 0)
+            return used
 
     return {
         "AM7": _count_used("am7", serials["AM7"]),
         "AU8": _count_used("au8", serials["AU8"]),
     }
 
-# 舊的簡單統計（保留做為 fallback）
+# Fallback simple counts (no PCBA cross-reference)
 def _assembly_usage_counts() -> Dict[str, int]:
-    am7_used = int(DB.execute(
-        "SELECT COUNT(*) AS c FROM scans WHERE am7 IS NOT NULL AND TRIM(UPPER(am7)) <> 'N/A'"
-    ).fetchone()["c"] or 0)
-    au8_used = int(DB.execute(
-        "SELECT COUNT(*) AS c FROM scans WHERE au8 IS NOT NULL AND TRIM(UPPER(au8)) <> 'N/A'"
-    ).fetchone()["c"] or 0)
+    with get_cursor(SCHEMA) as cur:
+        cur.execute(
+            "SELECT COUNT(*) AS c FROM scans WHERE am7 IS NOT NULL AND TRIM(UPPER(am7)) <> 'N/A'"
+        )
+        am7_used = int(cur.fetchone()["c"] or 0)
+        cur.execute(
+            "SELECT COUNT(*) AS c FROM scans WHERE au8 IS NOT NULL AND TRIM(UPPER(au8)) <> 'N/A'"
+        )
+        au8_used = int(cur.fetchone()["c"] or 0)
     return {"AM7": am7_used, "AU8": au8_used}
 
-def _pcba_completed_by_model_ex_ng(conn: sqlite3.Connection) -> Dict[str, int]:
+def _pcba_completed_by_model_ex_ng() -> Dict[str, int]:
     """PCBA Completed (excluding NG) grouped by model."""
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute("""
-        SELECT UPPER(model) AS m, COUNT(*) AS c
-        FROM boards
-        WHERE stage='completed' AND (ng_flag IS NULL OR ng_flag=0)
-        GROUP BY UPPER(model)
-    """).fetchall()
-    out = {"AM7": 0, "AU8": 0}
+    with get_cursor("pcba") as cur:
+        cur.execute("""
+            SELECT UPPER(model) AS m, COUNT(*) AS c
+            FROM boards
+            WHERE stage='completed' AND (ng_flag IS NULL OR ng_flag=0)
+            GROUP BY UPPER(model)
+        """)
+        rows = cur.fetchall()
+    out: Dict[str, int] = {"AM7": 0, "AU8": 0}
     for r in rows:
         out[r["m"]] = int(r["c"] or 0)
     return out
 
-def _pcba_stage_totals(conn: sqlite3.Connection) -> Tuple[int,int,int,int]:
-    r = conn.execute("""
-        SELECT COUNT(*) AS total,
-               SUM(CASE WHEN stage='aging'     THEN 1 ELSE 0 END) AS aging,
-               SUM(CASE WHEN stage='coating'   THEN 1 ELSE 0 END) AS coating,
-               SUM(CASE WHEN stage='completed' THEN 1 ELSE 0 END) AS completed
-        FROM boards
-    """).fetchone()
+def _pcba_stage_totals() -> Tuple[int, int, int, int]:
+    with get_cursor("pcba") as cur:
+        cur.execute("""
+            SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN stage='aging'     THEN 1 ELSE 0 END) AS aging,
+                   SUM(CASE WHEN stage='coating'   THEN 1 ELSE 0 END) AS coating,
+                   SUM(CASE WHEN stage='completed' THEN 1 ELSE 0 END) AS completed
+            FROM boards
+        """)
+        r = cur.fetchone()
     return int(r["total"] or 0), int(r["aging"] or 0), int(r["coating"] or 0), int(r["completed"] or 0)
 
-def _pcba_by_model(conn: sqlite3.Connection) -> Dict[str, Dict[str, int]]:
+def _pcba_by_model() -> Dict[str, Dict[str, int]]:
     """Unfiltered byModel aggregation (total/aging/coating/completed)."""
-    rows = conn.execute("""
-        SELECT UPPER(model) AS m,
-               COUNT(*) AS total,
-               SUM(CASE WHEN stage='aging'     THEN 1 ELSE 0 END) AS aging,
-               SUM(CASE WHEN stage='coating'   THEN 1 ELSE 0 END) AS coating,
-               SUM(CASE WHEN stage='completed' THEN 1 ELSE 0 END) AS completed
-        FROM boards
-        GROUP BY UPPER(model)
-    """).fetchall()
-    out: Dict[str, Dict[str,int]] = {}
+    with get_cursor("pcba") as cur:
+        cur.execute("""
+            SELECT UPPER(model) AS m,
+                   COUNT(*) AS total,
+                   SUM(CASE WHEN stage='aging'     THEN 1 ELSE 0 END) AS aging,
+                   SUM(CASE WHEN stage='coating'   THEN 1 ELSE 0 END) AS coating,
+                   SUM(CASE WHEN stage='completed' THEN 1 ELSE 0 END) AS completed
+            FROM boards
+            GROUP BY UPPER(model)
+        """)
+        rows = cur.fetchall()
+    out: Dict[str, Dict[str, int]] = {}
     for r in rows:
         out[r["m"]] = {
             "total": int(r["total"] or 0),
@@ -337,27 +431,12 @@ def _compute_pcba_statistics_payload() -> Dict[str, Any]:
     NOTE: pairsDone is based on *available* pairs (min of available AM7/AU8).
     """
     try:
-        pcba = sqlite3.connect(_pcba_db_path())
-        pcba.row_factory = sqlite3.Row
-    except Exception as e:
-        logger.error("open pcba.db failed: %s", e)
-        used = _assembly_usage_counts()
-        return {
-            "total":0,"aging":0,"coating":0,"completed":0,"efficiency":0.0,
-            "byModel":{},
-            "completedByModel":{"AM7":0,"AU8":0},
-            "consumedAM7":used["AM7"],"consumedAU8":used["AU8"],"consumedTotal":used["AM7"]+used["AU8"],
-            "availableAM7":0,"availableAU8":0,"availableTotal":0,
-            "pairsDone":0,
-        }
+        total, aging, coating, completed = _pcba_stage_totals()
+        by_model = _pcba_by_model()
+        completed_by_model = _pcba_completed_by_model_ex_ng()
 
-    try:
-        total, aging, coating, completed = _pcba_stage_totals(pcba)
-        by_model = _pcba_by_model(pcba)
-        completed_by_model = _pcba_completed_by_model_ex_ng(pcba)
-
-        # ★ used 改為「僅計 PCBA 完成清單 + DISTINCT」
-        used = _assembly_usage_counts_limited_to_pcba(pcba)
+        # used = only count PCBA completed serials + DISTINCT
+        used = _assembly_usage_counts_limited_to_pcba()
         am7_used, au8_used = used["AM7"], used["AU8"]
 
         avail_am7 = max(completed_by_model["AM7"] - am7_used, 0)
@@ -368,7 +447,7 @@ def _compute_pcba_statistics_payload() -> Dict[str, Any]:
             "coating": coating,
             "completed": completed,
             "efficiency": round(completed / total * 100, 1) if total else 0.0,
-            "byModel": {k: {"total":v["total"],"aging":v["aging"],"coating":v["coating"],"completed":v["completed"]} for k,v in by_model.items() },
+            "byModel": {k: {"total": v["total"], "aging": v["aging"], "coating": v["coating"], "completed": v["completed"]} for k, v in by_model.items()},
             "completedByModel": completed_by_model,
             "consumedAM7": am7_used,
             "consumedAU8": au8_used,
@@ -379,9 +458,17 @@ def _compute_pcba_statistics_payload() -> Dict[str, Any]:
             "pairsDone": min(avail_am7, avail_au8),
         }
         return payload
-    finally:
-        try: pcba.close()
-        except Exception: pass
+    except Exception as e:
+        logger.error("_compute_pcba_statistics_payload failed: %s", e)
+        used = _assembly_usage_counts()
+        return {
+            "total": 0, "aging": 0, "coating": 0, "completed": 0, "efficiency": 0.0,
+            "byModel": {},
+            "completedByModel": {"AM7": 0, "AU8": 0},
+            "consumedAM7": used["AM7"], "consumedAU8": used["AU8"], "consumedTotal": used["AM7"] + used["AU8"],
+            "availableAM7": 0, "availableAU8": 0, "availableTotal": 0,
+            "pairsDone": 0,
+        }
 
 async def _broadcast_pcba_statistics():
     """Broadcast PCBA statistics so dashboards update immediately when assembly usage changes."""
@@ -398,15 +485,19 @@ def _week_start_str_for(d: date) -> str:
     return mon.strftime("%Y-%m-%d")
 
 def _get_week_plan_json(week_start_str: str) -> Optional[str]:
-    row = DB.execute(
-        "SELECT plan_json FROM assembly_weekly_plan WHERE week_start=?",
-        (week_start_str,)
-    ).fetchone()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute(
+            "SELECT plan_json FROM assembly_weekly_plan WHERE week_start=%s",
+            (week_start_str,)
+        )
+        row = cur.fetchone()
     return row["plan_json"] if row else None
 
-def _parse_plan_json(plan_json: Optional[str]):
+def _parse_plan_json(plan_json):
     if not plan_json:
         return None
+    if isinstance(plan_json, (list, dict)):
+        return plan_json
     try:
         return json.loads(plan_json)
     except Exception:
@@ -415,10 +506,6 @@ def _parse_plan_json(plan_json: Optional[str]):
 def _plan_for_date_from_pj(pj, target: date) -> Tuple[int, Optional[int], Optional[int]]:
     """
     Return (plan_total, plan_a, plan_b) for a target date given a parsed plan_json.
-    - If pj is a list: index 0..6 = Mon..Sun (若只有 5/6 天則未提供的日為 0)
-    - If pj is a dict:
-        - key could be 'YYYY-MM-DD' -> value can be total int OR {"A":x,"B":y}.
-    - If no plan configured, use default Mon–Fri=90, Sat=0, Sun=0.
     """
     default_week = [90, 90, 90, 90, 90, 0, 0]  # Mon..Sun
 
@@ -445,7 +532,7 @@ def _plan_for_date_from_pj(pj, target: date) -> Tuple[int, Optional[int], Option
         if isinstance(v, dict):
             a = int(v.get("A", 0) or 0)
             b = int(v.get("B", 0) or 0)
-            return (a+b, a, b)
+            return (a + b, a, b)
         try:
             total = int(v or 0)
         except Exception:
@@ -473,12 +560,150 @@ def _expand_plan_range(start_d: date, end_d: date) -> List[Dict[str, Any]]:
         d += timedelta(days=1)
     return out
 
+# ───────────────────────────── ⓪ Start Timer (First Station) ───────────────────────────
+class StartTimerRequest(BaseModel):
+    us_sn: str
+
+# In-memory storage for start times (cleared on restart, but that's acceptable)
+_start_time_cache: Dict[str, str] = {}
+
+@router.post("/assembly/start-timer", dependencies=[Depends(require_roles("admin","operator"))])
+async def start_timer(req: Request, body: StartTimerRequest):
+    """
+    First station scans US_SN to start the production timer.
+    Stores start_time in memory cache for later retrieval during completion.
+    """
+    client_ip = req.client.host if req.client else "unknown"
+    if not check_rate_limit(client_ip):
+        raise HTTPException(status_code=429, detail="Too many requests, wait a moment.")
+
+    us_sn = clean_u(body.us_sn)
+    us_sn_key = _normalize_us_sn_key(us_sn)
+    if not us_sn_key:
+        return {"status": "error", "message": "US SN is required"}
+
+    # Check if this US_SN already exists in the database (already completed)
+    with get_cursor(SCHEMA) as cur:
+        cur.execute(
+            "SELECT id FROM scans WHERE REPLACE(REPLACE(UPPER(us_sn), '-', ''), ' ', '') = %s",
+            (us_sn_key,),
+        )
+        existing = cur.fetchone()
+    if existing:
+        return {"status": "error", "message": f"US SN {us_sn} already exists in records"}
+
+    # Record start time
+    start_time = now_str()
+    _start_time_cache[us_sn_key] = start_time
+
+    # Broadcast timer started event
+    await ws_manager.broadcast({
+        "event": "timer_started",
+        "us_sn": us_sn_key,
+        "start_time": start_time
+    })
+
+    return {
+        "status": "success",
+        "message": f"Timer started for {us_sn_key}",
+        "us_sn": us_sn_key,
+        "start_time": start_time
+    }
+
+@router.get("/assembly/start-timer/{us_sn}", dependencies=[Depends(require_roles("admin","operator"))])
+def get_start_time(us_sn: str):
+    """Get the start time for a US_SN if it exists in cache."""
+    us_sn_key = _normalize_us_sn_key(us_sn)
+    if not us_sn_key:
+        return {"status": "error", "message": "US SN is required"}
+
+    start_time = _start_time_cache.get(us_sn_key)
+    if not start_time:
+        return {"status": "not_found", "message": f"No timer found for {us_sn_key}"}
+
+    return {
+        "status": "success",
+        "us_sn": us_sn_key,
+        "start_time": start_time
+    }
+
+@router.get("/assembly/active-timers", dependencies=[Depends(require_roles("admin","operator"))])
+def get_active_timers():
+    """Get all active timers (started but not completed)."""
+    timers = [
+        {"us_sn": sn, "start_time": st}
+        for sn, st in _start_time_cache.items()
+    ]
+    # Sort by start_time descending (most recent first)
+    timers.sort(key=lambda x: x["start_time"], reverse=True)
+    return {"status": "success", "timers": timers, "count": len(timers)}
+
+@router.delete("/assembly/timer/{us_sn}", dependencies=[Depends(require_roles("admin"))])
+def delete_timer(us_sn: str):
+    """Delete an active timer by US SN (admin only)."""
+    us_sn_key = _normalize_us_sn_key(us_sn)
+    if not us_sn_key:
+        return {"status": "error", "message": "US SN is required"}
+    if us_sn_key in _start_time_cache:
+        del _start_time_cache[us_sn_key]
+        return {"status": "success", "message": f"Timer deleted: {us_sn_key}"}
+    return {"status": "not_found", "message": f"No timer found for {us_sn_key}"}
+
+@router.get("/assembly/production-stats", summary="Get production time statistics for today")
+def get_production_stats(user=Depends(get_current_user)):
+    """Get production time statistics for today (Start Assembly -> Submit Production)."""
+    start_ts, end_ts = today_range_str()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("""
+            SELECT
+                COUNT(*) as total_with_time,
+                AVG(production_seconds) as avg_seconds,
+                MIN(production_seconds) as min_seconds,
+                MAX(production_seconds) as max_seconds
+            FROM scans
+            WHERE scanned_at >= %s AND scanned_at < %s
+              AND production_seconds IS NOT NULL
+              AND production_seconds > 0
+        """, (start_ts, end_ts))
+        row = cur.fetchone()
+
+    return {
+        "status": "success",
+        "total_with_time": int(row["total_with_time"] or 0),
+        "avg_seconds": round(float(row["avg_seconds"] or 0), 1),
+        "min_seconds": int(row["min_seconds"] or 0),
+        "max_seconds": int(row["max_seconds"] or 0),
+        "active_timers": len(_start_time_cache)
+    }
+
+
+@router.get("/assembly/production-times", summary="Individual production times (latest N)")
+def get_production_times(limit: int = 50, user=Depends(get_current_user)):
+    """Return the most recent N production times for today (Start Assembly -> Submit)."""
+    start_ts, end_ts = today_range_str()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("""
+            SELECT us_sn, production_seconds, scanned_at
+            FROM scans
+            WHERE scanned_at >= %s AND scanned_at < %s
+              AND production_seconds IS NOT NULL
+              AND production_seconds > 0
+            ORDER BY scanned_at DESC
+            LIMIT %s
+        """, (start_ts, end_ts, min(limit, 200)))
+        rows = cur.fetchall()
+    # Reverse so chart shows oldest->newest (left->right)
+    items = [{"sn": r["us_sn"], "seconds": int(r["production_seconds"]), "ts": r["scanned_at"].strftime("%Y-%m-%d %H:%M:%S") if r["scanned_at"] else None} for r in reversed(rows)]
+    return {"status": "success", "items": items}
+
+
 # ───────────────────────────── ① Add Scan ───────────────────────────
 @router.post("/assembly_inventory", dependencies=[Depends(require_roles("admin","operator"))])
 async def add_scan(req: Request, rec: AssemblyRecordIn):
     rollover()
-    if not check_rate_limit(req.client.host):
-        return {"status":"error","message":"Too many requests, wait a moment."}
+    client_ip = req.client.host if req.client else "unknown"
+    if not check_rate_limit(client_ip):
+        raise HTTPException(status_code=429, detail="Too many requests, wait a moment.")
 
     ts = rec.timestamp or now_str()
     if rec.timestamp:
@@ -500,7 +725,15 @@ async def add_scan(req: Request, rec: AssemblyRecordIn):
     for name, val in fields:
         s = clean_u(val)
         if s and s in RAM_SN:
-            return {"status":"error","message":f"Duplicate {name}: {s}"}
+            return {"status": "error", "message": f"Duplicate {name}: {s}"}
+
+    # Check for start_time in cache and calculate production_seconds
+    us_sn_cleaned = clean_u(rec.us_sn)
+    us_sn_key = _normalize_us_sn_key(rec.us_sn)
+    start_time = _start_time_cache.pop(us_sn_key, None) if us_sn_key else None
+    production_seconds = calc_production_seconds(start_time, ts)
+    if production_seconds is None:
+        start_time = None  # Clear invalid start_time
 
     row = (
         ts,
@@ -511,21 +744,31 @@ async def add_scan(req: Request, rec: AssemblyRecordIn):
         clean_u(rec.pcba_au8),
         clean_u(rec.pcba_am7),
         product_line,
+        start_time,
+        production_seconds,
     )
 
     try:
-        DB.execute("""INSERT INTO scans(ts,cn_sn,us_sn,mod_a,mod_b,au8,am7,product_line)
-                      VALUES(?,?,?,?,?,?,?,?)""", row)
-        DB.commit()
+        with get_cursor(SCHEMA) as cur:
+            cur.execute(
+                """INSERT INTO scans(scanned_at, cn_sn, us_sn, mod_a, mod_b, au8, am7, product_line, start_time, production_seconds)
+                   VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                row
+            )
         _invalidate_kpi_cache()
-    except sqlite3.IntegrityError as e:
+    except psycopg2.IntegrityError as e:
         err = str(e)
-        if "UNIQUE constraint failed: scans." in err:
-            dup_col = err.split("scans.")[-1]
-            col_map = {"cn_sn":"china_sn","us_sn":"us_sn","mod_a":"module_a",
-                       "mod_b":"module_b","au8":"pcba_au8","am7":"pcba_am7"}
-            return {"status":"error",
-                    "message":f"Duplicate value in field '{col_map.get(dup_col, dup_col)}'"}
+        if "unique" in err.lower() or "duplicate" in err.lower():
+            # Try to extract which column caused the conflict
+            col_map = {"cn_sn": "china_sn", "us_sn": "us_sn", "mod_a": "module_a",
+                       "mod_b": "module_b", "au8": "pcba_au8", "am7": "pcba_am7"}
+            dup_col = "unknown"
+            for db_col, api_col in col_map.items():
+                if db_col in err:
+                    dup_col = api_col
+                    break
+            return {"status": "error",
+                    "message": f"Duplicate value in field '{dup_col}'"}
         raise
 
     # Update RAM de-dup (only add non-empty / non-'N/A')
@@ -538,30 +781,44 @@ async def add_scan(req: Request, rec: AssemblyRecordIn):
     if ts.startswith(TODAY.strftime("%Y-%m-%d")):
         hourly[ts[11:13]] += 1
     hrs = sorted(hourly.keys())
-    await ws_manager.broadcast({
-        "event":"assembly_updated","timestamp":ts,
-        "count":sum(hourly.values()),
-        "labels":[f"{h}:00" for h in hrs],
-        "trend":[hourly[h] for h in hrs]
-    })
-    # Assembly usage affects PCBA availability → broadcast statistics
+
+    # Include production_seconds in broadcast if available
+    broadcast_data = {
+        "event": "assembly_updated", "timestamp": ts,
+        "count": sum(hourly.values()),
+        "labels": [f"{h}:00" for h in hrs],
+        "trend": [hourly[h] for h in hrs]
+    }
+    if production_seconds is not None:
+        broadcast_data["production_seconds"] = production_seconds
+        broadcast_data["us_sn"] = us_sn_key or us_sn_cleaned
+
+    await ws_manager.broadcast(broadcast_data)
+    # Assembly usage affects PCBA availability -> broadcast statistics
     await _broadcast_pcba_statistics()
 
-    return {"status":"success","message":"Record added successfully"}
+    response = {"status": "success", "message": "Record added successfully"}
+    if production_seconds is not None:
+        response["production_seconds"] = production_seconds
+        response["start_time"] = start_time
+
+    return response
 
 # ───────────────────────────── ② Get single ─────────────────────────
 @router.get("/assembly_inventory/{us_sn}", response_model=AssemblyRecordOut,
             dependencies=[Depends(require_roles("admin","operator"))])
-def get_one(us_sn:str):
-    row = DB.execute("""SELECT id,ts AS timestamp,
-               cn_sn AS china_sn,us_sn,
-               mod_a AS module_a,mod_b AS module_b,
-               au8 AS pcba_au8,am7 AS pcba_am7,
-               product_line,
-               status,ng_reason FROM scans WHERE us_sn=?""",
-               (us_sn.strip(),)).fetchone()
+def get_one(us_sn: str):
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("""SELECT id, scanned_at AS timestamp,
+                   cn_sn AS china_sn, us_sn,
+                   mod_a AS module_a, mod_b AS module_b,
+                   au8 AS pcba_au8, am7 AS pcba_am7,
+                   product_line,
+                   status, ng_reason FROM scans WHERE us_sn=%s""",
+                   (us_sn.strip(),))
+        row = cur.fetchone()
     if not row:
-        raise HTTPException(404,f"{us_sn} not found")
+        raise HTTPException(404, f"{us_sn} not found")
     return dict(row)
 
 # ───────────────────────────── ③ Update ─────────────────────────────
@@ -571,65 +828,74 @@ class AssemblyUpdate(BaseModel):
     pcba_au8: Optional[str] = None
     pcba_am7: Optional[str] = None
     status:   Optional[str] = None
-    ng_reason:Optional[str] = None
+    ng_reason: Optional[str] = None
     product_line: Optional[str] = None
 
 @router.put("/assembly_inventory/{us_sn}", dependencies=[Depends(require_roles("admin","operator"))])
-async def update_one(us_sn:str, body:AssemblyUpdate):
-    col = {"module_a":"mod_a","module_b":"mod_b",
-           "pcba_au8":"au8","pcba_am7":"am7",
-           "status":"status","ng_reason":"ng_reason",
-           "product_line":"product_line"}
+async def update_one(us_sn: str, body: AssemblyUpdate):
+    col = {"module_a": "mod_a", "module_b": "mod_b",
+           "pcba_au8": "au8", "pcba_am7": "am7",
+           "status": "status", "ng_reason": "ng_reason",
+           "product_line": "product_line"}
     sets, vals = [], []
     impact_pcba = False
     for k, v in body.model_dump(exclude_none=True).items():
         dbcol = col[k]
-        if dbcol in ("mod_a","mod_b","au8","am7"):
+        if dbcol in ("mod_a", "mod_b", "au8", "am7"):
             cv = clean_u(v)  # None will be stored as NULL
         elif dbcol == "product_line":
             cv = infer_product_line(us_sn, v)
         else:
             cv = v.strip() if isinstance(v, str) else v
-        sets.append(f"{dbcol}=?")
+        sets.append(f"{dbcol}=%s")
         vals.append(cv)
-        if dbcol in ("mod_a","mod_b","au8","am7") and cv:
+        if dbcol in ("mod_a", "mod_b", "au8", "am7") and cv:
             RAM_SN.add(cv)
-        if dbcol in ("au8","am7"):
+        if dbcol in ("au8", "am7"):
             impact_pcba = True
     if not sets:
-        return {"status":"error","message":"No field to update"}
+        return {"status": "error", "message": "No field to update"}
     vals.append(us_sn.strip())
     try:
-        cur = DB.execute(f"UPDATE scans SET {', '.join(sets)} WHERE us_sn=?", vals)
-        DB.commit()
-    except sqlite3.IntegrityError as e:
+        with get_conn(SCHEMA) as conn:
+            cur = conn.cursor()
+            cur.execute(f"UPDATE scans SET {', '.join(sets)} WHERE us_sn=%s", vals)
+            rowcount = cur.rowcount
+    except psycopg2.IntegrityError as e:
         err = str(e)
-        if "UNIQUE constraint failed: scans." in err:
-            dup_col = err.split("scans.")[-1]
-            return {"status":"error","message":f"Duplicate value in '{dup_col}'"}
+        if "unique" in err.lower() or "duplicate" in err.lower():
+            dup_col = "unknown"
+            for db_col in ("cn_sn", "us_sn", "mod_a", "mod_b", "au8", "am7"):
+                if db_col in err:
+                    dup_col = db_col
+                    break
+            return {"status": "error", "message": f"Duplicate value in '{dup_col}'"}
         raise
-    if cur.rowcount==0:
-        raise HTTPException(404,f"{us_sn} not found")
+    if rowcount == 0:
+        raise HTTPException(404, f"{us_sn} not found")
     _invalidate_kpi_cache()
 
-    # If fields that affect PCBA availability changed → broadcast statistics
+    # If fields that affect PCBA availability changed -> broadcast statistics
     if impact_pcba:
         await _broadcast_pcba_statistics()
 
-    return {"status":"success","message":"Record updated"}
+    return {"status": "success", "message": "Record updated"}
 
 # ───────────────────────────── ④ Mark / Clear NG ────────────────────
-class MarkBody(BaseModel):  us_sn:str; reason:str
-class ClearBody(BaseModel): us_sn:str
+class MarkBody(BaseModel):  us_sn: str; reason: str
+class ClearBody(BaseModel): us_sn: str
 
 @router.post("/assembly_inventory/mark_ng", dependencies=[Depends(require_roles("admin","operator"))])
-async def mark_ng(body:MarkBody):
+async def mark_ng(body: MarkBody):
     if not body.us_sn or not body.reason:
-        return {"status":"error","message":"us_sn and reason are required"}
-    cur = DB.execute("UPDATE scans SET status='NG',ng_reason=? WHERE us_sn=?",
+        return {"status": "error", "message": "us_sn and reason are required"}
+    with get_conn(SCHEMA) as conn:
+        cur = conn.cursor()
+        cur.execute("UPDATE scans SET status='NG', ng_reason=%s WHERE us_sn=%s",
                      (body.reason.strip(), body.us_sn.strip()))
-    DB.commit()
-    if cur.rowcount==0: return {"status":"error","message":f"{body.us_sn} not found"}
+        rowcount = cur.rowcount
+    if rowcount == 0:
+        return {"status": "error", "message": f"{body.us_sn} not found"}
     _invalidate_kpi_cache()
 
     # Broadcast WebSocket update for NG Dashboard
@@ -641,15 +907,17 @@ async def mark_ng(body:MarkBody):
         "reason": body.reason.strip()
     })
 
-    return {"status":"success","message":f"{body.us_sn} marked NG"}
+    return {"status": "success", "message": f"{body.us_sn} marked NG"}
 
 @router.post("/assembly_inventory/clear_ng", dependencies=[Depends(require_roles("admin","operator"))])
-async def clear_ng(body:ClearBody):
-    # 統一寫 'FIXED'（配合查詢用 UPPER(status)）
-    cur = DB.execute("UPDATE scans SET status='FIXED' WHERE us_sn=? AND UPPER(status)='NG'",
+async def clear_ng(body: ClearBody):
+    with get_conn(SCHEMA) as conn:
+        cur = conn.cursor()
+        cur.execute("UPDATE scans SET status='FIXED' WHERE us_sn=%s AND UPPER(status)='NG'",
                      (body.us_sn.strip(),))
-    DB.commit()
-    if cur.rowcount==0: return {"status":"error","message":f"{body.us_sn} not NG or not found"}
+        rowcount = cur.rowcount
+    if rowcount == 0:
+        return {"status": "error", "message": f"{body.us_sn} not NG or not found"}
     _invalidate_kpi_cache()
 
     # Broadcast WebSocket update for NG Dashboard
@@ -660,7 +928,7 @@ async def clear_ng(body:ClearBody):
         "status": "FIXED"
     })
 
-    return {"status":"success","message":f"{body.us_sn} marked FIXED"}
+    return {"status": "success", "message": f"{body.us_sn} marked FIXED"}
 
 # ───────────────────────────── ⑤ Daily KPI ──────────────────────────
 @router.get("/assembly_inventory_daily_count")
@@ -672,16 +940,18 @@ def today_count(user=Depends(get_current_user)):
     if cached:
         return cached
     start_ts, end_ts = today_range_str()
-    row = DB.execute("""SELECT COUNT(*) AS c,
-        SUM(CASE WHEN UPPER(status)='NG' THEN 1 ELSE 0 END)     AS pure_ng,
-        SUM(CASE WHEN UPPER(status)='FIXED' THEN 1 ELSE 0 END)  AS fixed,
-        SUM(CASE WHEN UPPER(status) IN ('NG','FIXED') THEN 1 ELSE 0 END) AS ng_all,
-        SUM(CASE WHEN product_line='apower' THEN 1 ELSE 0 END) AS apower_cnt,
-        SUM(CASE WHEN product_line='apower2' THEN 1 ELSE 0 END) AS apower2_cnt,
-        SUM(CASE WHEN product_line='apower_s' THEN 1 ELSE 0 END) AS apower_s_cnt
-        FROM scans WHERE ts >= ? AND ts < ?""", (start_ts, end_ts)).fetchone()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("""SELECT COUNT(*) AS c,
+            SUM(CASE WHEN UPPER(status)='NG' THEN 1 ELSE 0 END)     AS pure_ng,
+            SUM(CASE WHEN UPPER(status)='FIXED' THEN 1 ELSE 0 END)  AS fixed,
+            SUM(CASE WHEN UPPER(status) IN ('NG','FIXED') THEN 1 ELSE 0 END) AS ng_all,
+            SUM(CASE WHEN product_line='apower' THEN 1 ELSE 0 END) AS apower_cnt,
+            SUM(CASE WHEN product_line='apower2' THEN 1 ELSE 0 END) AS apower2_cnt,
+            SUM(CASE WHEN product_line='apower_s' THEN 1 ELSE 0 END) AS apower_s_cnt
+            FROM scans WHERE scanned_at >= %s AND scanned_at < %s""", (start_ts, end_ts))
+        row = cur.fetchone()
     result = {
-        "status":"success",
+        "status": "success",
         "count": int(row["c"] or 0),
         "ng":    int(row["ng_all"] or 0),
         "pure_ng": int(row["pure_ng"] or 0),
@@ -699,17 +969,20 @@ def trend(user=Depends(get_current_user)):
     start_ts, end_ts = today_range_str()
 
     # Query hourly data with product line breakdown
-    rows = DB.execute("""
-        SELECT substr(ts, 12, 2) AS hr,
-               SUM(CASE WHEN product_line='apower' THEN 1 ELSE 0 END) AS apower_cnt,
-               SUM(CASE WHEN product_line='apower2' THEN 1 ELSE 0 END) AS apower2_cnt,
-               SUM(CASE WHEN product_line='apower_s' THEN 1 ELSE 0 END) AS apower_s_cnt,
-               COUNT(*) AS total
-        FROM scans
-        WHERE ts >= ? AND ts < ?
-        GROUP BY hr
-        ORDER BY hr
-    """, (start_ts, end_ts)).fetchall()
+    # PG TO_CHAR for TIMESTAMPTZ: TO_CHAR(scanned_at, 'HH24') extracts hour
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("""
+            SELECT TO_CHAR(scanned_at, 'HH24') AS hr,
+                   SUM(CASE WHEN product_line='apower' THEN 1 ELSE 0 END) AS apower_cnt,
+                   SUM(CASE WHEN product_line='apower2' THEN 1 ELSE 0 END) AS apower2_cnt,
+                   SUM(CASE WHEN product_line='apower_s' THEN 1 ELSE 0 END) AS apower_s_cnt,
+                   COUNT(*) AS total
+            FROM scans
+            WHERE scanned_at >= %s AND scanned_at < %s
+            GROUP BY hr
+            ORDER BY hr
+        """, (start_ts, end_ts))
+        rows = cur.fetchall()
 
     # Build hour-indexed dictionaries
     apower_data = {}
@@ -727,18 +1000,17 @@ def trend(user=Depends(get_current_user)):
     hrs = sorted(set(list(apower_data.keys()) + list(apower2_data.keys()) + list(apower_s_data.keys()) + list(total_data.keys())))
 
     return {
-        "status":"success",
-        "labels":[f"{h}:00" for h in hrs],
-        "trend":[total_data.get(h, 0) for h in hrs],
-        "apower":[apower_data.get(h, 0) for h in hrs],
-        "apower2":[apower2_data.get(h, 0) for h in hrs],
-        "apower_s":[apower_s_data.get(h, 0) for h in hrs]
+        "status": "success",
+        "labels": [f"{h}:00" for h in hrs],
+        "trend": [total_data.get(h, 0) for h in hrs],
+        "apower": [apower_data.get(h, 0) for h in hrs],
+        "apower2": [apower2_data.get(h, 0) for h in hrs],
+        "apower_s": [apower_s_data.get(h, 0) for h in hrs]
     }
 
 # ───────────────────────────── ⑦ Weekly KPI ─────────────────────────
 @router.get("/assembly_weekly_kpi")
 def weekly_kpi(user=Depends(get_current_user)):
-    # Use real "now" to avoid being affected by rebuild_cache
     t = today()
     monday = t - timedelta(days=t.weekday())
     cache_key = f"weekly:{monday.strftime('%Y-%m-%d')}"
@@ -754,17 +1026,20 @@ def weekly_kpi(user=Depends(get_current_user)):
 
     start_ts = monday.strftime("%Y-%m-%d 00:00:00")
     end_ts = (monday + timedelta(days=6)).strftime("%Y-%m-%d 00:00:00")
-    cur = DB.execute("""
-        SELECT substr(ts,6,5) AS mmdd,
-               COUNT(*) AS cnt,
-               SUM(CASE WHEN product_line='apower' THEN 1 ELSE 0 END) AS apower_cnt,
-               SUM(CASE WHEN product_line='apower2' THEN 1 ELSE 0 END) AS apower2_cnt,
-               SUM(CASE WHEN product_line='apower_s' THEN 1 ELSE 0 END) AS apower_s_cnt
-        FROM scans
-        WHERE ts >= ? AND ts < ?
-        GROUP BY mmdd
-    """, (start_ts, end_ts))
-    for r in cur.fetchall():
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("""
+            SELECT TO_CHAR(scanned_at, 'MM-DD') AS mmdd,
+                   COUNT(*) AS cnt,
+                   SUM(CASE WHEN product_line='apower' THEN 1 ELSE 0 END) AS apower_cnt,
+                   SUM(CASE WHEN product_line='apower2' THEN 1 ELSE 0 END) AS apower2_cnt,
+                   SUM(CASE WHEN product_line='apower_s' THEN 1 ELSE 0 END) AS apower_s_cnt
+            FROM scans
+            WHERE scanned_at >= %s AND scanned_at < %s
+            GROUP BY mmdd
+        """, (start_ts, end_ts))
+        rows = cur.fetchall()
+
+    for r in rows:
         if r["mmdd"] in labels:
             idx = labels.index(r["mmdd"])
             totals[idx] = r["cnt"]
@@ -782,19 +1057,23 @@ def weekly_kpi(user=Depends(get_current_user)):
         apower_s_counts = apower_s_counts[:5]
 
     # Planned values: array or dict(A/B or total), pad to match length
-    plan_row = DB.execute(
-        "SELECT plan_json FROM assembly_weekly_plan WHERE week_start=?",
-        (monday.strftime("%Y-%m-%d"),)
-    ).fetchone()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute(
+            "SELECT plan_json FROM assembly_weekly_plan WHERE week_start=%s",
+            (monday.strftime("%Y-%m-%d"),)
+        )
+        plan_row = cur.fetchone()
 
     def _sum_ab(v):
         if isinstance(v, dict):
-            return int(v.get("A",0)) + int(v.get("B",0))
+            return int(v.get("A", 0)) + int(v.get("B", 0))
         return int(v or 0)
 
     if plan_row and plan_row["plan_json"]:
         try:
-            pj = json.loads(plan_row["plan_json"])
+            pj = plan_row["plan_json"]
+            if isinstance(pj, str):
+                pj = json.loads(pj)
             if isinstance(pj, list):
                 def to_int_or_default(v, default=95):
                     if v is None:
@@ -802,7 +1081,7 @@ def weekly_kpi(user=Depends(get_current_user)):
                     if isinstance(v, str) and v.strip() == "":
                         return default
                     try:
-                        return int(v)   # 允許 0
+                        return int(v)
                     except Exception:
                         return default
                 plan = [to_int_or_default(x) for x in pj]
@@ -822,13 +1101,13 @@ def weekly_kpi(user=Depends(get_current_user)):
         plan.extend([95] * (len(labels) - len(plan)))
 
     result = {
-        "status":"success",
-        "labels":labels,
-        "total":totals,
-        "apower":apower_counts,
-        "apower2":apower2_counts,
-        "apower_s":apower_s_counts,
-        "plan":plan[:len(labels)]
+        "status": "success",
+        "labels": labels,
+        "total": totals,
+        "apower": apower_counts,
+        "apower2": apower2_counts,
+        "apower_s": apower_s_counts,
+        "plan": plan[:len(labels)]
     }
     _WEEKLY_KPI_CACHE.set(cache_key, result)
     return result
@@ -852,9 +1131,18 @@ def _week_start_str(s: Optional[str]) -> str:
 @router.get("/assembly_weekly_plan", summary="Get plan for current (or specified) week")
 def get_assy_plan(week_start: Optional[str] = Query(None, description="YYYY-MM-DD (Monday)")):
     ws = _week_start_str(week_start)
-    row = DB.execute("SELECT plan_json FROM assembly_weekly_plan WHERE week_start=?", (ws,)).fetchone()
-    plan = json.loads(row["plan_json"]) if row else [95,95,95,95,95]
-    return {"status":"success","week_start":ws,"plan":plan}
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("SELECT plan_json FROM assembly_weekly_plan WHERE week_start=%s", (ws,))
+        row = cur.fetchone()
+    if row:
+        try:
+            pj = row["plan_json"]
+            plan = pj if isinstance(pj, (list, dict)) else json.loads(pj)
+        except Exception:
+            plan = [95, 95, 95, 95, 95]
+    else:
+        plan = [95, 95, 95, 95, 95]
+    return {"status": "success", "week_start": ws, "plan": plan}
 
 @router.post("/assembly_weekly_plan", summary="Set plan for current week (array)",
              dependencies=[Depends(require_roles("admin","operator"))])
@@ -863,34 +1151,39 @@ async def set_assy_plan(plan: List[int] = Body(..., embed=False)):
     Frontend posts a raw array: e.g. [60,60,60,60,60] or [60,60,60,60,60,40]
     Length must be 5 or 6.
     """
-    if len(plan) not in (5,6):
-        return {"status":"error","message":"need 5 or 6 numbers"}
+    if len(plan) not in (5, 6):
+        return {"status": "error", "message": "need 5 or 6 numbers"}
     ws = this_monday().strftime("%Y-%m-%d")
-    DB.execute("""
-        INSERT INTO assembly_weekly_plan (week_start, plan_json)
-        VALUES (?, ?)
-        ON CONFLICT(week_start) DO UPDATE SET plan_json=excluded.plan_json
-    """, (ws, json.dumps([int(x) for x in plan])))
-    DB.commit()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("""
+            INSERT INTO assembly_weekly_plan (week_start, plan_json)
+            VALUES (%s, %s)
+            ON CONFLICT(week_start) DO UPDATE SET plan_json=EXCLUDED.plan_json
+        """, (ws, json.dumps([int(x) for x in plan])))
     _invalidate_kpi_cache()
 
     # Broadcast (reuse existing frontend events so no UI change is required)
-    await ws_manager.broadcast({"event":"weekly_plan_updated"})
-    await ws_manager.broadcast({"event":"assembly_updated","timestamp":now_str()})
-    # PCBA statistics are not affected by plan changes
+    await ws_manager.broadcast({"event": "weekly_plan_updated"})
+    await ws_manager.broadcast({"event": "assembly_updated", "timestamp": now_str()})
 
-    return {"status":"success","week_start":ws,"plan":plan}
+    return {"status": "success", "week_start": ws, "plan": plan}
 
 @router.patch("/assembly_weekly_plan", summary="Patch a single day for current (or specified) week",
               dependencies=[Depends(require_roles("admin","operator"))])
 async def patch_assy_plan(body: AssyPlanPatch):
     ws = _week_start_str(body.week_start)
-    row = DB.execute("SELECT plan_json FROM assembly_weekly_plan WHERE week_start=?", (ws,)).fetchone()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("SELECT plan_json FROM assembly_weekly_plan WHERE week_start=%s", (ws,))
+        row = cur.fetchone()
 
     if row:
-        plan = json.loads(row["plan_json"])
+        try:
+            pj = row["plan_json"]
+            plan = pj if isinstance(pj, (list, dict)) else json.loads(pj)
+        except Exception:
+            plan = [95, 95, 95, 95, 95]
     else:
-        plan = [95,95,95,95,95]
+        plan = [95, 95, 95, 95, 95]
 
     if body.day < 0 or body.day >= max(6, len(plan)):
         raise HTTPException(400, "day must be in 0..5 (Mon..Sat)")
@@ -901,18 +1194,18 @@ async def patch_assy_plan(body: AssyPlanPatch):
 
     plan[body.day] = int(body.value)
 
-    DB.execute("""
-        INSERT INTO assembly_weekly_plan (week_start, plan_json)
-        VALUES (?, ?)
-        ON CONFLICT(week_start) DO UPDATE SET plan_json=excluded.plan_json
-    """, (ws, json.dumps(plan)))
-    DB.commit()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("""
+            INSERT INTO assembly_weekly_plan (week_start, plan_json)
+            VALUES (%s, %s)
+            ON CONFLICT(week_start) DO UPDATE SET plan_json=EXCLUDED.plan_json
+        """, (ws, json.dumps(plan)))
     _invalidate_kpi_cache()
 
-    await ws_manager.broadcast({"event":"weekly_plan_updated"})
-    await ws_manager.broadcast({"event":"assembly_updated","timestamp":now_str()})
+    await ws_manager.broadcast({"event": "weekly_plan_updated"})
+    await ws_manager.broadcast({"event": "assembly_updated", "timestamp": now_str()})
 
-    return {"status":"success","week_start":ws,"plan":plan}
+    return {"status": "success", "week_start": ws, "plan": plan}
 
 # ───────────────────────────── NEW: Plan for arbitrary range ─────────────────────────────
 @router.get("/assembly/plan/range", summary="Expand weekly plans into per-day plans for the given range")
@@ -927,7 +1220,7 @@ def get_plan_range(start_date: str = Query(..., description="YYYY-MM-DD"),
     if e < s:
         raise HTTPException(400, "end_date must be >= start_date")
     plan_data = _expand_plan_range(s, e)
-    return {"status":"success","plan_data":plan_data}
+    return {"status": "success", "plan_data": plan_data}
 
 # ──────────────── NEW: Production (Actual + Plan) for charts: daily/weekly/monthly ────────────────
 @router.get("/production-charts/assembly/production",
@@ -941,7 +1234,7 @@ def production_charts_assembly_production(
     Response shape:
     {
       "summary": { total, ok_count, ng_count, fixed_count, yield_rate, trend?, yield_trend? },
-      "production_data": [  # daily => hourly rows; weekly/monthly => daily rows (完整補齊)
+      "production_data": [  # daily => hourly rows; weekly/monthly => daily rows
         // daily
         {"hour":"00","total":N,"ok_count":X,"ng_count":Y,"fixed_count":Z},
         // weekly/monthly
@@ -974,98 +1267,98 @@ def production_charts_assembly_production(
     _, range_end = day_range_str(end_d)
 
     # Fetch production_data
-    cur = DB.cursor()
     production_data: List[Dict[str, Any]] = []
 
-    if period == "daily":
-        cur.execute("""
-          SELECT substr(ts,12,2) AS hh,
-                 COUNT(*) AS total,
-                 SUM(CASE WHEN UPPER(status) IN ('NG','FIXED') THEN 1 ELSE 0 END) AS ng_all,
-                 SUM(CASE WHEN UPPER(status)='FIXED' THEN 1 ELSE 0 END) AS fixed
-          FROM scans
-          WHERE ts >= ? AND ts < ?
-          GROUP BY hh
-          ORDER BY hh
-        """, (range_start, range_end))
-        for r in cur.fetchall():
-            total = int(r["total"] or 0)
-            ng_all = int(r["ng_all"] or 0)
-            fixed  = int(r["fixed"] or 0)
-            production_data.append({
-                "hour": r["hh"],
-                "total": total,
-                "ok_count": total - ng_all,
-                "ng_count": ng_all,
-                "fixed_count": fixed
-            })
-    else:
-        # 先彙總有資料的天
-        cur.execute("""
-          SELECT date(ts) AS d,
-                 COUNT(*) AS total,
-                 SUM(CASE WHEN UPPER(status) IN ('NG','FIXED') THEN 1 ELSE 0 END) AS ng_all,
-                 SUM(CASE WHEN UPPER(status)='FIXED' THEN 1 ELSE 0 END) AS fixed
-          FROM scans
-          WHERE ts >= ? AND ts < ?
-          GROUP BY d
-          ORDER BY d
-        """, (range_start, range_end))
-        by_day = {r["d"]: r for r in cur.fetchall()}
-
-        # 逐日補齊（沒有掃碼就回 0），前端 weekly/monthly 才能穩定繪圖
-        d = start_d
-        while d <= end_d:
-            key = d.strftime("%Y-%m-%d")
-            r = by_day.get(key)
-            if r:
+    with get_cursor(SCHEMA) as cur:
+        if period == "daily":
+            cur.execute("""
+              SELECT TO_CHAR(scanned_at, 'HH24') AS hh,
+                     COUNT(*) AS total,
+                     SUM(CASE WHEN UPPER(status) IN ('NG','FIXED') THEN 1 ELSE 0 END) AS ng_all,
+                     SUM(CASE WHEN UPPER(status)='FIXED' THEN 1 ELSE 0 END) AS fixed
+              FROM scans
+              WHERE scanned_at >= %s AND scanned_at < %s
+              GROUP BY hh
+              ORDER BY hh
+            """, (range_start, range_end))
+            for r in cur.fetchall():
                 total = int(r["total"] or 0)
                 ng_all = int(r["ng_all"] or 0)
                 fixed  = int(r["fixed"] or 0)
-            else:
-                total = ng_all = fixed = 0
-            production_data.append({
-                "production_date": key,
-                "total": total,
-                "ok_count": total - ng_all,
-                "ng_count": ng_all,
-                "fixed_count": fixed
-            })
-            d += timedelta(days=1)
+                production_data.append({
+                    "hour": r["hh"],
+                    "total": total,
+                    "ok_count": total - ng_all,
+                    "ng_count": ng_all,
+                    "fixed_count": fixed
+                })
+        else:
+            # Aggregate by day; scanned_at is TIMESTAMPTZ so use TO_CHAR to extract date part
+            cur.execute("""
+              SELECT TO_CHAR(scanned_at, 'YYYY-MM-DD') AS d,
+                     COUNT(*) AS total,
+                     SUM(CASE WHEN UPPER(status) IN ('NG','FIXED') THEN 1 ELSE 0 END) AS ng_all,
+                     SUM(CASE WHEN UPPER(status)='FIXED' THEN 1 ELSE 0 END) AS fixed
+              FROM scans
+              WHERE scanned_at >= %s AND scanned_at < %s
+              GROUP BY d
+              ORDER BY d
+            """, (range_start, range_end))
+            by_day = {r["d"]: r for r in cur.fetchall()}
 
-    # Summary（聚合整段）
-    row = DB.execute("""
-      SELECT COUNT(*) AS total,
-             SUM(CASE WHEN UPPER(status) IN ('NG','FIXED') THEN 1 ELSE 0 END) AS ng_all,
-             SUM(CASE WHEN UPPER(status)='FIXED' THEN 1 ELSE 0 END) AS fixed
-      FROM scans WHERE ts >= ? AND ts < ?
-    """, (range_start, range_end)).fetchone()
-    ttot = int(row["total"] or 0)
-    ng_all = int(row["ng_all"] or 0)
-    fixed = int(row["fixed"] or 0)
-    ok = ttot - ng_all
-    summary = {
-        "total": ttot,
-        "ok_count": ok,
-        "ng_count": ng_all,
-        "fixed_count": fixed,
-        "yield_rate": round(ok / ttot * 100) if ttot else 100
-        # "trend" / "yield_trend" 可視需要再加（前端會判斷 null 不顯示箭頭）
-    }
+            # Fill in all days in range (even those with 0 scans)
+            d = start_d
+            while d <= end_d:
+                key = d.strftime("%Y-%m-%d")
+                r = by_day.get(key)
+                if r:
+                    total = int(r["total"] or 0)
+                    ng_all = int(r["ng_all"] or 0)
+                    fixed  = int(r["fixed"] or 0)
+                else:
+                    total = ng_all = fixed = 0
+                production_data.append({
+                    "production_date": key,
+                    "total": total,
+                    "ok_count": total - ng_all,
+                    "ng_count": ng_all,
+                    "fixed_count": fixed
+                })
+                d += timedelta(days=1)
 
-    # NG reasons (for the same range)
-    ng_reasons_rows = DB.execute("""
-      SELECT ng_reason AS reason, COUNT(*) AS cnt
-      FROM scans
-      WHERE ts >= ? AND ts < ? AND UPPER(status)='NG' AND ng_reason IS NOT NULL AND TRIM(ng_reason) <> ''
-      GROUP BY ng_reason
-      ORDER BY cnt DESC
-    """, (range_start, range_end)).fetchall()
-    ng_reasons = [{"reason": r["reason"], "count": int(r["cnt"] or 0)} for r in ng_reasons_rows]
+        # Summary (aggregate entire range)
+        cur.execute("""
+          SELECT COUNT(*) AS total,
+                 SUM(CASE WHEN UPPER(status) IN ('NG','FIXED') THEN 1 ELSE 0 END) AS ng_all,
+                 SUM(CASE WHEN UPPER(status)='FIXED' THEN 1 ELSE 0 END) AS fixed
+          FROM scans WHERE scanned_at >= %s AND scanned_at < %s
+        """, (range_start, range_end))
+        row = cur.fetchone()
+        ttot = int(row["total"] or 0)
+        ng_all = int(row["ng_all"] or 0)
+        fixed = int(row["fixed"] or 0)
+        ok = ttot - ng_all
+        summary = {
+            "total": ttot,
+            "ok_count": ok,
+            "ng_count": ng_all,
+            "fixed_count": fixed,
+            "yield_rate": round(ok / ttot * 100) if ttot else 100
+        }
 
-    # Plan data（weekly/monthly 展開；未設定用預設 Mon–Fri=90, Sat/Sun=0）
+        # NG reasons (for the same range)
+        cur.execute("""
+          SELECT ng_reason AS reason, COUNT(*) AS cnt
+          FROM scans
+          WHERE scanned_at >= %s AND scanned_at < %s AND UPPER(status)='NG' AND ng_reason IS NOT NULL AND TRIM(ng_reason) <> ''
+          GROUP BY ng_reason
+          ORDER BY cnt DESC
+        """, (range_start, range_end))
+        ng_reasons = [{"reason": r["reason"], "count": int(r["cnt"] or 0)} for r in cur.fetchall()]
+
+    # Plan data (weekly/monthly expand; default Mon-Fri=90, Sat/Sun=0)
     plan_data: List[Dict[str, Any]] = []
-    if period in ("weekly","monthly"):
+    if period in ("weekly", "monthly"):
         plan_data = _expand_plan_range(start_d, end_d)
 
     return {
@@ -1078,55 +1371,61 @@ def production_charts_assembly_production(
 # ───────────────────────────── ⑨ NG list / ⑩ List all ──────────────
 @router.get("/assembly_inventory/list/ng",
             dependencies=[Depends(require_roles("admin","operator","dashboard","viewer"))])
-def list_ng(limit:int=500, include_fixed:bool=True,
-            from_date:Optional[str]=None, to_date:Optional[str]=None):
+def list_ng(limit: int = 500, include_fixed: bool = True,
+            from_date: Optional[str] = None, to_date: Optional[str] = None):
     status_cond = "UPPER(status) IN ('NG','FIXED')" if include_fixed else "UPPER(status)='NG'"
-    conds,params=[status_cond],[]
+    conds, params = [status_cond], []
     _append_date_range(conds, params, from_date, to_date)
     params.append(limit)
-    rows = DB.execute(f"""
-        SELECT id,ts AS timestamp,us_sn,cn_sn,status,ng_reason
-        FROM scans WHERE {' AND '.join(conds)} ORDER BY ts DESC LIMIT ?""", params)
-    return [dict(r) for r in rows]
+    with get_cursor(SCHEMA) as cur:
+        cur.execute(f"""
+            SELECT id, scanned_at AS timestamp, us_sn, cn_sn, status, ng_reason
+            FROM scans WHERE {' AND '.join(conds)} ORDER BY scanned_at DESC LIMIT %s""", params)
+        return [dict(r) for r in cur.fetchall()]
 
 @router.get("/assembly_inventory/list/all",
             dependencies=[Depends(require_roles("admin","operator"))])
-def list_all(limit:int=1000, status_filter:Optional[str]=None,
-             from_date:Optional[str]=None, to_date:Optional[str]=None):
-    conds,params=[],[]
-    if status_filter and status_filter!="all":
-        if status_filter.lower()=="ok":
+def list_all(limit: int = 1000, status_filter: Optional[str] = None,
+             from_date: Optional[str] = None, to_date: Optional[str] = None):
+    conds, params = [], []
+    if status_filter and status_filter != "all":
+        if status_filter.lower() == "ok":
             conds.append("(status='' OR status IS NULL)")
-        elif status_filter.lower()=="ng":
+        elif status_filter.lower() == "ng":
             conds.append("UPPER(status)='NG'")
-        elif status_filter.lower()=="fixed":
+        elif status_filter.lower() == "fixed":
             conds.append("UPPER(status)='FIXED'")
         else:
-            conds.append("status=?"); params.append(status_filter)
+            conds.append("status=%s"); params.append(status_filter)
     _append_date_range(conds, params, from_date, to_date)
     params.append(limit)
     where = " AND ".join(conds) if conds else "1=1"
-    rows = DB.execute(f"""
-        SELECT id,ts AS timestamp,cn_sn AS china_sn,us_sn,mod_a AS module_a,
-               mod_b AS module_b,au8 AS pcba_au8,am7 AS pcba_am7,
-               status,ng_reason
-        FROM scans WHERE {where} ORDER BY ts DESC LIMIT ?""", params)
-    return [dict(r) for r in rows]
+    with get_cursor(SCHEMA) as cur:
+        cur.execute(f"""
+            SELECT id, scanned_at AS timestamp, cn_sn AS china_sn, us_sn, mod_a AS module_a,
+                   mod_b AS module_b, au8 AS pcba_au8, am7 AS pcba_am7,
+                   status, ng_reason
+            FROM scans WHERE {where} ORDER BY scanned_at DESC LIMIT %s""", params)
+        return [dict(r) for r in cur.fetchall()]
 
 # ───────────────────────────── ⑪ Delete ────────────────────────────
 @router.delete("/assembly_inventory/delete/{scan_id}", dependencies=[Depends(require_roles("admin"))])
-async def delete_scan(scan_id:int):
-    row = DB.execute("SELECT ts,cn_sn,us_sn,mod_a,mod_b,au8,am7 FROM scans WHERE id=?", (scan_id,)).fetchone()
-    if not row: raise HTTPException(404,f"id={scan_id} not found")
-    DB.execute("DELETE FROM scans WHERE id=?", (scan_id,)); DB.commit()
+async def delete_scan(scan_id: int):
+    with get_conn(SCHEMA) as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT scanned_at, cn_sn, us_sn, mod_a, mod_b, au8, am7 FROM scans WHERE id=%s", (scan_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(404, f"id={scan_id} not found")
+        cur.execute("DELETE FROM scans WHERE id=%s", (scan_id,))
 
-    if row["ts"].startswith(TODAY.strftime("%Y-%m-%d")):
-        hr = row["ts"][11:13]
+    if row["scanned_at"] and row["scanned_at"].date() == TODAY:
+        hr = row["scanned_at"].strftime("%H")
         hourly[hr] -= 1
         if hourly[hr] <= 0:
             hourly.pop(hr, None)
 
-    for f in ("cn_sn","us_sn","mod_a","mod_b","au8","am7"):
+    for f in ("cn_sn", "us_sn", "mod_a", "mod_b", "au8", "am7"):
         v = row[f]
         if v:
             RAM_SN.discard(v)
@@ -1135,122 +1434,225 @@ async def delete_scan(scan_id:int):
 
     hrs = sorted(hourly.keys())
     await ws_manager.broadcast({
-        "event":"assembly_updated","timestamp":now_str(),
-        "count":sum(hourly.values()),
-        "labels":[f"{h}:00" for h in hrs],
-        "trend":[hourly[h] for h in hrs]
+        "event": "assembly_updated", "timestamp": now_str(),
+        "count": sum(hourly.values()),
+        "labels": [f"{h}:00" for h in hrs],
+        "trend": [hourly[h] for h in hrs]
     })
 
-    # If AM7/AU8 were present, PCBA availability is affected → broadcast statistics
+    # If AM7/AU8 were present, PCBA availability is affected -> broadcast statistics
     if (row["am7"] and row["am7"].strip().upper() != "N/A") or (row["au8"] and row["au8"].strip().upper() != "N/A"):
         await _broadcast_pcba_statistics()
 
-    return {"status":"success","message":f"Deleted id={scan_id}"}
+    return {"status": "success", "message": f"Deleted id={scan_id}"}
 
-# ───────────────────────────── ⑬ Admin – edit timestamp ─────────────
-class AdminPatch(BaseModel): timestamp:str  # YYYY-MM-DD HH:MM:SS
+# ───────────────────────────── ⑬ Admin - edit timestamp ─────────────
+class AdminPatch(BaseModel): timestamp: str  # YYYY-MM-DD HH:MM:SS
 
 @router.patch("/assembly_inventory/admin_edit/{us_sn}", dependencies=[Depends(require_roles("admin"))])
-async def admin_edit(us_sn:str, body:AdminPatch):
-    row=DB.execute("SELECT ts FROM scans WHERE us_sn=?",(us_sn.strip(),)).fetchone()
-    if not row: raise HTTPException(404,f"{us_sn} not found")
-    old_ts=row["ts"]; new_ts=body.timestamp.strip()
-    try: datetime.strptime(new_ts,"%Y-%m-%d %H:%M:%S")
-    except ValueError: raise HTTPException(400,"timestamp must be YYYY-MM-DD HH:MM:SS")
-    if new_ts==old_ts: return {"status":"success","message":"Unchanged"}
-    DB.execute("UPDATE scans SET ts=? WHERE us_sn=?",(new_ts,us_sn.strip())); DB.commit()
+async def admin_edit(us_sn: str, body: AdminPatch):
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("SELECT scanned_at FROM scans WHERE us_sn=%s", (us_sn.strip(),))
+        row = cur.fetchone()
+    if not row:
+        raise HTTPException(404, f"{us_sn} not found")
+    old_ts = row["scanned_at"]; new_ts = body.timestamp.strip()
+    try:
+        datetime.strptime(new_ts, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        raise HTTPException(400, "timestamp must be YYYY-MM-DD HH:MM:SS")
+    if old_ts and new_ts == old_ts.strftime("%Y-%m-%d %H:%M:%S"):
+        return {"status": "success", "message": "Unchanged"}
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("UPDATE scans SET scanned_at=%s WHERE us_sn=%s", (new_ts, us_sn.strip()))
 
     # Repair in-memory only for today
-    today_str = TODAY.strftime("%Y-%m-%d")
-    old_day,new_day=old_ts[:10],new_ts[:10]
-    old_hr,new_hr  =old_ts[11:13],new_ts[11:13]
-    if old_day==today_str and old_hr in hourly:
-        hourly[old_hr]-=1
-        if hourly[old_hr]<=0: hourly.pop(old_hr,None)
-    if new_day==today_str: hourly[new_hr]+=1
-    def bump(day,delta):
-        if day>today_str: return
-        tot, ng_all, fixed = _counts_for_day(day)  # compute from DB
-        DB.execute("""
-          INSERT INTO daily_summary(day,total,ng,fixed)
-          VALUES(?,?,?,?)
-          ON CONFLICT(day) DO UPDATE SET total=?, ng=?, fixed=?""",
-          (day, tot, ng_all, fixed, tot, ng_all, fixed))
-    bump(old_day,0); bump(new_day,0); DB.commit()
+    today_str_val = TODAY.strftime("%Y-%m-%d")
+    old_day = old_ts.strftime("%Y-%m-%d") if old_ts else ""
+    new_day = new_ts[:10]
+    old_hr = old_ts.strftime("%H") if old_ts else ""
+    new_hr = new_ts[11:13]
+    if old_day == today_str_val and old_hr in hourly:
+        hourly[old_hr] -= 1
+        if hourly[old_hr] <= 0:
+            hourly.pop(old_hr, None)
+    if new_day == today_str_val:
+        hourly[new_hr] += 1
+
+    def bump(day_val):
+        if day_val > today_str_val:
+            return
+        tot, ng_all, fixed = _counts_for_day(day_val)
+        with get_cursor(SCHEMA) as cur:
+            cur.execute("""
+              INSERT INTO daily_summary(day, total, ng, fixed)
+              VALUES(%s, %s, %s, %s)
+              ON CONFLICT(day) DO UPDATE SET total=%s, ng=%s, fixed=%s""",
+              (day_val, tot, ng_all, fixed, tot, ng_all, fixed))
+
+    bump(old_day)
+    bump(new_day)
     _invalidate_kpi_cache()
 
-    hrs=sorted(hourly.keys())
+    hrs = sorted(hourly.keys())
     await ws_manager.broadcast({
-        "event":"assembly_updated","timestamp":new_ts,
-        "count":sum(hourly.values()),
-        "labels":[f"{h}:00" for h in hrs],
-        "trend":[hourly[h] for h in hrs]
+        "event": "assembly_updated", "timestamp": new_ts,
+        "count": sum(hourly.values()),
+        "labels": [f"{h}:00" for h in hrs],
+        "trend": [hourly[h] for h in hrs]
     })
-    # Timestamp only → no impact on PCBA availability
-    return {"status":"success","message":"Timestamp updated"}
+    return {"status": "success", "message": "Timestamp updated"}
 
-# ───────────────────────────── ⑭ Admin – rebuild_cache ─────────────
+# ───────────────────────────── ⑬b Admin - full edit ─────────────────
+class AdminFullEdit(BaseModel):
+    timestamp: Optional[str] = None
+    china_sn:  Optional[str] = None
+    us_sn:     Optional[str] = None
+    module_a:  Optional[str] = None
+    module_b:  Optional[str] = None
+    pcba_au8:  Optional[str] = None
+    pcba_am7:  Optional[str] = None
+    status:    Optional[str] = None
+    ng_reason: Optional[str] = None
+
+@router.put("/assembly_inventory/admin_full_edit/{record_id}", dependencies=[Depends(require_roles("admin"))])
+async def admin_full_edit(record_id: int, body: AdminFullEdit):
+    """Admin-only: update any field of a scan record by ID."""
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("SELECT * FROM scans WHERE id=%s", (record_id,))
+        row = cur.fetchone()
+    if not row:
+        raise HTTPException(404, f"id={record_id} not found")
+
+    sets, vals = [], []
+    col_map = {
+        "timestamp": "scanned_at",
+        "china_sn": "cn_sn",
+        "us_sn": "us_sn",
+        "module_a": "mod_a",
+        "module_b": "mod_b",
+        "pcba_au8": "au8",
+        "pcba_am7": "am7",
+        "status": "status",
+        "ng_reason": "ng_reason",
+    }
+
+    for field, dbcol in col_map.items():
+        val = getattr(body, field, None)
+        if val is None:
+            continue
+        val = val.strip() if isinstance(val, str) else val
+        # Validate timestamp format
+        if field == "timestamp":
+            try:
+                datetime.strptime(val, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                raise HTTPException(400, "timestamp must be YYYY-MM-DD HH:MM:SS")
+        # Clean serial numbers
+        if dbcol in ("mod_a", "mod_b", "au8", "am7", "cn_sn", "us_sn"):
+            val = val.upper().replace("-", "").replace(" ", "") if val else val
+        sets.append(f"{dbcol}=%s")
+        vals.append(val)
+
+    if not sets:
+        return {"status": "error", "message": "No field to update"}
+
+    vals.append(record_id)
+    try:
+        with get_conn(SCHEMA) as conn:
+            cur = conn.cursor()
+            cur.execute(f"UPDATE scans SET {', '.join(sets)} WHERE id=%s", vals)
+    except psycopg2.IntegrityError as e:
+        err = str(e)
+        if "unique" in err.lower() or "duplicate" in err.lower():
+            dup_col = "unknown"
+            for db_col in ("cn_sn", "us_sn", "mod_a", "mod_b", "au8", "am7"):
+                if db_col in err:
+                    dup_col = db_col
+                    break
+            return {"status": "error", "message": f"Duplicate value in '{dup_col}'"}
+        raise
+
+    _invalidate_kpi_cache()
+    # Rebuild RAM_SN for updated serials
+    for field in ("us_sn", "china_sn", "module_a", "module_b", "pcba_au8", "pcba_am7"):
+        v = getattr(body, field, None)
+        if v:
+            RAM_SN.add(v.strip().upper().replace("-", "").replace(" ", ""))
+
+    await ws_manager.broadcast({
+        "event": "assembly_updated", "timestamp": now_str(),
+        "count": sum(hourly.values()),
+    })
+    return {"status": "success", "message": f"Record {record_id} updated"}
+
+# ───────────────────────────── ⑭ Admin - rebuild_cache ─────────────
 @router.post("/assembly_inventory/rebuild_cache",
              dependencies=[Depends(require_roles("admin"))])
-async def rebuild_cache(day:Optional[str]=Query(None,description="YYYY-MM-DD, default=today")):
+async def rebuild_cache(day: Optional[str] = Query(None, description="YYYY-MM-DD, default=today")):
     """
     Rebuild global de-dup cache (RAM_SN), and recompute hourly & daily_summary for the specified day only.
     TODAY is not changed; if the target day is TODAY, in-memory hourly is replaced and a chart update is broadcast.
     """
     # Parse date
     try:
-        target = datetime.strptime(day,"%Y-%m-%d").date() if day else today()
+        target = datetime.strptime(day, "%Y-%m-%d").date() if day else today()
     except ValueError:
-        raise HTTPException(400,"day must be YYYY-MM-DD")
+        raise HTTPException(400, "day must be YYYY-MM-DD")
 
     prefix = target.strftime("%Y-%m-%d")
 
     # 1) Rebuild RAM_SN (all history)
     RAM_SN.clear()
-    for r in DB.execute("SELECT cn_sn,us_sn,mod_a,mod_b,au8,am7 FROM scans"):
-        for f in ("cn_sn","us_sn","mod_a","mod_b","au8","am7"):
-            v = r[f]
-            if v and v.strip().upper() != "N/A":
-                RAM_SN.add(v.strip())
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("SELECT cn_sn, us_sn, mod_a, mod_b, au8, am7 FROM scans")
+        for r in cur.fetchall():
+            for f in ("cn_sn", "us_sn", "mod_a", "mod_b", "au8", "am7"):
+                v = r[f]
+                if v and v.strip().upper() != "N/A":
+                    RAM_SN.add(v.strip())
 
-    # 2) Recompute hourly for target date (buffered; only swap if target==TODAY)
+    # 2) Recompute hourly for target date
     new_hourly = defaultdict(int)
-    for r in DB.execute("SELECT ts FROM scans WHERE ts LIKE ?", (prefix+"%",)):
-        new_hourly[r["ts"][11:13]] += 1
+    start_ts, end_ts = day_range_str(target)
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("SELECT scanned_at FROM scans WHERE scanned_at >= %s AND scanned_at < %s", (start_ts, end_ts))
+        for r in cur.fetchall():
+            new_hourly[r["scanned_at"].strftime("%H")] += 1
 
     # 3) Backfill daily_summary(total/ng/fixed)
     tot, ng_all, fixed = _counts_for_day(prefix)
-    DB.execute("""
-        INSERT INTO daily_summary(day,total,ng,fixed)
-        VALUES(?,?,?,?)
-        ON CONFLICT(day) DO UPDATE SET total=?, ng=?, fixed=?""",
-        (prefix, tot, ng_all, fixed, tot, ng_all, fixed))
-    DB.commit()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("""
+            INSERT INTO daily_summary(day, total, ng, fixed)
+            VALUES(%s, %s, %s, %s)
+            ON CONFLICT(day) DO UPDATE SET total=%s, ng=%s, fixed=%s""",
+            (prefix, tot, ng_all, fixed, tot, ng_all, fixed))
     _invalidate_kpi_cache()
 
-    # 4) If the target is TODAY → swap in-memory and broadcast
+    # 4) If the target is TODAY -> swap in-memory and broadcast
     if target == TODAY:
         hourly.clear()
-        for k,v in new_hourly.items():
-            hourly[k]=v
+        for k, v in new_hourly.items():
+            hourly[k] = v
         hrs = sorted(hourly.keys())
         await ws_manager.broadcast({
-            "event":"assembly_updated","timestamp":now_str(),
-            "count":sum(hourly.values()),
-            "labels":[f"{h}:00" for h in hrs],
-            "trend":[hourly[h] for h in hrs]
+            "event": "assembly_updated", "timestamp": now_str(),
+            "count": sum(hourly.values()),
+            "labels": [f"{h}:00" for h in hrs],
+            "trend": [hourly[h] for h in hrs]
         })
     logger.info("Cache rebuilt for %s (total=%d)", prefix, sum(new_hourly.values()))
-    return {"status":"success","message":f"Cache rebuilt for {prefix}"}
+    return {"status": "success", "message": f"Cache rebuilt for {prefix}"}
 
 # ───────────────────────────── ⑮ Live API: Available for Assembly ──────────────────────────
-@router.get("/assembly/pcba_inventory", summary="Live calc: PCBA Completed(ex NG) − Assembly usage (no DB writes)")
+@router.get("/assembly/pcba_inventory", summary="Live calc: PCBA Completed(ex NG) - Assembly usage (no DB writes)")
 def get_pcba_inventory(user=Depends(get_current_user)):
     """
     Returns AM7/AU8:
       - completed  = PCBA completed and not NG
-      - used       = current assembly usage count (from assembly.db) for serials present in PCBA completed
-      - available  = max(completed−used, 0)
+      - used       = current assembly usage count (from assembly schema) for serials present in PCBA completed
+      - available  = max(completed-used, 0)
       - total fields are AM7+AU8 sums (for UI display only)
     """
     payload = _compute_pcba_statistics_payload()

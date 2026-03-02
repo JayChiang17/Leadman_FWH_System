@@ -30,39 +30,53 @@
 
     <!-- Service Worker Registration -->
     <script>
-      // Register Service Worker with auto-update
-      if ('serviceWorker' in navigator) {
+      // Register Service Worker (僅在生產環境或明確啟用時)
+      // 開發環境可以在 localStorage 設定 'enableSW' = 'true' 來啟用
+      const isDev = window.location.hostname === 'localhost' || window.location.port === '3000';
+      const forceSW = localStorage.getItem('enableSW') === 'true';
+
+      if ('serviceWorker' in navigator && (!isDev || forceSW)) {
         window.addEventListener('load', () => {
           navigator.serviceWorker
             .register('/service-worker.js')
             .then((registration) => {
+              console.log('✅ Service Worker registered');
 
-              // Check for updates every 10 seconds
+              // Check for updates every 5 minutes (not 10 seconds)
               setInterval(() => {
-                registration.update();
-              }, 10000);
+                registration.update().catch(() => {});
+              }, 300000);
 
               // Handle updates
               registration.addEventListener('updatefound', () => {
                 const newWorker = registration.installing;
+                if (!newWorker) return;
 
                 newWorker.addEventListener('statechange', () => {
                   if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    // New Service Worker installed, force refresh
-                    newWorker.postMessage({ type: 'SKIP_WAITING' });
-                    window.location.reload();
+                    // New Service Worker installed, notify user instead of auto-reload
+                    console.log('🔄 New version available, refresh to update');
                   }
                 });
               });
             })
             .catch((error) => {
-              console.warn('⚠️ Service Worker registration failed:', error.message);
+              // Silently fail in development - don't spam console
+              if (!isDev) {
+                console.warn('⚠️ Service Worker registration failed:', error.message);
+              }
             });
 
           // Handle controller change (new SW activated)
           navigator.serviceWorker.addEventListener('controllerchange', () => {
-            window.location.reload();
+            // Don't auto-reload - can cause infinite loops
+            console.log('🔄 Service Worker updated');
           });
+        });
+      } else if (isDev && 'serviceWorker' in navigator) {
+        // 開發模式：註銷現有的 Service Worker
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          registrations.forEach(reg => reg.unregister());
         });
       }
 

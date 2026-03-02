@@ -1,72 +1,29 @@
 """
 core/downtime_db.py
 ──────────────────────────────────────────────
-專門管理 downtime.db 的連線池，重用 core.db.DatabaseManager。
+Downtime DB — now backed by PostgreSQL schema 'downtime'.
+Tables and indexes created by init.sql.
 """
 from typing import Generator
-import sqlite3
-from core.db import DatabaseManager          # 直接複用你已實作好的類別
 
-# ➊ 你的 downtime 專用 DB 路徑
-DOWNTIME_DB_PATH = "downtime.db"
+import psycopg2.extras
+from core.pg import get_conn
 
-# ➋ 建立連線池（含 WAL / retry / check_same_thread=False 等設定）
-downtime_db_manager = DatabaseManager(DOWNTIME_DB_PATH)
+SCHEMA = "downtime"
 
-# ➌ 初始化 downtime_logs 表（若不存在就建立，也可補欄位）
-def _init_downtime_schema() -> None:
-    with downtime_db_manager.get_connection() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS downtime_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                line TEXT NOT NULL,
-                station TEXT NOT NULL,
-                start_local TEXT NOT NULL,
-                end_local   TEXT NOT NULL,
-                duration_min REAL NOT NULL,
-                created_at TEXT NOT NULL,
-                created_by TEXT,
-                modified_by TEXT
-            )
-        """)
-        # 舊專案若少欄位可在此補齊
-        for col in ("created_by", "modified_by"):
-            try:
-                conn.execute(f"ALTER TABLE downtime_logs ADD COLUMN {col} TEXT")
-            except sqlite3.OperationalError:  # 已存在
-                pass
 
-        # Add downtime_type and reason columns for overlay visualization
-        try:
-            conn.execute("ALTER TABLE downtime_logs ADD COLUMN downtime_type TEXT DEFAULT 'Other'")
-        except sqlite3.OperationalError:
-            pass
-        try:
-            conn.execute("ALTER TABLE downtime_logs ADD COLUMN reason TEXT")
-        except sqlite3.OperationalError:
-            pass
-
-        # 性能優化：創建索引
-        # 1. 常用於時間範圍查詢
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_start_local ON downtime_logs(start_local)")
-        # 2. 常用於 line + station 分組查詢
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_line_station ON downtime_logs(line, station)")
-        # 3. 用於按創建時間排序（列表查詢）
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_created_at ON downtime_logs(created_at DESC)")
-        # 4. 複合索引：用於日期範圍內的 line 查詢
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_date_line ON downtime_logs(substr(start_local, 1, 10), line)")
-
-        conn.commit()
-
-# ❹ 匯入時就保證 schema OK
-_init_downtime_schema()
-
-# ❺ FastAPI 依賴注入函式
-def get_downtime_db() -> Generator[sqlite3.Connection, None, None]:
+def get_downtime_db() -> Generator:
     """
-    用法：
-        def some_api(db: sqlite3.Connection = Depends(get_downtime_db)):
+    FastAPI dependency — yields (conn, cursor) for the downtime schema.
+
+    Usage:
+        def some_api(db=Depends(get_downtime_db)):
+            conn, cur = db
             ...
     """
-    with downtime_db_manager.get_connection() as conn:
-        yield conn
+    with get_conn(SCHEMA) as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        try:
+            yield conn, cur
+        finally:
+            cur.close()

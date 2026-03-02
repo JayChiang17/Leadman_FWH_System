@@ -12,7 +12,8 @@ from core.db import (
     get_user_by_username,
 )
 from core.security import hash_password
-from core.deps import require_roles
+from core.deps import require_roles, get_current_user
+from core.monitor_db import log_audit
 
 # ──────────────────────────────────────────────
 # Pydantic Schemas
@@ -67,7 +68,7 @@ def add_user(payload: UserCreate, db = Depends(get_db)):
 
 # ③ 更新使用者（PUT：允許局部更新） --------------------------------
 @router.put("/{uid}", response_model=UserOut, dependencies=[require_admin])
-def edit_user(uid: int, payload: UserUpdate, db = Depends(get_db)):
+def edit_user(uid: int, payload: UserUpdate, db = Depends(get_db), current_user = Depends(get_current_user)):
     fields = {}
 
     # username（若有提供則需檢查是否與他人重複）
@@ -85,16 +86,32 @@ def edit_user(uid: int, payload: UserUpdate, db = Depends(get_db)):
     if payload.role is not None:
         fields["role"] = payload.role
 
-    # is_active（布林 → 0/1）
+    # is_active
     if payload.is_active is not None:
-        fields["is_active"] = int(bool(payload.is_active))
+        fields["is_active"] = payload.is_active
 
     if not fields:
         raise HTTPException(status_code=400, detail="Nothing to update")
 
+    # Capture old role for audit
+    old_row = get_user_by_username(db, payload.username) if payload.username else None
+    from core.db import get_user_by_id
+    old_user = get_user_by_id(db, uid)
+    old_role = dict(old_user)["role"] if old_user else None
+
     row = update_user(db, uid, **fields)
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.role is not None and payload.role != old_role:
+        log_audit(
+            user=getattr(current_user, "username", "admin"),
+            action="user_role_change",
+            target=dict(row)["username"],
+            old_value=old_role,
+            new_value=payload.role,
+        )
+
     return dict(row)
 
 # ③-1 可選：PATCH 與 PUT 一樣行為 -----------------------------------

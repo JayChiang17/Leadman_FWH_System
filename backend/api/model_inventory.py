@@ -4,10 +4,13 @@ from fastapi import APIRouter, Request, Depends, Query
 from fastapi.responses import JSONResponse
 from datetime import datetime, date, timedelta
 from collections import defaultdict, Counter
-import sqlite3, time, json, calendar
+import psycopg2
+import psycopg2.extras
+import time, json, calendar
 from pydantic import BaseModel
 from typing import Optional
 
+from core.pg import get_conn, get_cursor
 from core.ws_manager import ws_manager
 from models.model_inventory_model import InventoryScan
 from core.deps import require_roles, get_current_user
@@ -24,70 +27,31 @@ _WEEKLY_KPI_CACHE = TTLCache(CACHE_TTL_SECONDS)
 
 router = APIRouter(tags=["model"])
 
-# ─────────── SQLite ───────────
-DB = sqlite3.connect("model.db", check_same_thread=False)
-DB.row_factory = sqlite3.Row
-DB.execute("PRAGMA journal_mode=WAL")
-DB.executescript("""
-CREATE TABLE IF NOT EXISTS scans(
-  id INTEGER PRIMARY KEY,
-  sn TEXT UNIQUE,
-  kind TEXT,
-  ts TEXT,
-  status TEXT DEFAULT '',
-  ng_reason TEXT DEFAULT ''          -- ★ 新增欄位（初建就有）
-);
-CREATE TABLE IF NOT EXISTS daily_summary(
-  day TEXT PRIMARY KEY,
-  count_a INTEGER,
-  count_b INTEGER,
-  total   INTEGER
-);
-CREATE TABLE IF NOT EXISTS weekly_plan(
-  week_start TEXT PRIMARY KEY,
-  plan_json  TEXT
-);
-""")
-# 針對既有 DB 的遷移（已存在則忽略錯誤）
-try:
-    DB.execute("ALTER TABLE scans ADD COLUMN status TEXT DEFAULT ''")
-except sqlite3.OperationalError:
-    pass
-try:
-    DB.execute("ALTER TABLE scans ADD COLUMN ng_reason TEXT DEFAULT ''")  # ★ 遷移
-except sqlite3.OperationalError:
-    pass
-
-# —— 索引（加速按時間/型別/狀態查詢）——
-DB.executescript("""
-CREATE INDEX IF NOT EXISTS idx_scans_ts     ON scans(ts);
-CREATE INDEX IF NOT EXISTS idx_scans_kind   ON scans(kind);
-CREATE INDEX IF NOT EXISTS idx_scans_status ON scans(status);
-""")
-DB.commit()
+SCHEMA = "model"
 
 # ─────────── Backfill：啟動時自動回填 daily_summary ───────────
 def backfill_daily_summary(days: int = 60):
     """開機時回填最近 N 天的 daily_summary；可重複執行（UPSERT）"""
     since = (ca_today() - timedelta(days=days)).strftime("%Y-%m-%d")
-    DB.execute("""
-        INSERT INTO daily_summary(day, count_a, count_b, total)
-        SELECT substr(ts,1,10) AS d,
-               SUM(CASE WHEN kind='A' THEN 1 ELSE 0 END),
-               SUM(CASE WHEN kind='B' THEN 1 ELSE 0 END),
-               COUNT(*)
-        FROM scans
-        WHERE ts >= ?
-        GROUP BY d
-        ON CONFLICT(day) DO UPDATE SET
-          count_a=excluded.count_a,
-          count_b=excluded.count_b,
-          total  =excluded.total;
-    """, (since,))
-    DB.commit()
+    with get_conn(SCHEMA) as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            INSERT INTO daily_summary(day, count_a, count_b, total)
+            SELECT TO_CHAR(scanned_at, 'YYYY-MM-DD') AS d,
+                   SUM(CASE WHEN kind='A' THEN 1 ELSE 0 END),
+                   SUM(CASE WHEN kind='B' THEN 1 ELSE 0 END),
+                   COUNT(*)
+            FROM scans
+            WHERE scanned_at >= %s
+            GROUP BY d
+            ON CONFLICT(day) DO UPDATE SET
+              count_a=excluded.count_a,
+              count_b=excluded.count_b,
+              total  =excluded.total;
+        """, (since,))
 
-# 檔案載入時就做一次（多進程安全：UPSERT）
-backfill_daily_summary(60)
+# NOTE: backfill_daily_summary() is called from main.py startup_event()
+# after init_pool() has been called.  Do NOT call it here at import time.
 
 # ─────────── In-memory counters ───────────
 RAM_SN: set[str] = set()
@@ -100,12 +64,17 @@ def _invalidate_kpi_cache() -> None:
     _DAILY_COUNT_CACHE.clear()
     _WEEKLY_KPI_CACHE.clear()
 
-cutoff = (TODAY - timedelta(days=PURGE_DAYS)).strftime("%Y-%m-%d")
-for r in DB.execute("SELECT sn, kind, ts FROM scans WHERE ts>=?", (cutoff,)):
-    RAM_SN.add(r["sn"])
-    if r["ts"].startswith(TODAY.strftime("%Y-%m-%d")):
-        hourly[r["ts"][11:13]][r["kind"]] += 1
-        daily[r["kind"]] += 1
+def _load_ram_counters():
+    """Load recent scans into RAM counters. Called from main.py startup_event()
+    after init_pool() so that the PG pool is ready."""
+    cutoff = (TODAY - timedelta(days=PURGE_DAYS)).strftime("%Y-%m-%d")
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("SELECT sn, kind, scanned_at FROM scans WHERE scanned_at >= %s", (cutoff,))
+        for r in cur.fetchall():
+            RAM_SN.add(r["sn"])
+            if r["scanned_at"].date() == TODAY:
+                hourly[r["scanned_at"].strftime("%H")][r["kind"]] += 1
+                daily[r["kind"]] += 1
 
 # ─────────── Helpers ───────────
 def _rollover():
@@ -113,26 +82,28 @@ def _rollover():
     if ca_today() == TODAY:
         return
     y = TODAY.strftime("%Y-%m-%d")
-    DB.execute(
-        """INSERT INTO daily_summary VALUES(?,?,?,?)
-           ON CONFLICT(day) DO UPDATE SET count_a=?,count_b=?,total=?""",
-        (
-            y,
-            daily["A"], daily["B"], daily["A"] + daily["B"],
-            daily["A"], daily["B"], daily["A"] + daily["B"]
+    with get_conn(SCHEMA) as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            """INSERT INTO daily_summary VALUES(%s,%s,%s,%s)
+               ON CONFLICT(day) DO UPDATE SET count_a=%s,count_b=%s,total=%s""",
+            (
+                y,
+                daily["A"], daily["B"], daily["A"] + daily["B"],
+                daily["A"], daily["B"], daily["A"] + daily["B"]
+            )
         )
-    )
-    DB.commit()
     TODAY = ca_today()
     daily.clear()
     hourly.clear()
 
 def insert_sql(row: tuple) -> bool:
     try:
-        DB.execute("INSERT INTO scans(sn,kind,ts) VALUES(?,?,?)", row)
-        DB.commit()
+        with get_conn(SCHEMA) as conn:
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute("INSERT INTO scans(sn,kind,scanned_at) VALUES(%s,%s,%s)", row)
         return True
-    except sqlite3.IntegrityError:
+    except psycopg2.IntegrityError:
         return False
 
 # ─────────── Weekly-plan helpers for Module (A/B total) ───────────
@@ -141,15 +112,19 @@ def _week_start_str_for(d: date) -> str:
     return mon.strftime("%Y-%m-%d")
 
 def _get_week_plan_json_module(week_start_str: str):
-    row = DB.execute(
-        "SELECT plan_json FROM weekly_plan WHERE week_start=?",
-        (week_start_str,)
-    ).fetchone()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute(
+            "SELECT plan_json FROM weekly_plan WHERE week_start=%s",
+            (week_start_str,)
+        )
+        row = cur.fetchone()
     return row["plan_json"] if row else None
 
 def _parse_plan_json_module(plan_json):
     if not plan_json:
         return None
+    if isinstance(plan_json, (list, dict)):
+        return plan_json
     try:
         return json.loads(plan_json)
     except Exception:
@@ -219,7 +194,9 @@ async def scan(req: Request, data: InventoryScan):
     _rollover()
 
     sn = data.sn.strip()
-    if not ((sn.startswith("10080064") or sn.startswith("10080065")) and len(sn) == 24):
+    _A_PREFIXES = ("10080064", "10080104")
+    _B_PREFIXES = ("10080065", "10080105")
+    if not (sn.startswith(_A_PREFIXES + _B_PREFIXES) and len(sn) == 24):
         return {"status": "error", "message": "bad SN format"}
 
     now = int(time.time() * 1000)
@@ -229,10 +206,12 @@ async def scan(req: Request, data: InventoryScan):
 
     # —— 重複：RAM 內已有（近 30 天內掃過）——
     if sn in RAM_SN:
-        row = DB.execute(
-            "SELECT id, sn, kind, ts, status, ng_reason FROM scans WHERE sn=?",
-            (sn,)
-        ).fetchone()
+        with get_cursor(SCHEMA) as cur:
+            cur.execute(
+                "SELECT id, sn, kind, scanned_at, status, ng_reason FROM scans WHERE sn=%s",
+                (sn,)
+            )
+            row = cur.fetchone()
         payload = {
             "status": "error",
             "message": "duplicate",
@@ -240,17 +219,19 @@ async def scan(req: Request, data: InventoryScan):
         }
         return JSONResponse(payload, status_code=409)
 
-    kind = "A" if sn.startswith("10080064") else "B"
+    kind = "A" if sn.startswith(_A_PREFIXES) else "B"
     ts = ca_now_str()
 
-    # —— 寫入；若 UNIQUE 衝突則回傳既有紀錄 —— 
+    # —— 寫入；若 UNIQUE 衝突則回傳既有紀錄 ——
     if not insert_sql((sn, kind, ts)):
         # 將 SN 加入 RAM，避免同頁面短時間一直重送
         RAM_SN.add(sn)
-        row = DB.execute(
-            "SELECT id, sn, kind, ts, status, ng_reason FROM scans WHERE sn=?",
-            (sn,)
-        ).fetchone()
+        with get_cursor(SCHEMA) as cur:
+            cur.execute(
+                "SELECT id, sn, kind, scanned_at, status, ng_reason FROM scans WHERE sn=%s",
+                (sn,)
+            )
+            row = cur.fetchone()
         payload = {
             "status": "error",
             "message": "duplicate",
@@ -258,7 +239,7 @@ async def scan(req: Request, data: InventoryScan):
         }
         return JSONResponse(payload, status_code=409)
 
-    # —— 成功寫入：更新 RAM 與今日統計、推播 —— 
+    # —— 成功寫入：更新 RAM 與今日統計、推播 ——
     RAM_SN.add(sn)
     hourly[ts[11:13]][kind] += 1
     daily[kind] += 1
@@ -290,25 +271,27 @@ def daily_count(user=Depends(get_current_user)):
     if cached:
         return cached
     start_ts, end_ts = ca_day_bounds(ca_today())
-    row = DB.execute(
-        """
-        SELECT
-          SUM(CASE WHEN kind='A' THEN 1 END) AS count_a,
-          SUM(CASE WHEN kind='B' THEN 1 END) AS count_b,
-          SUM(CASE WHEN kind='A' AND status='NG' THEN 1 END) AS ng_a,
-          SUM(CASE WHEN kind='B' AND status='NG' THEN 1 END) AS ng_b
-        FROM scans
-        WHERE ts >= ? AND ts < ?
-        """,
-        (start_ts, end_ts),
-    ).fetchone() or {}
+    with get_cursor(SCHEMA) as cur:
+        cur.execute(
+            """
+            SELECT
+              SUM(CASE WHEN kind='A' THEN 1 END) AS count_a,
+              SUM(CASE WHEN kind='B' THEN 1 END) AS count_b,
+              SUM(CASE WHEN kind='A' AND status='NG' THEN 1 END) AS ng_a,
+              SUM(CASE WHEN kind='B' AND status='NG' THEN 1 END) AS ng_b
+            FROM scans
+            WHERE scanned_at >= %s AND scanned_at < %s
+            """,
+            (start_ts, end_ts),
+        )
+        row = cur.fetchone() or {}
 
     result = {
         "status":  "success",
-        "count_a": row["count_a"] or 0,
-        "count_b": row["count_b"] or 0,
-        "ng_a":    row["ng_a"]    or 0,
-        "ng_b":    row["ng_b"]    or 0,
+        "count_a": row.get("count_a") or 0,
+        "count_b": row.get("count_b") or 0,
+        "ng_a":    row.get("ng_a")    or 0,
+        "ng_b":    row.get("ng_b")    or 0,
     }
     _DAILY_COUNT_CACHE.set(cache_key, result)
     return result
@@ -344,12 +327,14 @@ async def mark_ng(body: MarkBody):
     if not reason:
         return {"status": "error", "message": "NG reason required"}
 
-    row = DB.execute("SELECT id FROM scans WHERE sn=?", (sn,)).fetchone()
-    if not row:
-        return {"status": "error", "message": f"SN {sn} not found"}
+    with get_conn(SCHEMA) as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id FROM scans WHERE sn=%s", (sn,))
+        row = cur.fetchone()
+        if not row:
+            return {"status": "error", "message": f"SN {sn} not found"}
 
-    DB.execute("UPDATE scans SET status='NG', ng_reason=? WHERE sn=?", (reason, sn))
-    DB.commit()
+        cur.execute("UPDATE scans SET status='NG', ng_reason=%s WHERE sn=%s", (reason, sn))
     _invalidate_kpi_cache()
 
     await ws_manager.broadcast({
@@ -370,12 +355,14 @@ async def clear_ng(body: MarkBody):
     if not sn:
         return {"status": "error", "message": "SN required"}
 
-    row = DB.execute("SELECT id, status FROM scans WHERE sn=?", (sn,)).fetchone()
-    if not row:
-        return {"status": "error", "message": f"SN {sn} not found"}
+    with get_conn(SCHEMA) as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id, status FROM scans WHERE sn=%s", (sn,))
+        row = cur.fetchone()
+        if not row:
+            return {"status": "error", "message": f"SN {sn} not found"}
 
-    DB.execute("UPDATE scans SET status='Fixed', ng_reason='' WHERE sn=?", (sn,))
-    DB.commit()
+        cur.execute("UPDATE scans SET status='Fixed', ng_reason='' WHERE sn=%s", (sn,))
     _invalidate_kpi_cache()
 
     await ws_manager.broadcast({
@@ -403,29 +390,31 @@ def weekly_kpi(user=Depends(get_current_user)):
 
     # 只有週六有資料或今天就是週六才顯示第 6 根
     sat_start, sat_end = ca_day_bounds(saturday)
-    include_sat = today.weekday() == 6 or today.weekday() == 5 or bool(
-        DB.execute("SELECT 1 FROM scans WHERE ts >= ? AND ts < ? LIMIT 1", (sat_start, sat_end)).fetchone()
-    )
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("SELECT 1 FROM scans WHERE scanned_at >= %s AND scanned_at < %s LIMIT 1", (sat_start, sat_end))
+        include_sat = today.weekday() == 6 or today.weekday() == 5 or bool(cur.fetchone())
 
     num_days = 6 if include_sat else 5
     labels   = [(monday + timedelta(days=i)).strftime("%m-%d") for i in range(num_days)]
 
-    # 區間查詢（字串比較）以吃 idx_scans_ts
+    # 區間查詢以吃 idx_scans_scanned_at
     range_start = monday.strftime("%Y-%m-%d 00:00:00")
     range_end   = (monday + timedelta(days=num_days)).strftime("%Y-%m-%d 00:00:00")
 
     a = [0] * num_days
     b = [0] * num_days
 
-    rows = DB.execute("""
-        SELECT substr(ts,1,10) AS d,
-               SUM(CASE WHEN kind='A' THEN 1 ELSE 0 END) AS cnt_a,
-               SUM(CASE WHEN kind='B' THEN 1 ELSE 0 END) AS cnt_b
-        FROM scans
-        WHERE ts >= ? AND ts < ?
-        GROUP BY d
-        ORDER BY d
-    """, (range_start, range_end)).fetchall()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("""
+            SELECT TO_CHAR(scanned_at, 'YYYY-MM-DD') AS d,
+                   SUM(CASE WHEN kind='A' THEN 1 ELSE 0 END) AS cnt_a,
+                   SUM(CASE WHEN kind='B' THEN 1 ELSE 0 END) AS cnt_b
+            FROM scans
+            WHERE scanned_at >= %s AND scanned_at < %s
+            GROUP BY d
+            ORDER BY d
+        """, (range_start, range_end))
+        rows = cur.fetchall()
 
     for r in rows:
         mmdd = r["d"][5:]
@@ -437,11 +426,20 @@ def weekly_kpi(user=Depends(get_current_user)):
     total = [x + y for x, y in zip(a, b)]
 
     # 取出 / 補齊 / 截斷 weekly plan
-    plan_row = DB.execute(
-        "SELECT plan_json FROM weekly_plan WHERE week_start=?",
-        (monday.strftime("%Y-%m-%d"),),
-    ).fetchone()
-    plan = json.loads(plan_row["plan_json"]) if plan_row else [200] * num_days
+    with get_cursor(SCHEMA) as cur:
+        cur.execute(
+            "SELECT plan_json FROM weekly_plan WHERE week_start=%s",
+            (monday.strftime("%Y-%m-%d"),),
+        )
+        plan_row = cur.fetchone()
+    if plan_row:
+        try:
+            pj = plan_row["plan_json"]
+            plan = pj if isinstance(pj, (list, dict)) else json.loads(pj)
+        except Exception:
+            plan = [200] * num_days
+    else:
+        plan = [200] * num_days
     if len(plan) < num_days:
         plan += [0] * (num_days - len(plan))
     elif len(plan) > num_days:
@@ -472,15 +470,16 @@ async def set_plan(plan: list[int]):
 
     today = ca_today()
     monday = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%d")
-    DB.execute(
-        """
-        INSERT INTO weekly_plan (week_start, plan_json)
-        VALUES (?, ?)
-        ON CONFLICT(week_start) DO UPDATE SET plan_json = ?
-        """,
-        (monday, json.dumps(plan), json.dumps(plan)),
-    )
-    DB.commit()
+    with get_conn(SCHEMA) as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            """
+            INSERT INTO weekly_plan (week_start, plan_json)
+            VALUES (%s, %s)
+            ON CONFLICT(week_start) DO UPDATE SET plan_json = %s
+            """,
+            (monday, json.dumps(plan), json.dumps(plan)),
+        )
     _invalidate_kpi_cache()
 
     # 即時通知 Dashboard 更新（可選）
@@ -504,42 +503,44 @@ def list_all_records(
 ):
     conds, params = ["1=1"], []
 
-    # 使用區間條件以利用 idx_scans_ts
+    # 使用區間條件以利用 idx_scans_scanned_at
     if from_date:
-        conds.append("ts >= ?"); params.append(from_date)
+        conds.append("scanned_at >= %s"); params.append(from_date)
     if to_date:
         try:
             end_excl = (datetime.strptime(to_date, "%Y-%m-%d").date() + timedelta(days=1)).strftime("%Y-%m-%d")
-            conds.append("ts < ?"); params.append(end_excl)
+            conds.append("scanned_at < %s"); params.append(end_excl)
         except ValueError:
             # 後備：若格式不正確，退回 <= 23:59:59
-            conds.append("ts <= ?"); params.append(to_date + " 23:59:59")
+            conds.append("scanned_at <= %s"); params.append(to_date + " 23:59:59")
 
     if status_filter and status_filter.strip().lower() != "all":
         sf = status_filter.strip().lower()
         if sf == "ok":
             conds.append("(status='' OR status IS NULL)")
         elif sf == "ng":
-            conds.append("status=?"); params.append("NG")        # 與 DB 寫入一致
+            conds.append("status=%s"); params.append("NG")        # 與 DB 寫入一致
         elif sf == "fixed":
-            conds.append("status=?"); params.append("Fixed")     # 與 DB 寫入一致
+            conds.append("status=%s"); params.append("Fixed")     # 與 DB 寫入一致
         else:
-            conds.append("status=?"); params.append(status_filter.strip())
+            conds.append("status=%s"); params.append(status_filter.strip())
 
     params.append(limit)
 
-    rows = DB.execute(f"""
-        SELECT id,
-               ts         AS timestamp,
-               sn,
-               kind,
-               status,
-               ng_reason  AS ng_reason
-        FROM scans
-        WHERE {' AND '.join(conds)}
-        ORDER BY ts DESC
-        LIMIT ?
-    """, params).fetchall()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute(f"""
+            SELECT id,
+                   scanned_at AS timestamp,
+                   sn,
+                   kind,
+                   status,
+                   ng_reason  AS ng_reason
+            FROM scans
+            WHERE {' AND '.join(conds)}
+            ORDER BY scanned_at DESC
+            LIMIT %s
+        """, params)
+        rows = cur.fetchall()
 
     return [dict(r) for r in rows]
 
@@ -553,25 +554,27 @@ async def delete_scan(scan_id: int):
     """
     刪除指定掃碼紀錄、同步 in-memory 統計、並向 Dashboard 發 WS 推播
     """
-    row = DB.execute(
-        "SELECT sn, kind, ts FROM scans WHERE id=?",
-        (scan_id,),
-    ).fetchone()
-
-    if not row:
-        return JSONResponse(
-            {"status": "error", "message": f"No record id={scan_id}"}, 404
+    with get_conn(SCHEMA) as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            "SELECT sn, kind, scanned_at FROM scans WHERE id=%s",
+            (scan_id,),
         )
+        row = cur.fetchone()
 
-    # ── 真正刪除 DB ───────────────────────
-    DB.execute("DELETE FROM scans WHERE id=?", (scan_id,))
-    DB.commit()
+        if not row:
+            return JSONResponse(
+                {"status": "error", "message": f"No record id={scan_id}"}, 404
+            )
+
+        # ── 真正刪除 DB ───────────────────────
+        cur.execute("DELETE FROM scans WHERE id=%s", (scan_id,))
 
     # ── 更新快取與今日統計 ───────────────
     RAM_SN.discard(row["sn"])
 
-    if row["ts"].startswith(ca_today().strftime("%Y-%m-%d")):
-        hr = row["ts"][11:13]
+    if row["scanned_at"].date() == ca_today():
+        hr = row["scanned_at"].strftime("%H")
         hourly[hr][row["kind"]] = max(hourly[hr][row["kind"]] - 1, 0)
         daily[row["kind"]]      = max(daily[row["kind"]]      - 1, 0)
 
@@ -613,36 +616,38 @@ async def update_sn(body: UpdateSNBody):     # ← async
     # ── 基本檢查 ─────────────────────────
     if not old_sn or not new_sn:
         return {"status": "error", "message": "old_sn & new_sn required"}
-    if not (
-        (new_sn.startswith("10080064") or new_sn.startswith("10080065"))
-        and len(new_sn) == 24
-    ):
+    _A_PREFIXES = ("10080064", "10080104")
+    _B_PREFIXES = ("10080065", "10080105")
+    if not (new_sn.startswith(_A_PREFIXES + _B_PREFIXES) and len(new_sn) == 24):
         return {"status": "error", "message": "new SN format invalid"}
 
     # ── 舊 SN 必須存在；新 SN 不得重複 ────
-    row = DB.execute(
-        "SELECT kind, ts FROM scans WHERE sn=?", (old_sn,)
-    ).fetchone()
-    if not row:
-        return {"status": "error", "message": f"{old_sn} not found"}
-    if DB.execute("SELECT 1 FROM scans WHERE sn=?", (new_sn,)).fetchone():
-        return {"status": "error", "message": f"{new_sn} already exists"}
+    with get_conn(SCHEMA) as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            "SELECT kind, scanned_at FROM scans WHERE sn=%s", (old_sn,)
+        )
+        row = cur.fetchone()
+        if not row:
+            return {"status": "error", "message": f"{old_sn} not found"}
+        cur.execute("SELECT 1 FROM scans WHERE sn=%s", (new_sn,))
+        if cur.fetchone():
+            return {"status": "error", "message": f"{new_sn} already exists"}
 
-    # ── 更新資料庫（只動 sn / kind，不動 ts） ─
-    new_kind = "A" if new_sn.startswith("10080064") else "B"
-    DB.execute(
-        "UPDATE scans SET sn=?, kind=? WHERE sn=?", (new_sn, new_kind, old_sn)
-    )
-    DB.commit()
+        # ── 更新資料庫（只動 sn / kind，不動 scanned_at） ─
+        new_kind = "A" if new_sn.startswith(_A_PREFIXES) else "B"
+        cur.execute(
+            "UPDATE scans SET sn=%s, kind=%s WHERE sn=%s", (new_sn, new_kind, old_sn)
+        )
 
     # ── 更新記憶體快取與即時統計 ───────────
     RAM_SN.discard(old_sn)
     RAM_SN.add(new_sn)
 
-    ts_str = row["ts"]                # 原始掃碼時間
-    is_today = ts_str.startswith(ca_today().strftime("%Y-%m-%d"))
+    ts_str = row["scanned_at"]                # 原始掃碼時間
+    is_today = ts_str.date() == ca_today()
     if is_today and row["kind"] != new_kind:   # 今日且 kind 變化才調整
-        hr = ts_str[11:13]
+        hr = ts_str.strftime("%H")
         hourly[hr][row["kind"]] -= 1
         hourly[hr][new_kind]    += 1
         daily[row["kind"]]      -= 1
@@ -699,16 +704,18 @@ def production_charts_module_production(
         # 依小時彙總 A/B 與 NG（使用區間查詢以吃索引）
         start_str = start_d.strftime("%Y-%m-%d")
         end_excl  = (start_d + timedelta(days=1)).strftime("%Y-%m-%d")
-        rows = DB.execute("""
-            SELECT substr(ts,12,2) AS hh,
-                   SUM(CASE WHEN kind='A' THEN 1 ELSE 0 END) AS cnt_a,
-                   SUM(CASE WHEN kind='B' THEN 1 ELSE 0 END) AS cnt_b,
-                   SUM(CASE WHEN status='NG' THEN 1 ELSE 0 END) AS ng_cnt
-            FROM   scans
-            WHERE  ts >= ? AND ts < ?
-            GROUP  BY hh
-            ORDER  BY hh
-        """, (start_str, end_excl)).fetchall()
+        with get_cursor(SCHEMA) as cur:
+            cur.execute("""
+                SELECT TO_CHAR(scanned_at, 'HH24') AS hh,
+                       SUM(CASE WHEN kind='A' THEN 1 ELSE 0 END) AS cnt_a,
+                       SUM(CASE WHEN kind='B' THEN 1 ELSE 0 END) AS cnt_b,
+                       SUM(CASE WHEN status='NG' THEN 1 ELSE 0 END) AS ng_cnt
+                FROM   scans
+                WHERE  scanned_at >= %s AND scanned_at < %s
+                GROUP  BY hh
+                ORDER  BY hh
+            """, (start_str, end_excl))
+            rows = cur.fetchall()
 
         for r in rows:
             a = int(r["cnt_a"] or 0)
@@ -728,16 +735,18 @@ def production_charts_module_production(
         # 依日期彙總 A/B 與 NG（使用區間查詢以吃索引）
         start_str = start_d.strftime("%Y-%m-%d")
         end_excl  = (end_d + timedelta(days=1)).strftime("%Y-%m-%d")
-        rows = DB.execute("""
-            SELECT substr(ts,1,10) AS d,
-                   SUM(CASE WHEN kind='A' THEN 1 ELSE 0 END) AS cnt_a,
-                   SUM(CASE WHEN kind='B' THEN 1 ELSE 0 END) AS cnt_b,
-                   SUM(CASE WHEN status='NG' THEN 1 ELSE 0 END) AS ng_cnt
-            FROM   scans
-            WHERE  ts >= ? AND ts < ?
-            GROUP  BY d
-            ORDER  BY d
-        """, (start_str, end_excl)).fetchall()
+        with get_cursor(SCHEMA) as cur:
+            cur.execute("""
+                SELECT TO_CHAR(scanned_at, 'YYYY-MM-DD') AS d,
+                       SUM(CASE WHEN kind='A' THEN 1 ELSE 0 END) AS cnt_a,
+                       SUM(CASE WHEN kind='B' THEN 1 ELSE 0 END) AS cnt_b,
+                       SUM(CASE WHEN status='NG' THEN 1 ELSE 0 END) AS ng_cnt
+                FROM   scans
+                WHERE  scanned_at >= %s AND scanned_at < %s
+                GROUP  BY d
+                ORDER  BY d
+            """, (start_str, end_excl))
+            rows = cur.fetchall()
 
         for r in rows:
             a = int(r["cnt_a"] or 0)
@@ -757,14 +766,16 @@ def production_charts_module_production(
     # Summary（再算一次範圍統計，使用區間查詢）
     start_str = start_d.strftime("%Y-%m-%d")
     end_excl  = (end_d + timedelta(days=1)).strftime("%Y-%m-%d")
-    row = DB.execute("""
-        SELECT
-          SUM(CASE WHEN kind='A' THEN 1 ELSE 0 END) AS a_tot,
-          SUM(CASE WHEN kind='B' THEN 1 ELSE 0 END) AS b_tot,
-          SUM(CASE WHEN status='NG' THEN 1 ELSE 0 END) AS ng_all
-        FROM scans
-        WHERE ts >= ? AND ts < ?
-    """, (start_str, end_excl)).fetchone()
+    with get_cursor(SCHEMA) as cur:
+        cur.execute("""
+            SELECT
+              SUM(CASE WHEN kind='A' THEN 1 ELSE 0 END) AS a_tot,
+              SUM(CASE WHEN kind='B' THEN 1 ELSE 0 END) AS b_tot,
+              SUM(CASE WHEN status='NG' THEN 1 ELSE 0 END) AS ng_all
+            FROM scans
+            WHERE scanned_at >= %s AND scanned_at < %s
+        """, (start_str, end_excl))
+        row = cur.fetchone()
 
     a_tot = int(row["a_tot"] or 0)
     b_tot = int(row["b_tot"] or 0)
