@@ -195,8 +195,9 @@ async def add_downtime(
         cur.execute(
             """
             INSERT INTO downtime_logs (
-              line, station, start_local, end_local, duration_min, created_at, created_by
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s)
+              line, station, start_local, end_local, duration_min,
+              downtime_type, created_at, created_by
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 record.line,
@@ -204,6 +205,7 @@ async def add_downtime(
                 s_utc.astimezone(local_tz),
                 e_utc.astimezone(local_tz),
                 duration,
+                record.downtime_type or "Other",
                 datetime.now(pytz.utc),
                 getattr(user, "username", "system"),
             ),
@@ -235,7 +237,7 @@ def list_records(db=Depends(get_downtime_db)):
         cur.execute(
             """
             SELECT id, line, station, start_local, end_local,
-                   duration_min, created_at, created_by, modified_by
+                   duration_min, downtime_type, created_at, created_by, modified_by
             FROM downtime_logs
             ORDER BY created_at DESC
             LIMIT 300
@@ -309,7 +311,7 @@ def update_record(
             """
             UPDATE downtime_logs
             SET line = %s, station = %s, start_local = %s, end_local = %s,
-                duration_min = %s, modified_by = %s
+                duration_min = %s, downtime_type = %s, modified_by = %s
             WHERE id = %s
             """,
             (
@@ -318,6 +320,7 @@ def update_record(
                 s_utc.astimezone(local_tz),
                 e_utc.astimezone(local_tz),
                 duration,
+                updated.downtime_type or "Other",
                 getattr(user, "username", "system"),
                 id,
             ),
@@ -345,3 +348,45 @@ def delete_record(id: int, user: Any = Depends(get_current_user), db=Depends(get
         return {"status": "success", "message": f"Record {id} deleted"}
     except Exception as e:
         return {"status": "error", "message": f"DB delete error: {e}"}
+
+# ═══ ⑦ 3D 熱力圖資料（Station × Hour × Minutes）══════════════════
+
+@router.get("/downtime/3d/surface", dependencies=[Depends(require_roles("admin", "operator", "viewer"))])
+def downtime_3d_surface(days: int = 30, db=Depends(get_downtime_db)):
+    """Station × Hour-of-day × Total downtime minutes — for 3-D surface chart."""
+    conn, cur = db
+    try:
+        today_d = ca_today()
+        start = today_d - timedelta(days=days - 1)
+        start_ts, end_ts = ca_range_bounds(start, today_d)
+
+        cur.execute(
+            """
+            SELECT
+                station,
+                EXTRACT(HOUR FROM start_local)::int AS hour,
+                SUM(duration_min)               AS total_min,
+                COUNT(*)                        AS event_count
+            FROM downtime_logs
+            WHERE start_local >= %s AND start_local < %s
+            GROUP BY station, EXTRACT(HOUR FROM start_local)
+            ORDER BY station, hour
+            """,
+            (start_ts, end_ts),
+        )
+        rows = cur.fetchall()
+        return {
+            "status": "success",
+            "days": days,
+            "data": [
+                {
+                    "station":     r["station"],
+                    "hour":        r["hour"],
+                    "total_min":   round(float(r["total_min"]), 1),
+                    "event_count": r["event_count"],
+                }
+                for r in rows
+            ],
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"DB error: {e}"}

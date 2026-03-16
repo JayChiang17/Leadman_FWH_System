@@ -102,15 +102,13 @@ Backend service will be available at:
 
 ```bash
 # Navigate to frontend directory
-cd ../frontend
+cd frontend
 
 # Install dependencies
 npm install
 
 # Start development server
-npm start
-# or HTTP only:
-# npm run start:http
+npm run dev
 ```
 
 ## 📊 Database Schema

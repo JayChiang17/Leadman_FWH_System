@@ -5,6 +5,7 @@ import FlipClockTimer from "../../components/FlipClockTimer";
 import { useVirtualizer } from '@tanstack/react-virtual';
 import * as XLSX from 'xlsx';
 
+import Plot3D, { buildStationHourMatrix } from "../../components/Plot3D";
 import { Bar, Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -23,7 +24,7 @@ import "./Downtime.css";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, Filler, DataLabels);
 
-// ===== 時區與日期工具（鎖 Pacific） ==========================================
+// ===== Timezone & Date Utilities (Pacific locked) ====================
 const PACIFIC_TZ = "America/Los_Angeles";
 
 const partsFromDate = (date, timeZone = PACIFIC_TZ) => {
@@ -39,23 +40,20 @@ const partsFromDate = (date, timeZone = PACIFIC_TZ) => {
   }).formatToParts(date);
   const map = {};
   for (const p of parts) map[p.type] = p.value;
-  return map; // {year,month,day,hour,minute,second}
+  return map;
 };
 
-// 用於提交 API：回傳「YYYY-MM-DDTHH:mm:ss」(Pacific local, 無時區資訊)
 const toPacificLocalIsoSeconds = (msOrDate) => {
   const d = msOrDate instanceof Date ? msOrDate : new Date(msOrDate);
   const p = partsFromDate(d);
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
 };
 
-// 取「今天」(Pacific) 的 YYYY-MM-DD
 const pacificTodayISODate = () => {
   const p = partsFromDate(new Date());
   return `${p.year}-${p.month}-${p.day}`;
 };
 
-// 從某個 ISO(YYYY-MM-DD) 算前一天（純曆法）
 const prevDayISO = (iso) => {
   const [y, m, d] = iso.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
@@ -66,7 +64,6 @@ const prevDayISO = (iso) => {
   return `${yy}-${mm}-${dd}`;
 };
 
-// 取最近 n 天（含今天, Pacific）陣列：最舊→最新
 const pacificLastNDaysISO = (n = 7) => {
   const days = new Array(n);
   let cur = pacificTodayISODate();
@@ -77,7 +74,7 @@ const pacificLastNDaysISO = (n = 7) => {
   return days;
 };
 
-// ===== 小工具 ===============================================================
+// ===== Station Lists =================================================
 const cellPositions = [
   "Battery Loading",
   "OSV",
@@ -112,6 +109,16 @@ const assemblyPositions = [
   "Final Packing",
 ];
 
+const DOWNTIME_TYPES = ["Equipment", "Material", "Quality", "Personnel", "Other"];
+
+const TYPE_COLORS = {
+  Equipment: { bg: "rgba(239,68,68,0.1)",   color: "#dc2626", border: "rgba(239,68,68,0.3)"   },
+  Material:  { bg: "rgba(245,158,11,0.1)",  color: "#d97706", border: "rgba(245,158,11,0.3)"  },
+  Quality:   { bg: "rgba(8,145,178,0.1)",   color: "#0891b2", border: "rgba(8,145,178,0.3)"   },
+  Personnel: { bg: "rgba(13,148,136,0.1)",  color: "#0d9488", border: "rgba(13,148,136,0.3)"  },
+  Other:     { bg: "rgba(100,116,139,0.1)", color: "#64748b", border: "rgba(100,116,139,0.3)" },
+};
+
 const minToHHMM = (m) => {
   const mm = Math.round(m);
   return `${String(Math.floor(mm / 60)).padStart(2, "0")}:${String(mm % 60).padStart(2, "0")}`;
@@ -122,33 +129,36 @@ const roundValue = (value) => {
   return Number.isFinite(numberValue) ? Math.round(numberValue) : 0;
 };
 
-const DowntimeTimer = React.memo(function DowntimeTimer({
-  line,
-  station,
-  startTs,
-  onStart,
-  onSubmit,
-  onAlert,
-}) {
+// ===== TypeBadge =======================================================
+function TypeBadge({ type }) {
+  const t = type || "Other";
+  const c = TYPE_COLORS[t] || TYPE_COLORS.Other;
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center",
+      padding: "0.28rem 0.6rem", borderRadius: "6px",
+      fontSize: "0.72rem", fontWeight: 700,
+      background: c.bg, color: c.color,
+      border: `1.5px solid ${c.border}`,
+      whiteSpace: "nowrap", letterSpacing: "0.02em",
+    }}>
+      {t}
+    </span>
+  );
+}
+
+// ===== DowntimeTimer ===================================================
+const DowntimeTimer = React.memo(function DowntimeTimer({ line, station, startTs, onStart, onSubmit, onAlert }) {
   const [elapsed, setElapsed] = useState(0);
   const alertedRef = useRef(false);
 
   useEffect(() => {
-    if (!startTs) {
-      setElapsed(0);
-      alertedRef.current = false;
-      return;
-    }
-
+    if (!startTs) { setElapsed(0); alertedRef.current = false; return; }
     const tick = () => {
       const sec = Math.floor((Date.now() - startTs) / 1000);
       setElapsed(sec);
-      if (sec >= 600 && !alertedRef.current) {
-        alertedRef.current = true;
-        if (onAlert) onAlert();
-      }
+      if (sec >= 600 && !alertedRef.current) { alertedRef.current = true; if (onAlert) onAlert(); }
     };
-
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
@@ -157,12 +167,8 @@ const DowntimeTimer = React.memo(function DowntimeTimer({
   return (
     <div className="dt-timer">
       <div className="dt-info">
-        <p>
-          <strong>Line:</strong> {line}
-        </p>
-        <p>
-          <strong>Station:</strong> {station}
-        </p>
+        <p><strong>Line:</strong> {line === "cell" ? "Cell Line" : "Assembly Line"}</p>
+        <p><strong>Station:</strong> {station}</p>
       </div>
       {startTs && (
         <div className="flip-timer-wrapper">
@@ -171,31 +177,20 @@ const DowntimeTimer = React.memo(function DowntimeTimer({
       )}
       <div className="dt-timer-btns">
         {startTs ? (
-          <button className="dt-end-btn" onClick={onSubmit}>
-            End &amp; Submit
-          </button>
+          <button className="dt-end-btn" onClick={onSubmit}>End &amp; Submit</button>
         ) : (
-          <button onClick={onStart}>Start</button>
+          <button onClick={onStart}>Start Timer</button>
         )}
       </div>
     </div>
   );
 });
 
-// ===== Downtime Types Configuration ==========================================
-const _DOWNTIME_TYPES = {
-  'Breakdown': { color: '#EF4444', label: 'Breakdown' },
-  'Changeover': { color: '#F59E0B', label: 'Changeover' },
-  'Material Shortage': { color: '#0891B2', label: 'Material Shortage' },
-  'Maintenance': { color: '#10B981', label: 'Maintenance' },
-  'Other': { color: '#6B7280', label: 'Other' }
-};
-
+// ===== Chart data builders ============================================
 const buildUPHVsDowntimeChartData = (production, downtimes, lineName) => {
   const safeProduction = Array.isArray(production) ? production : [];
   const safeDowntimes = Array.isArray(downtimes) ? downtimes : [];
   const targetLine = String(lineName || "").toLowerCase();
-
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0') + ':00');
 
   const hourlyUPH = hours.map(hour => {
@@ -203,8 +198,7 @@ const buildUPHVsDowntimeChartData = (production, downtimes, lineName) => {
     const prodData = safeProduction.find(p => {
       const rawHour = p.hour ?? p.hr;
       if (rawHour === undefined || rawHour === null) return false;
-      const key = String(rawHour).padStart(2, "0");
-      return key === h;
+      return String(rawHour).padStart(2, "0") === h;
     });
     return prodData ? roundValue(prodData.total) : 0;
   });
@@ -212,33 +206,27 @@ const buildUPHVsDowntimeChartData = (production, downtimes, lineName) => {
   const hourlyDowntime = hours.map(hour => {
     const h = parseInt(hour.substring(0, 2), 10);
     let totalMinutes = 0;
-
     safeDowntimes.forEach(dt => {
-      const lineValue = String(dt.line || "").toLowerCase();
-      if (lineValue !== targetLine) return;
-
+      if (String(dt.line || "").toLowerCase() !== targetLine) return;
       const startStr = dt.start_local || "";
       const endStr = dt.end_local || "";
       const startHour = parseInt(startStr.substring(11, 13), 10);
       const endHour = parseInt(endStr.substring(11, 13), 10);
-
       if (Number.isNaN(startHour) || Number.isNaN(endHour)) return;
-
       if (startHour <= h && h <= endHour) {
         if (startHour === endHour) {
           totalMinutes += Number(dt.duration_min) || 0;
         } else if (startHour === h) {
-          const startMin = parseInt(startStr.substring(14, 16), 10);
-          if (!Number.isNaN(startMin)) totalMinutes += (60 - startMin);
+          const sm = parseInt(startStr.substring(14, 16), 10);
+          if (!Number.isNaN(sm)) totalMinutes += (60 - sm);
         } else if (endHour === h) {
-          const endMin = parseInt(endStr.substring(14, 16), 10);
-          if (!Number.isNaN(endMin)) totalMinutes += endMin;
+          const em = parseInt(endStr.substring(14, 16), 10);
+          if (!Number.isNaN(em)) totalMinutes += em;
         } else {
           totalMinutes += 60;
         }
       }
     });
-
     return roundValue(totalMinutes);
   });
 
@@ -246,124 +234,66 @@ const buildUPHVsDowntimeChartData = (production, downtimes, lineName) => {
     labels: hours,
     datasets: [
       {
-        type: 'line',
-        label: 'UPH (pcs/h)',
-        data: hourlyUPH,
-        borderColor: '#0d9488',
-        backgroundColor: 'rgba(13, 148, 136, 0.08)',
-        borderWidth: 2,
-        tension: 0.4,
-        fill: true,
-        pointRadius: 3,
-        pointHoverRadius: 5,
-        pointBackgroundColor: '#0d9488',
-        pointBorderColor: '#ffffff',
-        pointBorderWidth: 2,
-        pointHoverBackgroundColor: '#0f766e',
-        pointHoverBorderColor: '#ffffff',
+        type: 'line', label: 'UPH (pcs/h)', data: hourlyUPH,
+        borderColor: '#0d9488', backgroundColor: 'rgba(13,148,136,0.08)',
+        borderWidth: 2, tension: 0.4, fill: true,
+        pointRadius: 3, pointHoverRadius: 5,
+        pointBackgroundColor: '#0d9488', pointBorderColor: '#fff', pointBorderWidth: 2,
         yAxisID: 'y',
       },
       {
-        type: 'bar',
-        label: 'Downtime (min)',
-        data: hourlyDowntime,
-        backgroundColor: 'rgba(245, 158, 11, 0.75)',
-        borderColor: '#f59e0b',
-        borderWidth: 1,
-        borderRadius: 6,
-        yAxisID: 'y1',
-      }
-    ]
+        type: 'bar', label: 'Downtime (min)', data: hourlyDowntime,
+        backgroundColor: 'rgba(245,158,11,0.75)', borderColor: '#f59e0b',
+        borderWidth: 1, borderRadius: 6, yAxisID: 'y1',
+      },
+    ],
   };
 };
 
-// ===== 最近 7 天（依 Pacific 曆法天） ========================================
 const processWeekDataByLine = (records) => {
-  const days = pacificLastNDaysISO(7); // oldest → newest (YYYY-MM-DD in Pacific)
-
+  const days = pacificLastNDaysISO(7);
   const dailyData = {};
   days.forEach((d) => (dailyData[d] = { cell: 0, assembly: 0 }));
-
   records.forEach((r) => {
-    const recordDate = r.start_local?.split(" ")[0]; // DB 已存 Pacific local "YYYY-MM-DD HH:MM:SS"
+    const recordDate = r.start_local?.split(" ")[0];
     if (dailyData[recordDate]) {
       if (r.line === "cell") dailyData[recordDate].cell += r.duration_min;
       else if (r.line === "assembly") dailyData[recordDate].assembly += r.duration_min;
-    } else {
     }
   });
-
-
   const labels = days.map((d) => d.substring(5));
   const cellMinutes = days.map((d) => Math.round(dailyData[d].cell));
   const assemblyMinutes = days.map((d) => Math.round(dailyData[d].assembly));
-
-
   return {
     labels,
     datasets: [
-      {
-        label: "Cell Line",
-        data: cellMinutes,
-        backgroundColor: "rgba(239, 68, 68, 0.8)",
-        borderColor: "rgba(239, 68, 68, 1)",
-        borderWidth: 2,
-        borderRadius: 6,
-        barThickness: 28,
-      },
-      {
-        label: "Assembly Line",
-        data: assemblyMinutes,
-        backgroundColor: "rgba(59, 130, 246, 0.8)",
-        borderColor: "rgba(59, 130, 246, 1)",
-        borderWidth: 2,
-        borderRadius: 6,
-        barThickness: 28,
-      },
+      { label: "Cell Line", data: cellMinutes, backgroundColor: "rgba(239,68,68,0.8)", borderColor: "rgba(239,68,68,1)", borderWidth: 2, borderRadius: 6, barThickness: 28 },
+      { label: "Assembly Line", data: assemblyMinutes, backgroundColor: "rgba(59,130,246,0.8)", borderColor: "rgba(59,130,246,1)", borderWidth: 2, borderRadius: 6, barThickness: 28 },
     ],
-    hhmm: {
-      cell: cellMinutes.map((m) => minToHHMM(m)),
-      assembly: assemblyMinutes.map((m) => minToHHMM(m)),
-    },
+    hhmm: { cell: cellMinutes.map(minToHHMM), assembly: assemblyMinutes.map(minToHHMM) },
   };
 };
 
-// ===== Excel Export Function ========================================
 const exportToExcel = (records) => {
   const exportData = records.map((r) => ({
     'ID': r.id,
     'Line': r.line === 'cell' ? 'Cell Line' : 'Assembly Line',
     'Station': r.station,
+    'Type': r.downtime_type || 'Other',
     'Start Time': r.start_local,
     'End Time': r.end_local,
     'Duration (HH:MM)': minToHHMM(r.duration_min),
     'Duration (Minutes)': r.duration_min,
     'Modified By': r.modified_by || r.created_by || '-',
   }));
-
   const ws = XLSX.utils.json_to_sheet(exportData);
-
-  const colWidths = [
-    { wch: 8 },
-    { wch: 15 },
-    { wch: 30 },
-    { wch: 20 },
-    { wch: 20 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 },
-  ];
-  ws['!cols'] = colWidths;
-
+  ws['!cols'] = [{ wch: 8 }, { wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Downtime Records');
-
-  const filename = `Downtime_Records_${new Date().toISOString().split('T')[0]}.xlsx`;
-  XLSX.writeFile(wb, filename);
+  XLSX.writeFile(wb, `Downtime_Records_${new Date().toISOString().split('T')[0]}.xlsx`);
 };
 
 // ============================================================================
-
 export default function Downtime() {
   const [step, setStep] = useState(1);
   const [line, setLine] = useState("");
@@ -372,33 +302,55 @@ export default function Downtime() {
   const [alert, setAlert] = useState(false);
   const [msg, setMsg] = useState("");
 
-  // 圖表狀態
+  // New UX state
+  const [downtype, setDowntype] = useState("Other");
+  const [stationSearch, setStationSearch] = useState("");
+  const [todaySummary, setTodaySummary] = useState(null);
+  const [chartsLoading, setChartsLoading] = useState(false);
+  const [confirm, setConfirm] = useState({ open: false, title: "", body: "", onConfirm: null });
+
+  // Chart state
   const [today, setToday] = useState({ labels: [], datasets: [], hhmm: [], lineInfo: [] });
   const [week, setWeek] = useState({ labels: [], datasets: [], hhmm: {} });
   const [uphVsDowntime, setUphVsDowntime] = useState({ labels: [], datasets: [] });
   const [uphVsDowntimeAssembly, setUphVsDowntimeAssembly] = useState({ labels: [], datasets: [] });
   const [uphEnabled, setUphEnabled] = useState(false);
   const [uphLoading, setUphLoading] = useState(false);
-  const [maxDowntime, setMaxDowntime] = useState(0); // 用於統一兩個圖表的 downtime 刻度
+  const [maxDowntime, setMaxDowntime] = useState(0);
+  const [surface3dData, setSurface3dData] = useState([]);
+  const [surface3dLoading, setSurface3dLoading] = useState(false);
 
   const [records, setRecords] = useState([]);
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
 
-  // Filter states
   const [searchQuery, setSearchQuery] = useState("");
   const [lineFilter, setLineFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
 
-  // Virtual scrolling
   const parentRef = useRef(null);
   const uphCardRef = useRef(null);
   const uphLoadingRef = useRef(false);
   const handleTimerAlert = useCallback(() => setAlert(true), []);
 
+  // ── Confirm helpers ───────────────────────────────────────────────
+  const openConfirm = useCallback((title, body, onConfirm) => {
+    setConfirm({ open: true, title, body, onConfirm });
+  }, []);
+  const closeConfirm = useCallback(() => {
+    setConfirm({ open: false, title: "", body: "", onConfirm: null });
+  }, []);
+
+  // ── Auto-dismiss msg ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!msg) return;
+    const t = setTimeout(() => setMsg(""), 4000);
+    return () => clearTimeout(t);
+  }, [msg]);
+
+  // ── Data loaders ──────────────────────────────────────────────────
   const loadSummaries = useCallback(() => {
-    // Load today's summary
     api.get("downtime/summary/today").then((r) => {
       if (r.data.status === "success") {
         const stations = r.data.data || [];
@@ -406,42 +358,38 @@ export default function Downtime() {
         const minutes = stations.map(s => s.total_minutes);
         const hhmm = stations.map(s => s.total_hhmm);
         const lineInfo = stations.map(s => s.line);
-
-        const backgroundColors = lineInfo.map(l =>
-          l === "cell" ? "rgba(239, 68, 68, 0.8)" : "rgba(59, 130, 246, 0.8)"
-        );
-        const borderColors = lineInfo.map(l =>
-          l === "cell" ? "rgba(239, 68, 68, 1)" : "rgba(59, 130, 246, 1)"
-        );
-
         setToday({
-          labels,
+          labels, hhmm, lineInfo,
           datasets: [{
             label: "Downtime",
             data: minutes,
-            backgroundColor: backgroundColors,
-            borderColor: borderColors,
-            borderWidth: 2,
-            borderRadius: 6,
-            barThickness: 28,
+            backgroundColor: lineInfo.map(l => l === "cell" ? "rgba(239,68,68,0.8)" : "rgba(59,130,246,0.8)"),
+            borderColor: lineInfo.map(l => l === "cell" ? "rgba(239,68,68,1)" : "rgba(59,130,246,1)"),
+            borderWidth: 2, borderRadius: 6, barThickness: 28,
           }],
-          hhmm,
-          lineInfo
         });
-      }
-    }).catch(err => {
-      console.error("Error loading today summary:", err);
-    });
 
-    // Load week summary
-    api.get("downtime/summary/week").then((r) => {
-      if (r.data.status === "success") {
-        const weekData = processWeekDataByLine(r.data.records || []);
-        setWeek(weekData);
+        // KPI cards
+        if (r.data.summary) {
+          const s = r.data.summary;
+          const maxSingle = stations.reduce((acc, st) => Math.max(acc, st.max_duration || 0), 0);
+          const top = stations[0];
+          setTodaySummary({
+            total: s.total_downtime_hhmm || "00:00",
+            totalMin: s.total_downtime || 0,
+            events: s.total_events || 0,
+            longest: minToHHMM(maxSingle),
+            topStation: top ? top.station : "—",
+            topTime: top ? top.total_hhmm : "",
+            topLine: top ? top.line : null,
+          });
+        }
       }
-    }).catch(err => {
-      console.error("Error loading week summary:", err);
-    });
+    }).catch(err => console.error("Error loading today summary:", err));
+
+    api.get("downtime/summary/week").then((r) => {
+      if (r.data.status === "success") setWeek(processWeekDataByLine(r.data.records || []));
+    }).catch(err => console.error("Error loading week summary:", err));
   }, []);
 
   const loadRecords = useCallback(() => {
@@ -450,110 +398,62 @@ export default function Downtime() {
         setRecords(r.data.records || []);
         setFilteredRecords(r.data.records || []);
       }
-    }).catch(err => {
-      console.error("Error loading records:", err);
-    });
+    }).catch(err => console.error("Error loading records:", err));
+  }, []);
+
+  const loadSurface3D = useCallback(() => {
+    setSurface3dLoading(true);
+    api.get("downtime/3d/surface", { params: { days: 30 } })
+      .then((r) => {
+        if (r.data.status === "success") setSurface3dData(r.data.data || []);
+      })
+      .catch((e) => console.error("3D surface load error:", e))
+      .finally(() => setSurface3dLoading(false));
   }, []);
 
   useEffect(() => {
     if (uphEnabled) return;
     const node = uphCardRef.current;
-    if (!node || typeof IntersectionObserver === "undefined") {
-      setUphEnabled(true);
-      return;
-    }
+    if (!node || typeof IntersectionObserver === "undefined") { setUphEnabled(true); return; }
     const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0] && entries[0].isIntersecting) {
-          setUphEnabled(true);
-          observer.disconnect();
-        }
-      },
+      (entries) => { if (entries[0]?.isIntersecting) { setUphEnabled(true); observer.disconnect(); } },
       { rootMargin: "200px" }
     );
     observer.observe(node);
     return () => observer.disconnect();
   }, [uphEnabled]);
 
-  // Load UPH vs Downtime integrated data
   const loadUPHVsDowntime = useCallback(async () => {
     if (!uphEnabled || uphLoadingRef.current) return;
     uphLoadingRef.current = true;
     setUphLoading(true);
     try {
-      const today = pacificTodayISODate();
-
+      const todayDate = pacificTodayISODate();
       const [moduleRes, assemblyRes, downtimeRes] = await Promise.all([
-        api.get("production-charts/module/production", {
-          params: { period: "daily", target_date: today }
-        }),
-        api.get("production-charts/assembly/production", {
-          params: { period: "daily", target_date: today }
-        }),
-        api.get("downtime/events/today")
+        api.get("production-charts/module/production", { params: { period: "daily", target_date: todayDate } }),
+        api.get("production-charts/assembly/production", { params: { period: "daily", target_date: todayDate } }),
+        api.get("downtime/events/today"),
       ]);
-
       const moduleData = moduleRes?.data || {};
       const assemblyData = assemblyRes?.data || {};
       const downtimeData = downtimeRes?.data || {};
-
-      const moduleProduction =
-        moduleData.production_data ||
-        moduleData.production ||
-        moduleData.productionData ||
-        moduleData.data ||
-        [];
-
-      const assemblyProduction =
-        assemblyData.production_data ||
-        assemblyData.production ||
-        assemblyData.productionData ||
-        assemblyData.data ||
-        [];
-
+      const moduleProduction = moduleData.production_data || moduleData.production || moduleData.productionData || moduleData.data || [];
+      const assemblyProduction = assemblyData.production_data || assemblyData.production || assemblyData.productionData || assemblyData.data || [];
       const downtimes = downtimeData.records || downtimeData.data || [];
-
       const downtimeOk = downtimeData.status ? downtimeData.status === "success" : Array.isArray(downtimes);
-      if (!downtimeOk) {
-        console.warn("UPH vs Downtime: unexpected downtime response", { downtimeData });
-        return;
-      }
-
+      if (!downtimeOk) return;
       const moduleOk = moduleData.status ? moduleData.status === "success" : Array.isArray(moduleProduction);
       const cellChartData = moduleOk ? buildUPHVsDowntimeChartData(moduleProduction, downtimes, "cell") : null;
-
       const assemblyOk = assemblyData.status ? assemblyData.status === "success" : Array.isArray(assemblyProduction);
       const assemblyChartData = assemblyOk ? buildUPHVsDowntimeChartData(assemblyProduction, downtimes, "assembly") : null;
-
-      // 計算兩個圖表中的最大 downtime 值，用於統一刻度
-      let globalMaxDowntime = 0;
-      if (cellChartData?.datasets) {
-        const cellDowntimeData = cellChartData.datasets.find(ds => ds.label === 'Downtime (min)');
-        if (cellDowntimeData?.data) {
-          globalMaxDowntime = Math.max(globalMaxDowntime, ...cellDowntimeData.data);
-        }
-      }
-      if (assemblyChartData?.datasets) {
-        const assemblyDowntimeData = assemblyChartData.datasets.find(ds => ds.label === 'Downtime (min)');
-        if (assemblyDowntimeData?.data) {
-          globalMaxDowntime = Math.max(globalMaxDowntime, ...assemblyDowntimeData.data);
-        }
-      }
-
-      // 設置最大值（至少為 60，並向上取整到 10 的倍數）
-      setMaxDowntime(Math.max(60, Math.ceil(globalMaxDowntime / 10) * 10));
-
-      if (cellChartData) {
-        setUphVsDowntime(cellChartData);
-      } else {
-        console.warn("UPH vs Downtime: unexpected module response", { moduleData });
-      }
-
-      if (assemblyChartData) {
-        setUphVsDowntimeAssembly(assemblyChartData);
-      } else {
-        console.warn("UPH vs Downtime: unexpected assembly response", { assemblyData });
-      }
+      let globalMax = 0;
+      [cellChartData, assemblyChartData].forEach(cd => {
+        const d = cd?.datasets?.find(ds => ds.label === 'Downtime (min)');
+        if (d?.data) globalMax = Math.max(globalMax, ...d.data);
+      });
+      setMaxDowntime(Math.max(60, Math.ceil(globalMax / 10) * 10));
+      if (cellChartData) setUphVsDowntime(cellChartData);
+      if (assemblyChartData) setUphVsDowntimeAssembly(assemblyChartData);
     } catch (err) {
       console.error("Failed to load UPH vs Downtime data:", err);
     } finally {
@@ -562,51 +462,25 @@ export default function Downtime() {
     }
   }, [uphEnabled]);
 
-  useEffect(() => {
-    loadSummaries();
-    loadRecords();
-  }, [loadSummaries, loadRecords]);
-
-  useEffect(() => {
-    if (uphEnabled) {
-      loadUPHVsDowntime();
-    }
-  }, [uphEnabled, loadUPHVsDowntime]);
-
-  // Debug: log week state changes
-  useEffect(() => {
-  }, [week]);
+  useEffect(() => { loadSummaries(); loadRecords(); loadSurface3D(); }, [loadSummaries, loadRecords, loadSurface3D]);
+  useEffect(() => { if (uphEnabled) loadUPHVsDowntime(); }, [uphEnabled, loadUPHVsDowntime]);
 
   // Filter logic
   useEffect(() => {
     let filtered = [...records];
-
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(r =>
-        r.id.toString().includes(query) ||
-        r.station.toLowerCase().includes(query) ||
-        r.line.toLowerCase().includes(query)
-      );
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(r => r.id.toString().includes(q) || r.station.toLowerCase().includes(q) || r.line.toLowerCase().includes(q));
     }
-
-    if (lineFilter !== "all") {
-      filtered = filtered.filter(r => r.line === lineFilter);
-    }
-
+    if (lineFilter !== "all") filtered = filtered.filter(r => r.line === lineFilter);
     if (dateFilter !== "all") {
-      const today = pacificTodayISODate();
-      if (dateFilter === "today") {
-        filtered = filtered.filter(r => r.start_local?.startsWith(today));
-      } else if (dateFilter === "week") {
+      const todayStr = pacificTodayISODate();
+      if (dateFilter === "today") filtered = filtered.filter(r => r.start_local?.startsWith(todayStr));
+      else if (dateFilter === "week") {
         const weekDays = pacificLastNDaysISO(7);
-        filtered = filtered.filter(r => {
-          const recordDate = r.start_local?.split(" ")[0];
-          return weekDays.includes(recordDate);
-        });
+        filtered = filtered.filter(r => weekDays.includes(r.start_local?.split(" ")[0]));
       }
     }
-
     setFilteredRecords(filtered);
   }, [searchQuery, lineFilter, dateFilter, records]);
 
@@ -618,436 +492,231 @@ export default function Downtime() {
     overscan: 5,
   });
 
-  // Chart options - Production Charts style (TICK_FS=11, LEGEND_FS=11, LABEL_FS=10)
+  // ── Chart options ──────────────────────────────────────────────────
   const TICK_FS = 11;
   const LEGEND_FS = 11;
   const GRID_COLOR = "#f1f5f9";
 
   const getTodayChartOptions = () => ({
-    responsive: true,
-    maintainAspectRatio: false,
+    responsive: true, maintainAspectRatio: false,
     plugins: {
-      datalabels: {
-        anchor: 'end',
-        align: 'top',
-        formatter: (v) => v > 0 ? minToHHMM(v) : '',
-        font: { size: 10, weight: '600', family: "'Inter', sans-serif" },
-        color: '#334155',
-      },
+      datalabels: { anchor: 'end', align: 'top', formatter: (v) => v > 0 ? minToHHMM(v) : '', font: { size: 10, weight: '600', family: "'Inter', sans-serif" }, color: '#334155' },
       legend: {
-        display: true,
-        position: "top",
-        align: 'end',
+        display: true, position: "top", align: 'end',
         labels: {
           generateLabels: () => [
-            {
-              text: "Cell Line",
-              fillStyle: "rgba(239, 68, 68, 0.85)",
-              strokeStyle: "rgba(239, 68, 68, 1)",
-              pointStyle: "rectRounded",
-              lineWidth: 0,
-              borderRadius: 4
-            },
-            {
-              text: "Assembly Line",
-              fillStyle: "rgba(59, 130, 246, 0.85)",
-              strokeStyle: "rgba(59, 130, 246, 1)",
-              pointStyle: "rectRounded",
-              lineWidth: 0,
-              borderRadius: 4
-            },
+            { text: "Cell Line", fillStyle: "rgba(239,68,68,0.85)", strokeStyle: "rgba(239,68,68,1)", pointStyle: "rectRounded", lineWidth: 0, borderRadius: 4 },
+            { text: "Assembly Line", fillStyle: "rgba(59,130,246,0.85)", strokeStyle: "rgba(59,130,246,1)", pointStyle: "rectRounded", lineWidth: 0, borderRadius: 4 },
           ],
-          usePointStyle: true,
-          padding: 16,
-          font: { size: LEGEND_FS, weight: '500', family: "'Inter', sans-serif" },
-          color: '#64748b'
+          usePointStyle: true, padding: 16,
+          font: { size: LEGEND_FS, weight: '500', family: "'Inter', sans-serif" }, color: '#64748b',
         },
       },
       tooltip: {
-        enabled: true,
-        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        enabled: true, backgroundColor: 'rgba(15,23,42,0.95)',
         titleFont: { size: 12, weight: '600', family: "'Inter', sans-serif" },
         bodyFont: { size: 11, family: "'Inter', sans-serif" },
-        padding: 12,
-        cornerRadius: 8,
-        displayColors: true,
-        borderColor: 'rgba(148, 163, 184, 0.2)',
-        borderWidth: 1,
-        boxPadding: 4,
-        usePointStyle: true,
+        padding: 12, cornerRadius: 8, displayColors: true,
+        borderColor: 'rgba(148,163,184,0.2)', borderWidth: 1, boxPadding: 4, usePointStyle: true,
         callbacks: {
-          title: (context) => context[0].label,
-          label: (context) => {
-            const lineName = today.lineInfo?.[context.dataIndex] === "cell" ? "Cell Line" : "Assembly Line";
-            const duration = today.hhmm?.[context.dataIndex] || minToHHMM(context.parsed.y);
-            return `${lineName}: ${duration}`;
+          title: (ctx) => ctx[0].label,
+          label: (ctx) => {
+            const ln = today.lineInfo?.[ctx.dataIndex] === "cell" ? "Cell Line" : "Assembly Line";
+            return `${ln}: ${today.hhmm?.[ctx.dataIndex] || minToHHMM(ctx.parsed.y)}`;
           },
-          afterLabel: (context) => {
-            const minutes = Math.round(context.parsed.y);
-            const total = context.dataset.data.reduce((a, b) => a + b, 0);
-            if (total === 0) return `${minutes} minutes`;
-            const percent = ((context.parsed.y / total) * 100).toFixed(1);
-            return [`${minutes} minutes`, `${percent}% of total`];
-          }
+          afterLabel: (ctx) => {
+            const m = Math.round(ctx.parsed.y);
+            const tot = ctx.dataset.data.reduce((a, b) => a + b, 0);
+            if (tot === 0) return `${m} minutes`;
+            return [`${m} minutes`, `${((ctx.parsed.y / tot) * 100).toFixed(1)}% of total`];
+          },
         },
       },
     },
     scales: {
-      y: {
-        beginAtZero: true,
-        grid: {
-          color: GRID_COLOR,
-          lineWidth: 1,
-          drawTicks: false
-        },
-        border: {
-          display: false
-        },
-        ticks: {
-          callback: (v) => minToHHMM(v),
-          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
-          color: '#64748b',
-          padding: 8
-        }
-      },
-      x: {
-        grid: { display: false },
-        border: {
-          display: false
-        },
-        ticks: {
-          padding: 8,
-          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
-          color: '#64748b',
-          maxRotation: 45,
-          minRotation: 0
-        }
-      },
+      y: { beginAtZero: true, grid: { color: GRID_COLOR, lineWidth: 1, drawTicks: false }, border: { display: false }, ticks: { callback: minToHHMM, font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" }, color: '#64748b', padding: 8 } },
+      x: { grid: { display: false }, border: { display: false }, ticks: { padding: 8, font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" }, color: '#64748b', maxRotation: 45, minRotation: 0 } },
     },
-    interaction: {
-      mode: 'index',
-      intersect: false
-    },
-    elements: {
-      bar: {
-        borderRadius: 6,
-        borderSkipped: false
-      }
-    }
+    interaction: { mode: 'index', intersect: false },
+    elements: { bar: { borderRadius: 6, borderSkipped: false } },
   });
 
   const getWeekChartOptions = () => ({
-    responsive: true,
-    maintainAspectRatio: false,
+    responsive: true, maintainAspectRatio: false,
     plugins: {
-      datalabels: {
-        anchor: 'end',
-        align: 'top',
-        formatter: (v) => v > 0 ? minToHHMM(v) : '',
-        font: { size: 10, weight: '600', family: "'Inter', sans-serif" },
-        color: '#334155',
-      },
-      legend: {
-        display: true,
-        position: "top",
-        align: 'end',
-        labels: {
-          usePointStyle: true,
-          pointStyle: 'rectRounded',
-          padding: 16,
-          font: { size: LEGEND_FS, weight: '500', family: "'Inter', sans-serif" },
-          color: '#64748b',
-          boxWidth: 10,
-          boxHeight: 10
-        }
-      },
+      datalabels: { anchor: 'end', align: 'top', formatter: (v) => v > 0 ? minToHHMM(v) : '', font: { size: 10, weight: '600', family: "'Inter', sans-serif" }, color: '#334155' },
+      legend: { display: true, position: "top", align: 'end', labels: { usePointStyle: true, pointStyle: 'rectRounded', padding: 16, font: { size: LEGEND_FS, weight: '500', family: "'Inter', sans-serif" }, color: '#64748b', boxWidth: 10, boxHeight: 10 } },
       tooltip: {
-        enabled: true,
-        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        enabled: true, backgroundColor: 'rgba(15,23,42,0.95)',
         titleFont: { size: 12, weight: '600', family: "'Inter', sans-serif" },
         bodyFont: { size: 11, family: "'Inter', sans-serif" },
-        padding: 12,
-        cornerRadius: 8,
-        displayColors: true,
-        borderColor: 'rgba(148, 163, 184, 0.2)',
-        borderWidth: 1,
-        boxPadding: 4,
-        usePointStyle: true,
+        padding: 12, cornerRadius: 8, displayColors: true,
+        borderColor: 'rgba(148,163,184,0.2)', borderWidth: 1, boxPadding: 4, usePointStyle: true,
         callbacks: {
-          title: (context) => `Date: ${context[0].label}`,
-          label: (context) => {
-            const isCell = context.dataset.label.includes("Cell");
-            const hhmm = isCell ? week.hhmm?.cell?.[context.dataIndex] : week.hhmm?.assembly?.[context.dataIndex];
-            const minutes = Math.round(context.parsed.y);
-            return [`${context.dataset.label}: ${hhmm || minToHHMM(context.parsed.y)}`, `${minutes} minutes`];
+          title: (ctx) => `Date: ${ctx[0].label}`,
+          label: (ctx) => {
+            const isCell = ctx.dataset.label.includes("Cell");
+            const hhmm = isCell ? week.hhmm?.cell?.[ctx.dataIndex] : week.hhmm?.assembly?.[ctx.dataIndex];
+            const m = Math.round(ctx.parsed.y);
+            return [`${ctx.dataset.label}: ${hhmm || minToHHMM(ctx.parsed.y)}`, `${m} minutes`];
           },
         },
       },
     },
     scales: {
-      y: {
-        beginAtZero: true,
-        stacked: false,
-        grid: {
-          color: GRID_COLOR,
-          lineWidth: 1,
-          drawTicks: false
-        },
-        border: {
-          display: false
-        },
-        ticks: {
-          callback: (v) => minToHHMM(v),
-          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
-          color: '#64748b',
-          padding: 8
-        }
-      },
-      x: {
-        stacked: false,
-        grid: { display: false },
-        border: {
-          display: false
-        },
-        ticks: {
-          padding: 8,
-          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
-          color: '#64748b'
-        },
-        categoryPercentage: 0.7,
-        barPercentage: 0.85
-      },
+      y: { beginAtZero: true, stacked: false, grid: { color: GRID_COLOR, lineWidth: 1, drawTicks: false }, border: { display: false }, ticks: { callback: minToHHMM, font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" }, color: '#64748b', padding: 8 } },
+      x: { stacked: false, grid: { display: false }, border: { display: false }, ticks: { padding: 8, font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" }, color: '#64748b' }, categoryPercentage: 0.7, barPercentage: 0.85 },
     },
-    interaction: {
-      mode: 'index',
-      intersect: false
-    },
-    elements: {
-      bar: {
-        borderRadius: 6,
-        borderSkipped: false
-      }
-    }
+    interaction: { mode: 'index', intersect: false },
+    elements: { bar: { borderRadius: 6, borderSkipped: false } },
   });
 
-  // UPH vs Downtime Chart Options (使用統一的 downtime 刻度)
   const getUPHVsDowntimeChartOptions = () => ({
-    responsive: true,
-    maintainAspectRatio: false,
+    responsive: true, maintainAspectRatio: false,
     plugins: {
       datalabels: { display: false },
-      legend: {
-        display: true,
-        position: "top",
-        align: 'end',
-        labels: {
-          usePointStyle: true,
-          pointStyle: 'circle',
-          padding: 16,
-          font: { size: LEGEND_FS, weight: '500', family: "'Inter', sans-serif" },
-          color: '#64748b',
-          boxWidth: 10,
-          boxHeight: 10
-        }
-      },
+      legend: { display: true, position: "top", align: 'end', labels: { usePointStyle: true, pointStyle: 'circle', padding: 16, font: { size: LEGEND_FS, weight: '500', family: "'Inter', sans-serif" }, color: '#64748b', boxWidth: 10, boxHeight: 10 } },
       tooltip: {
-        enabled: true,
-        backgroundColor: 'rgba(15, 23, 42, 0.95)',
+        enabled: true, backgroundColor: 'rgba(15,23,42,0.95)',
         titleFont: { size: 12, weight: '600', family: "'Inter', sans-serif" },
         bodyFont: { size: 11, family: "'Inter', sans-serif" },
-        padding: 12,
-        cornerRadius: 8,
-        displayColors: true,
-        borderColor: 'rgba(148, 163, 184, 0.2)',
-        borderWidth: 1,
-        boxPadding: 4,
-        usePointStyle: true,
+        padding: 12, cornerRadius: 8, displayColors: true,
+        borderColor: 'rgba(148,163,184,0.2)', borderWidth: 1, boxPadding: 4, usePointStyle: true,
         callbacks: {
-          title: (context) => `Time: ${context[0].label}`,
-          label: (context) => {
-            const label = context.dataset.label || '';
-            const value = context.parsed.y;
-            const roundedValue = roundValue(value);
-            if (label.includes('UPH')) {
-              return `${label}: ${roundedValue} pcs/h`;
-            } else if (label.includes('Downtime')) {
-              return `${label}: ${roundedValue} min (${minToHHMM(roundedValue)})`;
-            }
-            return `${label}: ${roundedValue}`;
+          title: (ctx) => `Time: ${ctx[0].label}`,
+          label: (ctx) => {
+            const label = ctx.dataset.label || '';
+            const rv = roundValue(ctx.parsed.y);
+            if (label.includes('UPH')) return `${label}: ${rv} pcs/h`;
+            if (label.includes('Downtime')) return `${label}: ${rv} min (${minToHHMM(rv)})`;
+            return `${label}: ${rv}`;
           },
         },
       },
     },
     scales: {
-      y: {
-        type: 'linear',
-        display: true,
-        position: 'left',
-        beginAtZero: true,
-        title: {
-          display: true,
-          text: 'UPH (pcs/h)',
-          font: { size: 10, weight: '600', family: "'Inter', sans-serif" },
-          color: '#0d9488'
-        },
-        grid: {
-          color: GRID_COLOR,
-          lineWidth: 1,
-          drawTicks: false
-        },
-        border: {
-          display: false
-        },
-        ticks: {
-          callback: (v) => roundValue(v),
-          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
-          color: '#0d9488',
-          padding: 8
-        }
-      },
-      y1: {
-        type: 'linear',
-        display: true,
-        position: 'right',
-        beginAtZero: true,
-        max: maxDowntime || 60,
-        title: {
-          display: true,
-          text: 'Downtime (min)',
-          font: { size: 10, weight: '600', family: "'Inter', sans-serif" },
-          color: '#f59e0b'
-        },
-        grid: {
-          drawOnChartArea: false,
-        },
-        border: {
-          display: false
-        },
-        ticks: {
-          callback: (v) => minToHHMM(v),
-          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
-          color: '#f59e0b',
-          padding: 8,
-          stepSize: maxDowntime > 120 ? 30 : (maxDowntime > 60 ? 20 : 10),
-        }
-      },
-      x: {
-        grid: { display: false },
-        border: {
-          display: false
-        },
-        ticks: {
-          padding: 8,
-          font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" },
-          color: '#64748b',
-          maxRotation: 45,
-          minRotation: 0,
-          autoSkip: true,
-          maxTicksLimit: 12
-        }
-      },
+      y: { type: 'linear', display: true, position: 'left', beginAtZero: true, title: { display: true, text: 'UPH (pcs/h)', font: { size: 10, weight: '600', family: "'Inter', sans-serif" }, color: '#0d9488' }, grid: { color: GRID_COLOR, lineWidth: 1, drawTicks: false }, border: { display: false }, ticks: { callback: roundValue, font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" }, color: '#0d9488', padding: 8 } },
+      y1: { type: 'linear', display: true, position: 'right', beginAtZero: true, max: maxDowntime || 60, title: { display: true, text: 'Downtime (min)', font: { size: 10, weight: '600', family: "'Inter', sans-serif" }, color: '#f59e0b' }, grid: { drawOnChartArea: false }, border: { display: false }, ticks: { callback: minToHHMM, font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" }, color: '#f59e0b', padding: 8, stepSize: maxDowntime > 120 ? 30 : (maxDowntime > 60 ? 20 : 10) } },
+      x: { grid: { display: false }, border: { display: false }, ticks: { padding: 8, font: { size: TICK_FS, weight: '500', family: "'Inter', sans-serif" }, color: '#64748b', maxRotation: 45, minRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
     },
-    interaction: {
-      mode: 'index',
-      intersect: false
-    },
+    interaction: { mode: 'index', intersect: false },
   });
 
-  // Flow
+  // ── Flow handlers ──────────────────────────────────────────────────
   const reset = () => {
-    setStep(1);
-    setLine("");
-    setStation("");
-    setStartTs(null);
-    setAlert(false);
-  };
-  const chooseLine = (l) => {
-    setLine(l);
-    setStep(2);
-  };
-  const chooseStation = (s) => {
-    setStation(s);
-    setStep(3);
-    setStartTs(null);
-    setAlert(false);
-  };
-  const startTimer = () => {
-    setAlert(false);
-    setStartTs(Date.now());
+    setStep(1); setLine(""); setStation(""); setStartTs(null);
+    setAlert(false); setDowntype("Other"); setStationSearch("");
   };
 
-  // 送出（送「Pacific local 無時區字串」）
+  const chooseLine = (l) => { setLine(l); setStep(2); setStationSearch(""); };
+
+  const chooseStation = (s) => { setStation(s); setStep(3); setStartTs(null); setAlert(false); };
+
+  const startTimer = () => { setAlert(false); setStartTs(Date.now()); };
+
+  const handleBackFromTimer = () => {
+    if (startTs) {
+      openConfirm(
+        "Cancel Timer?",
+        "The timer is running. Going back will discard this downtime session.",
+        () => { closeConfirm(); setStep(2); setStation(""); setStartTs(null); setAlert(false); }
+      );
+    } else {
+      setStep(2); setStation("");
+    }
+  };
+
+  const refreshCharts = () => {
+    setChartsLoading(true);
+    loadSummaries();
+    loadRecords();
+    loadUPHVsDowntime();
+    loadSurface3D();
+    setTimeout(() => setChartsLoading(false), 1500);
+  };
+
   const submit = async () => {
+    if (!startTs) return;
     try {
       const endTime = Date.now();
       const durationMin = Math.round((endTime - startTs) / 1000 / 60);
-
       await api.post("downtime", {
-        line,
-        station,
-        start_time: toPacificLocalIsoSeconds(startTs), // ← 關鍵：不要用 toISOString()
+        line, station,
+        start_time: toPacificLocalIsoSeconds(startTs),
         end_time: toPacificLocalIsoSeconds(endTime),
+        downtime_type: downtype,
       });
-
-      setMsg(`✅${line === "cell" ? "Cell Line" : "Assembly Line"} – ${station} – ${durationMin} min`);
-
+      setMsg(`✅ ${line === "cell" ? "Cell Line" : "Assembly Line"} – ${station} – ${durationMin} min`);
       reset();
-      loadSummaries();
-      loadRecords();
-      loadUPHVsDowntime();
+      refreshCharts();
     } catch (e) {
       setMsg(`❌ ${e.response?.data?.message || e.message}`);
     }
   };
 
-  // 編輯（用後端提供的 *_edit，送 naive Pacific）
-  const saveEdit = async (u) => {
-    if (!window.confirm(`Save changes to Record #${u.id}?\n\nLine: ${u.line}\nStation: ${u.station}\nStart: ${u.start_local}\nEnd: ${u.end_local}`)) {
-      return;
-    }
-
-    try {
-      const response = await api.put(`downtime/${u.id}`, {
-        line: u.line,
-        station: u.station,
-        // 直接送 "YYYY-MM-DDTHH:mm"（無時區），後端會當 Pacific
-        start_time: u.start_local,
-        end_time: u.end_local,
-      });
-
-      if (response.data.status === 'success') {
-        setMsg(`✅ Record #${u.id} updated successfully - Duration: ${minToHHMM(response.data.duration_min || 0)}`);
+  const saveEdit = (u) => {
+    openConfirm(
+      "Save Changes",
+      `Update Record #${u.id}?\n${u.line === "cell" ? "Cell Line" : "Assembly Line"} — ${u.station}`,
+      async () => {
+        closeConfirm();
+        try {
+          const response = await api.put(`downtime/${u.id}`, {
+            line: u.line, station: u.station,
+            start_time: u.start_local, end_time: u.end_local,
+            downtime_type: u.downtime_type || "Other",
+          });
+          if (response.data.status === 'success') {
+            setMsg(`✅ Record #${u.id} updated — ${minToHHMM(response.data.duration_min || 0)}`);
+          }
+          setEditing(null);
+          refreshCharts();
+        } catch (e) {
+          setMsg(`❌ ${e.response?.data?.message || e.message}`);
+        }
       }
-
-      setEditing(null);
-      loadRecords();
-      loadSummaries();
-      loadUPHVsDowntime();
-    } catch (e) {
-      setMsg(`❌ ${e.response?.data?.message || e.message}`);
-    }
+    );
   };
 
-  const del = async (id) => {
+  const del = (id) => {
     const record = records.find(r => r.id === id);
-    const recordInfo = record ? `\n\nLine: ${record.line}\nStation: ${record.station}\nStart: ${record.start_local}\nDuration: ${minToHHMM(record.duration_min)}` : '';
-
-    if (!window.confirm(`⚠️ Delete Record #${id}?${recordInfo}\n\nThis action cannot be undone.`)) return;
-    try {
-      await api.delete(`downtime/${id}`);
-      setMsg(`✅ Record #${id} deleted successfully`);
-      loadRecords();
-      loadSummaries();
-      loadUPHVsDowntime();
-    } catch (e) {
-      setMsg(`❌ ${e.response?.data?.message || e.message}`);
-    }
+    openConfirm(
+      "Delete Record",
+      record
+        ? `Delete Record #${id}?\n${record.line === "cell" ? "Cell Line" : "Assembly Line"} — ${record.station}\nStart: ${record.start_local}\n\nThis cannot be undone.`
+        : `Delete Record #${id}? This cannot be undone.`,
+      async () => {
+        closeConfirm();
+        try {
+          await api.delete(`downtime/${id}`);
+          setMsg(`✅ Record #${id} deleted`);
+          refreshCharts();
+        } catch (e) {
+          setMsg(`❌ ${e.response?.data?.message || e.message}`);
+        }
+      }
+    );
   };
 
+  // ─────────────────────────────────────────────────────────────────
   return (
     <div className={`dt-container ${alert ? "dt-flash" : ""}`}>
-      <h1 className="text-xl md:text-2xl font-semibold text-slate-800 mb-5">Downtime Log</h1>
+      <h1 className="text-xl md:text-2xl font-semibold text-slate-800 mb-3">Downtime Log</h1>
 
+      {/* ── Step Breadcrumb ── */}
+      <div className="dt-breadcrumb">
+        {["Select Line", "Select Station", "Timer"].map((label, i) => (
+          <React.Fragment key={label}>
+            <div className={`dt-bc-step${step === i + 1 ? " dt-bc-active" : step > i + 1 ? " dt-bc-done" : ""}`}>
+              <span className="dt-bc-num">{i + 1}</span>
+              <span className="dt-bc-label">{label}</span>
+            </div>
+            {i < 2 && <span className="dt-bc-sep">›</span>}
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* ── Step 1: Line ── */}
       {step === 1 && (
         <div className="dt-line-select">
           <button onClick={() => chooseLine("cell")}>Cell Line</button>
@@ -1055,32 +724,103 @@ export default function Downtime() {
         </div>
       )}
 
+      {/* ── Step 2: Station ── */}
       {step === 2 && (
-        <div className="dt-station-btns">
-          {(line === "cell" ? cellPositions : assemblyPositions).map((p) => (
-            <button key={p} onClick={() => chooseStation(p)}>
-              {p}
+        <div className="dt-step-wrapper">
+          <div className="dt-step-nav">
+            <button className="dt-back-btn" onClick={() => { setStep(1); setLine(""); setStationSearch(""); }}>
+              ← Back
             </button>
-          ))}
+            <input
+              className="dt-station-search"
+              type="text"
+              placeholder={`Search ${(line === "cell" ? cellPositions : assemblyPositions).length} stations…`}
+              value={stationSearch}
+              onChange={e => setStationSearch(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="dt-station-btns">
+            {(line === "cell" ? cellPositions : assemblyPositions)
+              .filter(p => p.toLowerCase().includes(stationSearch.toLowerCase()))
+              .map((p) => (
+                <button key={p} onClick={() => chooseStation(p)}>{p}</button>
+              ))}
+            {(line === "cell" ? cellPositions : assemblyPositions)
+              .filter(p => p.toLowerCase().includes(stationSearch.toLowerCase())).length === 0 && (
+              <p className="dt-search-empty">No stations match "{stationSearch}"</p>
+            )}
+          </div>
         </div>
       )}
 
+      {/* ── Step 3: Timer ── */}
       {step === 3 && (
-        <DowntimeTimer
-          line={line}
-          station={station}
-          startTs={startTs}
-          onStart={startTimer}
-          onSubmit={submit}
-          onAlert={handleTimerAlert}
-        />
+        <div className="dt-step-wrapper">
+          <button className="dt-back-btn" onClick={handleBackFromTimer}>← Back</button>
+          <div className="dt-type-selector">
+            <span className="dt-type-label">Downtime Type</span>
+            {DOWNTIME_TYPES.map(t => (
+              <button
+                key={t}
+                className={`dt-type-chip${downtype === t ? " dt-type-chip-active" : ""}`}
+                style={downtype === t ? { background: TYPE_COLORS[t].bg, color: TYPE_COLORS[t].color, borderColor: TYPE_COLORS[t].border } : {}}
+                onClick={() => setDowntype(t)}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          <DowntimeTimer
+            line={line} station={station} startTs={startTs}
+            onStart={startTimer} onSubmit={submit} onAlert={handleTimerAlert}
+          />
+        </div>
       )}
 
-      {msg && <div className="dt-msg">{msg}</div>}
+      {/* ── Notification ── */}
+      {msg && (
+        <div className={`dt-msg${msg.startsWith("✅") ? " dt-msg-ok" : " dt-msg-err"}`}>
+          {msg}
+        </div>
+      )}
 
-      {/* === DASHBOARD-STYLE CHART CARDS === */}
+      {/* ── KPI Summary Cards ── */}
+      {todaySummary && (
+        <div className="dt-kpi-grid">
+          <div className="dt-kpi-card">
+            <p className="dt-kpi-label">Total Downtime Today</p>
+            <p className="dt-kpi-value">{todaySummary.total}</p>
+            <p className="dt-kpi-sub">{Math.round(todaySummary.totalMin)} min total</p>
+          </div>
+          <div className="dt-kpi-card">
+            <p className="dt-kpi-label">Incidents</p>
+            <p className="dt-kpi-value">{todaySummary.events}</p>
+            <p className="dt-kpi-sub">events today</p>
+          </div>
+          <div className="dt-kpi-card">
+            <p className="dt-kpi-label">Longest Single</p>
+            <p className="dt-kpi-value">{todaySummary.longest}</p>
+            <p className="dt-kpi-sub">HH:MM</p>
+          </div>
+          <div className="dt-kpi-card">
+            <p className="dt-kpi-label">Top Station</p>
+            <p className="dt-kpi-value dt-kpi-station" title={todaySummary.topStation}>
+              {todaySummary.topStation}
+            </p>
+            <p className="dt-kpi-sub">
+              {todaySummary.topTime && <span>{todaySummary.topTime} · </span>}
+              <span className={`dt-kpi-line-tag ${todaySummary.topLine || ""}`}>
+                {todaySummary.topLine === "cell" ? "Cell" : todaySummary.topLine === "assembly" ? "Assembly" : ""}
+              </span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Charts Section ── */}
       <div className="downtime-charts-section">
-        <div className="downtime-charts-grid">
+        <div className={`downtime-charts-grid${chartsLoading ? " charts-refreshing" : ""}`}>
 
           {/* Today's Downtime Chart */}
           <div className="downtime-card">
@@ -1110,21 +850,15 @@ export default function Downtime() {
               {week.datasets && week.datasets.length > 0 ? (
                 <Bar data={week} options={getWeekChartOptions()} />
               ) : (
-                <div style={{padding: '2rem', textAlign: 'center', color: '#666'}}>
-                  <p>Debug Info:</p>
-                  <pre style={{fontSize: '11px', textAlign: 'left', background: '#f5f5f5', padding: '1rem', borderRadius: '8px', overflow: 'auto'}}>
-                    {JSON.stringify(week, null, 2)}
-                  </pre>
+                <div style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
+                  <p>No downtime data for the past 7 days</p>
                 </div>
               )}
             </div>
           </div>
 
           {/* UPH vs Downtime Correlation */}
-          <div
-            className="downtime-card downtime-card-full uph-correlation-card"
-            ref={uphCardRef}
-          >
+          <div className="downtime-card downtime-card-full uph-correlation-card" ref={uphCardRef}>
             <div className="downtime-card-header">
               <div className="downtime-header-content" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f0fdfa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -1138,9 +872,7 @@ export default function Downtime() {
                 </div>
               </div>
             </div>
-
             <div className="uph-dual-charts">
-              {/* Cell Line Chart */}
               <div className="uph-chart-block">
                 <div className="uph-chart-label">
                   <span className="uph-label-dot cell-dot"></span>
@@ -1148,24 +880,18 @@ export default function Downtime() {
                   <span style={{ marginLeft: 'auto', fontSize: '0.6875rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Hourly</span>
                 </div>
                 <div className="uph-chart-wrapper">
-                  {uphVsDowntime.datasets && uphVsDowntime.datasets.length > 0 && !uphLoading ? (
+                  {uphVsDowntime.datasets?.length > 0 && !uphLoading ? (
                     <Line data={uphVsDowntime} options={getUPHVsDowntimeChartOptions()} />
                   ) : (
                     <div className="chart-skeleton">
                       <div className="skeleton-header"></div>
                       <div className="skeleton-bars">
-                        <div className="skeleton-bar"></div>
-                        <div className="skeleton-bar"></div>
-                        <div className="skeleton-bar"></div>
-                        <div className="skeleton-bar"></div>
-                        <div className="skeleton-bar"></div>
+                        {[...Array(5)].map((_, i) => <div key={i} className="skeleton-bar"></div>)}
                       </div>
                     </div>
                   )}
                 </div>
               </div>
-
-              {/* Assembly Line Chart */}
               <div className="uph-chart-block">
                 <div className="uph-chart-label">
                   <span className="uph-label-dot assembly-dot"></span>
@@ -1173,17 +899,13 @@ export default function Downtime() {
                   <span style={{ marginLeft: 'auto', fontSize: '0.6875rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Hourly</span>
                 </div>
                 <div className="uph-chart-wrapper">
-                  {uphVsDowntimeAssembly.datasets && uphVsDowntimeAssembly.datasets.length > 0 && !uphLoading ? (
+                  {uphVsDowntimeAssembly.datasets?.length > 0 && !uphLoading ? (
                     <Line data={uphVsDowntimeAssembly} options={getUPHVsDowntimeChartOptions()} />
                   ) : (
                     <div className="chart-skeleton">
                       <div className="skeleton-header"></div>
                       <div className="skeleton-bars">
-                        <div className="skeleton-bar"></div>
-                        <div className="skeleton-bar"></div>
-                        <div className="skeleton-bar"></div>
-                        <div className="skeleton-bar"></div>
-                        <div className="skeleton-bar"></div>
+                        {[...Array(5)].map((_, i) => <div key={i} className="skeleton-bar"></div>)}
                       </div>
                     </div>
                   )}
@@ -1192,35 +914,87 @@ export default function Downtime() {
             </div>
           </div>
 
+          {/* 3D Downtime Heat Map */}
+          <div className="downtime-card downtime-card-full">
+            <div className="downtime-card-header">
+              <div className="downtime-header-content" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f0fdfa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3>3D Downtime Heat Map</h3>
+                  <p>Station × Hour-of-Day — past 30 days · drag to rotate</p>
+                </div>
+              </div>
+            </div>
+            <div style={{ padding: '0 1rem 1rem' }}>
+              {surface3dLoading ? (
+                <div style={{ height: 460, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                  <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+                    <div className="animate-spin" style={{ width: 28, height: 28, border: '3px solid #e5e7eb', borderTopColor: '#0d9488', borderRadius: '50%', margin: '0 auto 0.5rem' }} />
+                    <p style={{ fontSize: '0.8125rem' }}>Building 3D surface…</p>
+                  </div>
+                </div>
+              ) : surface3dData.length === 0 ? (
+                <div style={{ height: 460, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb', color: '#94a3b8', flexDirection: 'column', gap: '0.5rem' }}>
+                  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                  <p style={{ fontSize: '0.875rem', fontWeight: 600 }}>No downtime data in the past 30 days</p>
+                </div>
+              ) : (() => {
+                const { z, x, y } = buildStationHourMatrix(surface3dData);
+                return (
+                  <Plot3D
+                    title="Downtime Minutes: Station × Hour (Past 30 Days)"
+                    xTitle="Hour of Day"
+                    yTitle="Station"
+                    zTitle="Total Min"
+                    height={460}
+                    data={[{
+                      type: "surface",
+                      z, x, y,
+                      colorscale: [
+                        [0,   "#f0fdf4"],
+                        [0.2, "#6ee7b7"],
+                        [0.5, "#0d9488"],
+                        [0.8, "#f59e0b"],
+                        [1,   "#ef4444"],
+                      ],
+                      contours: {
+                        z: { show: true, usecolormap: true, highlightcolor: "#0d9488", project: { z: true } }
+                      },
+                      hovertemplate: "<b>%{y}</b><br>Hour: %{x}<br>Total: <b>%{z} min</b><extra></extra>",
+                    }]}
+                  />
+                );
+              })()}
+            </div>
+          </div>
+
         </div>
       </div>
 
-      {/* === DOWNTIME RECORDS MODAL === */}
+      {/* ── Records Modal ── */}
       {modalOpen && (
         <div className="modal-overlay" onClick={() => setModalOpen(false)}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-
-            {/* Modal Header */}
             <div className="modal-header">
               <div>
                 <h2 className="modal-title">Downtime Records</h2>
                 <p className="modal-subtitle">View, edit, and export all downtime entries</p>
               </div>
-              <button className="modal-close-btn" onClick={() => setModalOpen(false)}>
-                X
+              <button className="modal-close-btn" onClick={() => setModalOpen(false)} aria-label="Close">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                </svg>
               </button>
             </div>
 
-            {/* Search and Filter Controls */}
             <div className="modal-controls">
               <div className="modal-controls-left">
-                <input
-                  type="text"
-                  className="modal-search-input"
-                  placeholder="Search by ID, Station, or Line"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+                <input type="text" className="modal-search-input" placeholder="Search by ID, Station, or Line"
+                  value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                 <select className="modal-filter-select" value={lineFilter} onChange={(e) => setLineFilter(e.target.value)}>
                   <option value="all">All Lines</option>
                   <option value="cell">Cell Line</option>
@@ -1235,12 +1009,11 @@ export default function Downtime() {
               <div className="modal-controls-right">
                 <span className="modal-count-badge">{filteredRecords.length} / {records.length}</span>
                 <button className="modal-export-btn" onClick={() => exportToExcel(filteredRecords)}>
-                  Export to Excel
+                  Export Excel
                 </button>
               </div>
             </div>
 
-            {/* Table Wrapper with Virtual Scrolling */}
             <div ref={parentRef} className="modal-table-wrapper">
               <table className="modal-table">
                 <thead>
@@ -1248,127 +1021,95 @@ export default function Downtime() {
                     <th>ID</th>
                     <th>Line</th>
                     <th>Station</th>
+                    <th>Type</th>
                     <th>Start Time</th>
                     <th>End Time</th>
                     <th>Duration</th>
                     <th>Modified By</th>
-                    <th className="text-right">Actions</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="modal-table-spacer" aria-hidden="true">
-                    <td colSpan={8} style={{ height: `${rowVirtualizer.getTotalSize()}px` }}></td>
+                    <td colSpan={9} style={{ height: `${rowVirtualizer.getTotalSize()}px` }}></td>
                   </tr>
                   {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                     const record = filteredRecords[virtualRow.index];
                     const isEditing = editing?.id === record.id;
-
                     return (
                       <tr
                         key={virtualRow.key}
                         className={isEditing ? 'editing-row' : ''}
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
+                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualRow.start}px)` }}
                       >
-                          {isEditing ? (
-                            <>
-                              <td className="td-id">{record.id}</td>
-                              <td>
-                                <select
-                                  className="modal-select"
-                                  value={editing.line}
-                                  onChange={(e) => setEditing({ ...editing, line: e.target.value })}
-                                >
-                                  <option value="cell">Cell Line</option>
-                                  <option value="assembly">Assembly Line</option>
-                                </select>
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  className="modal-input"
-                                  value={editing.station}
-                                  onChange={(e) => setEditing({ ...editing, station: e.target.value })}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="datetime-local"
-                                  className="modal-input"
-                                  value={editing.start_local}
-                                  onChange={(e) => setEditing({ ...editing, start_local: e.target.value })}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  type="datetime-local"
-                                  className="modal-input"
-                                  value={editing.end_local}
-                                  onChange={(e) => setEditing({ ...editing, end_local: e.target.value })}
-                                />
-                              </td>
-                              <td>
-                                <span className="duration-badge">{minToHHMM(record.duration_min)}</span>
-                              </td>
-                              <td className="user-text">{record.modified_by || record.created_by || '-'}</td>
-                              <td className="td-actions">
-                                <div className="action-buttons">
-                                  <button className="btn-save" onClick={() => saveEdit(editing)}>
-                                    Save
-                                  </button>
-                                  <button className="btn-cancel" onClick={() => setEditing(null)}>
-                                    Cancel
-                                  </button>
-                                </div>
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="td-id">{record.id}</td>
-                              <td>
-                                <span className={`line-badge ${record.line}`}>
-                                  {record.line === 'cell' ? 'Cell Line' : 'Assembly Line'}
-                                </span>
-                              </td>
-                              <td className="station-name">{record.station}</td>
-                              <td className="datetime-text">{record.start_local}</td>
-                              <td className="datetime-text">{record.end_local}</td>
-                              <td>
-                                <span className="duration-badge">{minToHHMM(record.duration_min)}</span>
-                              </td>
-                              <td className="user-text">{record.modified_by || record.created_by || '-'}</td>
-                              <td className="td-actions">
-                                <div className="action-buttons">
-                                  <button
-                                    className="btn-edit"
-                                    onClick={() => setEditing({
-                                      id: record.id,
-                                      line: record.line,
-                                      station: record.station,
-                                      start_local: record.start_local_edit,
-                                      end_local: record.end_local_edit,
-                                    })}
-                                    title="Edit Record"
-                                  >
-                                    Edit
-                                  </button>
-                                  <button className="btn-delete" onClick={() => del(record.id)} title="Delete Record">
-                                    Delete
-                                  </button>
-                                </div>
-                              </td>
-                            </>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                        {isEditing ? (
+                          <>
+                            <td className="td-id">{record.id}</td>
+                            <td>
+                              <select className="modal-select" value={editing.line}
+                                onChange={(e) => setEditing({ ...editing, line: e.target.value })}>
+                                <option value="cell">Cell Line</option>
+                                <option value="assembly">Assembly Line</option>
+                              </select>
+                            </td>
+                            <td>
+                              <input type="text" className="modal-input" value={editing.station}
+                                onChange={(e) => setEditing({ ...editing, station: e.target.value })} />
+                            </td>
+                            <td>
+                              <select className="modal-select" value={editing.downtime_type || "Other"}
+                                onChange={(e) => setEditing({ ...editing, downtime_type: e.target.value })}>
+                                {DOWNTIME_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                              </select>
+                            </td>
+                            <td>
+                              <input type="datetime-local" className="modal-input" value={editing.start_local}
+                                onChange={(e) => setEditing({ ...editing, start_local: e.target.value })} />
+                            </td>
+                            <td>
+                              <input type="datetime-local" className="modal-input" value={editing.end_local}
+                                onChange={(e) => setEditing({ ...editing, end_local: e.target.value })} />
+                            </td>
+                            <td><span className="duration-badge">{minToHHMM(record.duration_min)}</span></td>
+                            <td className="user-text">{record.modified_by || record.created_by || '-'}</td>
+                            <td className="td-actions">
+                              <div className="action-buttons">
+                                <button className="btn-save" onClick={() => saveEdit(editing)}>Save</button>
+                                <button className="btn-cancel" onClick={() => setEditing(null)}>Cancel</button>
+                              </div>
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="td-id">{record.id}</td>
+                            <td>
+                              <span className={`line-badge ${record.line}`}>
+                                {record.line === 'cell' ? 'Cell Line' : 'Assembly Line'}
+                              </span>
+                            </td>
+                            <td className="station-name">{record.station}</td>
+                            <td><TypeBadge type={record.downtime_type} /></td>
+                            <td className="datetime-text">{record.start_local}</td>
+                            <td className="datetime-text">{record.end_local}</td>
+                            <td><span className="duration-badge">{minToHHMM(record.duration_min)}</span></td>
+                            <td className="user-text">{record.modified_by || record.created_by || '-'}</td>
+                            <td className="td-actions">
+                              <div className="action-buttons">
+                                <button className="btn-edit" onClick={() => setEditing({
+                                  id: record.id, line: record.line, station: record.station,
+                                  downtime_type: record.downtime_type || "Other",
+                                  start_local: record.start_local_edit, end_local: record.end_local_edit,
+                                })}>Edit</button>
+                                <button className="btn-delete" onClick={() => del(record.id)}>Delete</button>
+                              </div>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
 
             {filteredRecords.length === 0 && (
@@ -1380,10 +1121,24 @@ export default function Downtime() {
 
             <div className="modal-footer">
               <p className="modal-footer-text">
-                Double-click any row to edit • Total {records.length} record{records.length !== 1 ? 's' : ''}
+                Click <strong>Edit</strong> to modify a record · Total {records.length} record{records.length !== 1 ? 's' : ''}
               </p>
             </div>
+          </div>
+        </div>
+      )}
 
+      {/* ── Confirm Dialog ── */}
+      {confirm.open && (
+        <div className="modal-overlay dt-confirm-overlay" onClick={closeConfirm}>
+          <div className="dt-confirm-dialog" onClick={e => e.stopPropagation()}>
+            <div className="dt-confirm-icon">⚠️</div>
+            <h3 className="dt-confirm-title">{confirm.title}</h3>
+            <p className="dt-confirm-body" style={{ whiteSpace: "pre-line" }}>{confirm.body}</p>
+            <div className="dt-confirm-actions">
+              <button className="dt-confirm-cancel" onClick={closeConfirm}>Cancel</button>
+              <button className="dt-confirm-ok" onClick={confirm.onConfirm}>Confirm</button>
+            </div>
           </div>
         </div>
       )}

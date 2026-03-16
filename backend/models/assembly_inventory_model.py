@@ -1,6 +1,7 @@
 # backend/models/assembly_inventory_model.py
 from typing import Optional
-from pydantic import BaseModel
+from datetime import datetime
+from pydantic import BaseModel, field_validator
 
 # -------- Input --------
 class AssemblyRecordIn(BaseModel):
@@ -15,6 +16,17 @@ class AssemblyRecordIn(BaseModel):
 
 # -------- Output --------
 class AssemblyRecordOut(AssemblyRecordIn):
+    # DB TIMESTAMPTZ returns datetime; coerce to string before type validation.
+    timestamp: Optional[str] = None
     status:     str                     # '' / 'NG'
     ng_reason:  str                     # NG reason text
     id:         int                     # DB row id
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def coerce_timestamp(cls, v: object) -> Optional[str]:
+        if v is None:
+            return None
+        if hasattr(v, "strftime"):
+            return v.strftime("%Y-%m-%d %H:%M:%S")
+        return str(v) if not isinstance(v, str) else v

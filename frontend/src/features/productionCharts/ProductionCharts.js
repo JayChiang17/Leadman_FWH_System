@@ -13,6 +13,7 @@ import {
 import { format, parseISO, eachDayOfInterval } from "date-fns";
 import axios from "../../services/api";
 import { motion, AnimatePresence } from "framer-motion";
+import Plot3D, { buildHourDowMatrix } from "../../components/Plot3D";
 
 /* ─────────────────── UI constants ─────────────────── */
 const TICK_FS = 11;
@@ -1001,7 +1002,7 @@ const renderTrendAnalysis = () => {
   const renderHourlyDistribution = () => {
     if (!hourlyData) return null;
     const { distribution_data, summary } = hourlyData;
-    const maxValue = Math.max(...distribution_data.map(d => d.average || 0));
+    const maxValue = distribution_data.length > 0 ? Math.max(...distribution_data.map(d => d.average || 0)) : 0;
     const avgValue = distribution_data.reduce((sum, d) => sum + (d.average || 0), 0) / (distribution_data.length || 1);
 
     return (
@@ -1061,8 +1062,8 @@ const renderTrendAnalysis = () => {
     const { comparison_data, statistics: stats } = comparisonData;
     const data = comparison_data.map(i => ({ date: format(parseISO(i.date), "MM/dd"), ...i }));
 
-    const maxEfficiency = Math.max(...data.map(d => d.efficiency || 0));
-    const minEfficiency = Math.min(...data.map(d => d.efficiency || 0));
+    const maxEfficiency = data.length > 0 ? Math.max(...data.map(d => d.efficiency || 0)) : 0;
+    const minEfficiency = data.length > 0 ? Math.min(...data.map(d => d.efficiency || 0)) : 0;
     const targetLabel = format(parseISO(targetDate), "MM/dd");
 
     // P2-3: Semantic correlation indicator
@@ -1155,7 +1156,7 @@ const renderTrendAnalysis = () => {
                     formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
                   <Bar dataKey="module_pairs" name="Pairs" fill="#0d9488" barSize={16} radius={[4, 4, 0, 0]} />
                   <Bar dataKey="assembly" name="Assembly" fill="#f59e0b" barSize={16} radius={[4, 4, 0, 0]}>
-                    <LabelList content={({ x, y, width, value, index }) => {
+                    <LabelList content={({ x, y, width, index }) => {
                       const eff = data[index]?.efficiency;
                       if (!eff) return null;
                       const color = eff >= 95 ? "#10b981" : eff >= 80 ? "#f59e0b" : "#ef4444";
@@ -1468,8 +1469,95 @@ const renderTrendAnalysis = () => {
           </div>
           {/* ─── Bento Row 5: Comparison full width ─── */}
           {renderComparisonAnalysis()}
+          {/* ─── Bento Row 6: 3D Assembly Pattern ─── */}
+          <Uph3DCard />
         </div>
       )}
+    </div>
+  );
+}
+
+/* ──────────────── 3D Assembly UPH Pattern Card ──────────────── */
+function Uph3DCard() {
+  const [data3d, setData3d] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    axios.get("assembly-inventory/uph-3d", { params: { days: 30 } })
+      .then((r) => setData3d(r.data?.data || []))
+      .catch(() => setData3d([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const DOW_FULL = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+
+  const renderChart = () => {
+    if (!data3d || data3d.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center text-slate-400" style={{ height: 460 }}>
+          <Activity size={36} className="mb-3 opacity-40" />
+          <p className="font-semibold text-sm">No scan data in the past 30 days</p>
+        </div>
+      );
+    }
+    const { z, x, y } = buildHourDowMatrix(data3d, "scan_count");
+    return (
+      <Plot3D
+        title=""
+        xTitle="Hour of Day"
+        yTitle="Day of Week"
+        zTitle="Scan Count"
+        height={460}
+        data={[{
+          type: "surface",
+          z, x, y,
+          colorscale: [
+            [0,   "#f0fdf4"],
+            [0.25, "#6ee7b7"],
+            [0.5, "#0d9488"],
+            [0.75, "#0891b2"],
+            [1,   "#1e40af"],
+          ],
+          contours: {
+            z: { show: true, usecolormap: true, highlightcolor: "#0d9488", project: { z: true } }
+          },
+          hovertemplate: "<b>%{y}</b><br>Hour: %{x}<br>Scans: <b>%{z}</b><extra></extra>",
+        }]}
+        layout={{
+          scene: {
+            camera: { eye: { x: 1.5, y: 1.5, z: 1.2 } },
+            yaxis: {
+              backgroundcolor: "#f9fafb", gridcolor: "#e5e7eb", title: "Day of Week",
+              tickmode: "array", tickvals: [0,1,2,3,4,5,6], ticktext: DOW_FULL,
+            },
+            xaxis: { backgroundcolor: "#f9fafb", gridcolor: "#e5e7eb", title: "Hour of Day" },
+            zaxis: { backgroundcolor: "#f0fdf4", gridcolor: "#bbf7d0", title: "Scan Count" },
+          },
+          margin: { l: 0, r: 0, t: 10, b: 0 },
+          paper_bgcolor: "white",
+        }}
+      />
+    );
+  };
+
+  return (
+    <div className={`${CARD_SURFACE} p-5 md:p-6`}>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 bg-teal-50 rounded-lg">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 className="font-bold text-slate-800 text-sm">3D Production Pattern</h3>
+          <p className="text-xs text-slate-400">Assembly scans: Hour × Day-of-Week — past 30 days · drag to rotate</p>
+        </div>
+      </div>
+      {loading ? (
+        <div className="flex items-center justify-center bg-slate-50 rounded-lg border border-slate-200 animate-pulse" style={{ height: 460 }}>
+          <p className="text-sm text-slate-400">Building 3D surface…</p>
+        </div>
+      ) : renderChart()}
     </div>
   );
 }

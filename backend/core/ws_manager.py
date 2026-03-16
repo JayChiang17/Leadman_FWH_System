@@ -212,6 +212,13 @@ class ConnectionManager:
 
     # send helpers
 
+    def touch(self, websocket: WebSocket):
+        """Update last_active for a connection (call this after any direct send that bypasses broadcast)."""
+        info = self.active.get(id(websocket))
+        if info:
+            info.last_active = time.time()
+            info.msg_count += 1
+
     async def _safe_send(self, ws: WebSocket, message: dict) -> bool:
         if ws.client_state != WebSocketState.CONNECTED:
             return False
@@ -247,15 +254,20 @@ class ConnectionManager:
         if not infos:
             return
 
-        now = time.time()
-        for info in infos:
-            sent_any = False
+        async def _send_sequence(info):
             for message in messages:
                 ok = await self._safe_send(info.ws, message)
                 if not ok:
-                    break
-                sent_any = True
-            if sent_any:
+                    return False
+            return True
+
+        results = await asyncio.gather(
+            *(_send_sequence(info) for info in infos),
+            return_exceptions=True,
+        )
+        now = time.time()
+        for info, result in zip(infos, results):
+            if result is True:
                 info.msg_count += len(messages)
                 info.last_active = now
 
@@ -282,12 +294,17 @@ class ConnectionManager:
 
     async def broadcast(self, message: dict):
         await self._broadcast_local(message)
-        await self._publish_redis(message)
+        # Fire-and-forget Redis publish so it doesn't block local delivery
+        asyncio.ensure_future(self._publish_redis(message))
 
     async def broadcast_many(self, messages: list[dict]):
         if not messages:
             return
         await self._broadcast_local_many(messages)
+        # Fire-and-forget Redis publish so it doesn't block local delivery
+        asyncio.ensure_future(self._publish_redis_many(messages))
+
+    async def _publish_redis_many(self, messages: list[dict]):
         if not self._redis_enabled or self._redis is None:
             await self._ensure_redis_bus(force=False)
         if not self._redis_enabled or self._redis is None:
@@ -368,7 +385,8 @@ class ConnectionManager:
         for ws_id, info in items:
             if info.ws.client_state != WebSocketState.CONNECTED:
                 stale_ids.append(ws_id)
-            elif (now - info.last_active) > 120 and info.msg_count == 0:
+            elif (now - info.last_active) > 300:
+                # No activity for 5 minutes — close (covers both idle and direct-send connections)
                 stale_ids.append(ws_id)
                 try:
                     await info.ws.close(1000, "idle timeout")

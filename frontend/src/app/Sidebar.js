@@ -22,30 +22,40 @@ import {
   LogOut,
   TrendingUp,
   Cpu,
-  Activity,//  ← 新增圖標：PCBA Tracking
-  AlertTriangle,//  ← 新增圖標：NG Dashboard
-  Mail,//  ← 新增圖標：Email Settings
-  Monitor,//  ← 新增圖標：System Monitor
+  Activity,//  ← PCBA Tracking
+  AlertTriangle,//  ← NG Dashboard
+  Mail,//  ← Email Settings
+  Monitor,//  ← System Monitor
+  Layers,//  ← WIP Tracking
+  PieChart,//  ← NG Analysis
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
 
 export default function Sidebar() {
-  const { role, logout, name } = useContext(AuthCtx);
+  const { role, logout, name, allowedPages } = useContext(AuthCtx);
   const { pathname } = useLocation();
+
+  // Returns true if this user can see the given page key.
+  // Admin always sees everything. null allowedPages = unrestricted.
+  const canSee = useCallback((pageKey) => {
+    if (role === "admin") return true;
+    if (allowedPages === null || allowedPages === undefined) return true;
+    return allowedPages.includes(pageKey);
+  }, [role, allowedPages]);
 
   const navItemClass = useCallback((path) => `
     group relative flex items-center gap-3 px-4 py-3 rounded-xl
     font-medium text-base transition-all duration-500 overflow-hidden
     ${
       pathname.startsWith(path)
-        ? "bg-gradient-to-r from-blue-500/30 to-cyan-500/20 text-cyan-300 border border-blue-400/30 shadow-xl shadow-blue-500/20 backdrop-blur-sm"
-        : "text-gray-300 hover:text-cyan-300 hover:bg-gradient-to-r hover:from-blue-500/10 hover:to-cyan-500/5 hover:border-blue-400/20 hover:shadow-lg hover:shadow-blue-500/10 hover:backdrop-blur-sm border border-transparent"
+        ? "bg-gradient-to-r from-teal-600/30 to-cyan-500/20 text-cyan-300 border border-teal-400/30 shadow-xl shadow-teal-500/20 backdrop-blur-sm"
+        : "text-gray-300 hover:text-cyan-300 hover:bg-gradient-to-r hover:from-teal-600/10 hover:to-cyan-500/5 hover:border-teal-400/20 hover:shadow-lg hover:shadow-teal-500/10 hover:backdrop-blur-sm border border-transparent"
     }
   `, [pathname]);
 
   return (
-    <nav className="w-72 h-screen bg-gradient-to-br from-gray-900 via-blue-900/20 to-gray-950 text-white flex flex-col shadow-2xl shadow-black/50 relative overflow-hidden">
+    <nav className="w-72 h-screen bg-gradient-to-br from-gray-900 via-teal-900/20 to-gray-950 text-white flex flex-col shadow-2xl shadow-black/50 relative overflow-hidden">
       {/* -------- 背景粒子 / 水滴 -------- */}
       <div className="absolute inset-0 opacity-40 pointer-events-none">
         <div className="absolute -top-20 -right-20 w-80 h-80 bg-gradient-radial from-blue-400/20 via-cyan-300/10 to-transparent rounded-full blur-2xl animate-float-slow" />
@@ -64,7 +74,7 @@ export default function Sidebar() {
 
       {/* -------- User 區塊 -------- */}
       <div className="flex-shrink-0 p-6 relative z-10">
-        <div className="relative p-6 bg-gradient-to-br from-blue-500/10 via-cyan-500/5 to-transparent border border-blue-400/20 rounded-2xl backdrop-blur-md shadow-lg shadow-blue-500/10 overflow-hidden group">
+        <div className="relative p-6 bg-gradient-to-br from-teal-500/10 via-cyan-500/5 to-transparent border border-teal-400/20 rounded-xl backdrop-blur-md shadow-lg shadow-teal-500/10 overflow-hidden group">
           {/* 背景點綴 */}
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
             <div className="absolute -top-2 -right-2 w-16 h-16 bg-gradient-radial from-cyan-400/30 to-transparent rounded-full blur-md animate-pulse-gentle" />
@@ -88,13 +98,15 @@ export default function Sidebar() {
           <section>
             <h4 className="nav-label">Production</h4>
             <div className="space-y-2">
-              <SidebarLink to="/dashboard" icon={BarChart2}   text="Dashboard"         navItemClass={navItemClass} />
-              <SidebarLink to="/production-charts" icon={TrendingUp} text="Production Charts" navItemClass={navItemClass} />
-              <SidebarLink to="/ng-dashboard" icon={AlertTriangle} text="NG Dashboard" navItemClass={navItemClass} />
-              <SidebarLink to="/pcba-tracking"  icon={Cpu}          text="PCBA Tracking"    navItemClass={navItemClass} />
-              <SidebarLink to="/module_production"   icon={BatteryMedium} text="Module Production" navItemClass={navItemClass} />
-              <SidebarLink to="/assembly_production" icon={Package}       text="Assembly Production" navItemClass={navItemClass} />
-              <SidebarLink to="/downtime" icon={ClipboardList} text="Downtime" navItemClass={navItemClass} />
+              {canSee("dashboard")           && <SidebarLink to="/dashboard"           icon={BarChart2}     text="Dashboard"           navItemClass={navItemClass} />}
+              {canSee("production-charts")   && <SidebarLink to="/production-charts"   icon={TrendingUp}    text="Production Charts"   navItemClass={navItemClass} />}
+              {canSee("ng-dashboard")        && <SidebarLink to="/ng-dashboard"        icon={AlertTriangle} text="NG Dashboard"        navItemClass={navItemClass} />}
+              {canSee("pcba-tracking")       && <SidebarLink to="/pcba-tracking"       icon={Cpu}           text="PCBA Tracking"       navItemClass={navItemClass} />}
+              {canSee("module_production")   && <SidebarLink to="/module_production"   icon={BatteryMedium} text="Module Production"   navItemClass={navItemClass} />}
+              {canSee("assembly_production") && <SidebarLink to="/assembly_production" icon={Package}       text="Assembly Production" navItemClass={navItemClass} />}
+              {canSee("downtime")            && <SidebarLink to="/downtime"            icon={ClipboardList} text="Downtime"            navItemClass={navItemClass} />}
+              {canSee("wip-tracking")        && <SidebarLink to="/wip-tracking"        icon={Layers}        text="WIP Tracking"        navItemClass={navItemClass} />}
+              {canSee("ng-analysis")         && <SidebarLink to="/ng-analysis"         icon={PieChart}      text="ATE NG Analysis"     navItemClass={navItemClass} />}
             </div>
           </section>
 
@@ -102,9 +114,9 @@ export default function Sidebar() {
           <section>
             <h4 className="nav-label">Tools & Analytics</h4>
             <div className="space-y-2">
-              <SidebarLink to="/search"   icon={Search}   text="Data Search"    navItemClass={navItemClass} />
-              <SidebarLink to="/qc-check" icon={CheckCircle} text="Quality Control" navItemClass={navItemClass} />
-              <SidebarLink to="/ate-testing" icon={Activity} text="ATE Testing" navItemClass={navItemClass} />
+              {canSee("search")      && <SidebarLink to="/search"      icon={Search}       text="Data Search"      navItemClass={navItemClass} />}
+              {canSee("qc-check")    && <SidebarLink to="/qc-check"    icon={CheckCircle}  text="Quality Control"  navItemClass={navItemClass} />}
+              {canSee("ate-testing") && <SidebarLink to="/ate-testing" icon={Activity}     text="ATE Testing"      navItemClass={navItemClass} />}
               {role === "admin" && (
                 <>
                   <SidebarLink to="/user-perm" icon={Users} text="User Management" navItemClass={navItemClass} />
@@ -136,7 +148,15 @@ export default function Sidebar() {
       {/* -------- 自定義 CSS -------- */}
       <style>{`
         .nav-label {
-          @apply text-xs font-semibold text-cyan-400/80 uppercase tracking-widest px-4 mb-4 relative;
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: rgb(34 211 238 / 0.8);
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          padding-left: 1rem;
+          padding-right: 1rem;
+          margin-bottom: 1rem;
+          position: relative;
         }
         .nav-label::after {
           content: "";
@@ -184,6 +204,14 @@ export default function Sidebar() {
         .animate-shimmer-reverse { animation: shimmer-reverse 4s linear infinite; }
 
         .bg-gradient-radial { background: radial-gradient(circle, var(--tw-gradient-stops)); }
+
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
       `}</style>
     </nav>
   );

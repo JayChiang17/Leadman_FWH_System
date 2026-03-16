@@ -4,6 +4,10 @@
 -- Executed automatically on first start via docker-entrypoint-initdb.d
 -- =============================================================
 
+-- Install pg_trgm in public so gin_trgm_ops is always reachable
+-- regardless of which schema's search_path is active.
+CREATE EXTENSION IF NOT EXISTS pg_trgm SCHEMA public;
+
 -- -----------------------------------------
 -- Schema: pcba (was pcba.db)
 -- -----------------------------------------

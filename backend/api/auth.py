@@ -88,7 +88,8 @@ async def login(
     # 建立 tokens
     access_token = create_access_token(
         sub=user["username"],
-        role=user["role"]
+        role=user["role"],
+        allowed_pages=user.get("allowed_pages"),
     )
     refresh_token = create_refresh_token(sub=user["username"])
 
@@ -147,7 +148,8 @@ async def refresh_token(
         # 建立新的 access token
         new_access_token = create_access_token(
             sub=user["username"],
-            role=user["role"]
+            role=user["role"],
+            allowed_pages=user.get("allowed_pages"),
         )
 
         # 建立新的 refresh token（輪替）

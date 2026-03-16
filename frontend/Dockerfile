@@ -10,7 +10,10 @@ WORKDIR /app
 
 # Cache dependencies layer
 COPY package.json package-lock.json ./
-RUN npm ci --production=false
+RUN npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-retries 5 && \
+    npm ci --production=false
 
 # Copy source and build
 COPY . .

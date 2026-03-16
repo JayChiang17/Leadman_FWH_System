@@ -29,6 +29,12 @@ router = APIRouter(tags=["model"])
 
 SCHEMA = "model"
 
+def _row_to_json(row) -> dict:
+    """Convert a psycopg2 row to a JSON-serializable dict (datetime → ISO string)."""
+    if row is None:
+        return {}
+    return {k: v.isoformat() if isinstance(v, datetime) else v for k, v in dict(row).items()}
+
 # ─────────── Backfill：啟動時自動回填 daily_summary ───────────
 def backfill_daily_summary(days: int = 60):
     """開機時回填最近 N 天的 daily_summary；可重複執行（UPSERT）"""
@@ -37,7 +43,7 @@ def backfill_daily_summary(days: int = 60):
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""
             INSERT INTO daily_summary(day, count_a, count_b, total)
-            SELECT TO_CHAR(scanned_at, 'YYYY-MM-DD') AS d,
+            SELECT scanned_at::date AS d,
                    SUM(CASE WHEN kind='A' THEN 1 ELSE 0 END),
                    SUM(CASE WHEN kind='B' THEN 1 ELSE 0 END),
                    COUNT(*)
@@ -215,7 +221,7 @@ async def scan(req: Request, data: InventoryScan):
         payload = {
             "status": "error",
             "message": "duplicate",
-            "record": dict(row) if row else {"sn": sn}
+            "record": _row_to_json(row) if row else {"sn": sn}
         }
         return JSONResponse(payload, status_code=409)
 
@@ -235,7 +241,7 @@ async def scan(req: Request, data: InventoryScan):
         payload = {
             "status": "error",
             "message": "duplicate",
-            "record": dict(row) if row else {"sn": sn}
+            "record": _row_to_json(row) if row else {"sn": sn}
         }
         return JSONResponse(payload, status_code=409)
 
@@ -676,7 +682,7 @@ async def update_sn(body: UpdateSNBody):     # ← async
 @router.get("/production-charts/module/production",
             summary="Module production (A/B, with optional plan_data) for daily/weekly/monthly")
 def production_charts_module_production(
-    period: str = Query("daily", regex="^(daily|weekly|monthly)$"),
+    period: str = Query("daily", pattern="^(daily|weekly|monthly)$"),
     target_date: str | None = Query(None, description="YYYY-MM-DD"),
     user=Depends(get_current_user)
 ):

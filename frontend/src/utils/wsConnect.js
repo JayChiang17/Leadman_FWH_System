@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useContext } from "react";
 import { AuthCtx } from "../auth/AuthContext";
 import { buildWsUrl, getReconnectDelay, RECONNECT_CONFIG } from "./websocketConfig";
 
-// 單例追蹤器 - 防止 HMR 造成的重複連線
+// 非儀表板路徑的單例追蹤器 - 防止 HMR 造成的重複連線
 const activeConnections = new Map();
 
 /* ---------- 核心：可自動重連 WebSocket (支援 token refresh) ---------- */
@@ -45,10 +45,8 @@ export function openSocket(
       }
 
       // 首次連線時，先發送 warmup HTTP 請求確保 proxy 的 upgrade handler 已就緒
-      // 這是因為 CRA 的 setupProxy.js 需要第一個 HTTP 請求來設置 WebSocket 代理
       if (reconnectAttempts === 0) {
         try {
-          // Warmup request to trigger proxy setup
           await fetch('/api/health').catch(() => {});
           await new Promise(resolve => setTimeout(resolve, 100));
         } catch (e) {
@@ -77,9 +75,9 @@ export function openSocket(
 
       /* 收到訊息 */
       ws.onmessage = (e) => {
-        if (e.data === "ping") return;
-        try { 
-          onMsg(JSON.parse(e.data)); 
+        if (e.data === "ping" || e.data === "pong" || e.data === "heartbeat") return;
+        try {
+          onMsg(JSON.parse(e.data));
         } catch {
           // ignore bad JSON
         }
@@ -92,11 +90,13 @@ export function openSocket(
 
         const isAuthClose = ev.code === 4003 || ev.code === 1008;
         if (isAuthClose) {
+          // Token expired / auth failed → stop reconnecting, user must re-login
           closed = true;
+          console.warn("[WS] Auth failed (code %d) on %s — stopped reconnecting", ev.code, path);
+          return;
         }
 
-        // 只在非正常關閉時才調用錯誤處理
-        // Code 1000 = 正常關閉 (例如組件卸載)
+        // Code 1000 = 正常關閉 (組件卸載)
         const isNormalClose = ev.code === 1000 || closed;
 
         if (!isNormalClose) {
@@ -111,11 +111,10 @@ export function openSocket(
       };
 
       ws.onerror = (ev) => {
-        // 錯誤事件總是調用 onErr
         onErr(ev);
       };
       ws.onclose = handleClose;
-      
+
     } catch (error) {
       console.error("WebSocket connection error:", error);
       if (!closed) {
@@ -135,39 +134,75 @@ export function openSocket(
     }
   };
 
-  return { ws, destroy };
+  return { destroy };
 }
 
-/* -------- Dashboard 專用快捷 (支援 token refresh) - 單例模式 -------- */
-export const openDashboardSocket = (onMsg, onErr, pingMs, getTokenFn) => {
-  const path = "/realtime/dashboard";
 
-  // 如果已有連線，先關閉舊的（防止 HMR 重複連線）
-  if (activeConnections.has(path)) {
-    console.log("[WS] Closing existing dashboard connection before creating new one");
-    const oldConnection = activeConnections.get(path);
-    if (oldConnection && oldConnection.destroy) {
-      oldConnection.destroy();
+/* ─────────────────────────────────────────────────────────────────────────────
+ * 儀表板 WS 訂閱者模式
+ *
+ * 問題：Dashboard、ModuleProduction、NGDashboard、ATETesting、AssemblyProduction
+ *       全部使用相同的 /realtime/dashboard 路徑。舊的「先關後建」做法讓每次
+ *       頁面切換都會殺掉前一個元件的連線，造成重連風暴。
+ *
+ * 解法：一個底層連線，多個訂閱者共享。元件卸載只移除訂閱，最後一個訂閱者
+ *       離開才真正銷毀連線。
+ * ────────────────────────────────────────────────────────────────────────── */
+const _dsubs     = new Map(); // subscriberId → onMsg callback
+const _dconnCbs  = new Map(); // subscriberId → onConnChange callback
+let   _dconn     = null;      // 底層 openSocket 返回的 { destroy }
+let   _did       = 0;         // 訂閱者 ID 計數器
+let   _dGetToken = null;      // 最新的 getTokenFn（訂閱時更新）
+
+function _startDashboardConn() {
+  if (_dconn) return;
+  _dconn = openSocket(
+    "/realtime/dashboard",
+    (msg) => {
+      _dsubs.forEach((cb) => { try { cb(msg); } catch {} });
+    },
+    () => {}, // errors are logged inside openSocket
+    30_000,
+    // 永遠使用最新的 getTokenFn（透過閉包引用 _dGetToken）
+    (...args) => (_dGetToken
+      ? _dGetToken(...args)
+      : Promise.resolve(localStorage.getItem("token"))
+    ),
+    (ok) => {
+      _dconnCbs.forEach((cb) => { try { cb(ok); } catch {} });
     }
-    activeConnections.delete(path);
-  }
+  );
+}
 
-  const connection = openSocket(path, onMsg, onErr, pingMs, getTokenFn);
+function _subscribeDashboard(onMsg, getTokenFn, onConnChange) {
+  const id = ++_did;
+  _dsubs.set(id, onMsg);
+  if (onConnChange) _dconnCbs.set(id, onConnChange);
+  if (getTokenFn) _dGetToken = getTokenFn; // 記住最新的 token 函數
 
-  // 追蹤新連線
-  activeConnections.set(path, connection);
+  _startDashboardConn();
 
-  // 包裝 destroy 以同時清除追蹤
-  const originalDestroy = connection.destroy;
-  connection.destroy = () => {
-    activeConnections.delete(path);
-    originalDestroy();
+  return () => {
+    _dsubs.delete(id);
+    _dconnCbs.delete(id);
+    // 最後一個訂閱者離開時才銷毀底層連線
+    if (_dsubs.size === 0 && _dconn) {
+      _dconn.destroy();
+      _dconn = null;
+    }
   };
+}
 
-  return connection;
+
+/* -------- Dashboard 專用快捷（向後相容舊 API）-------- */
+export const openDashboardSocket = (onMsg, onErr, pingMs, getTokenFn) => {
+  const unsubscribe = _subscribeDashboard(onMsg, getTokenFn, null);
+  // 回傳 { destroy } 維持舊呼叫介面相容性（ws 屬性不再提供）
+  return { destroy: unsubscribe };
 };
 
-/* -------- React hook 版本 (支援 AuthContext) - 單例模式 -------- */
+
+/* -------- React hook 版本（支援 AuthContext）-------- */
 export default function useWs(path, onMessage) {
   const { getValidToken } = useContext(AuthCtx);
   const getValidTokenRef = useRef(getValidToken);
@@ -175,53 +210,42 @@ export default function useWs(path, onMessage) {
   const onMessageRef = useRef(onMessage);
   useEffect(() => { onMessageRef.current = onMessage; }, [onMessage]);
 
-  const destroyRef = useRef(null);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    // 如果已有連線，先關閉舊的（防止 HMR 重複連線）
+    const stableGetToken = (...args) => getValidTokenRef.current(...args);
+
+    // 儀表板路徑：使用共享訂閱者模式，不重建連線
+    if (path === "/realtime/dashboard") {
+      const cleanup = _subscribeDashboard(
+        (msg) => { if (onMessageRef.current) onMessageRef.current(msg); },
+        stableGetToken,
+        (ok) => setIsConnected(ok)
+      );
+      return cleanup;
+    }
+
+    // 其他路徑：每個元件各自獨立連線
     if (activeConnections.has(path)) {
-      console.log(`[WS] Closing existing ${path} connection before creating new one`);
-      const oldConnection = activeConnections.get(path);
-      if (oldConnection && oldConnection.destroy) {
-        oldConnection.destroy();
-      }
+      const old = activeConnections.get(path);
+      if (old?.destroy) old.destroy();
       activeConnections.delete(path);
     }
 
-    // 使用 ref 間接引用，避免 getValidToken 引用變化導致 effect 重跑
-    const stableGetToken = (...args) => getValidTokenRef.current(...args);
-
     const { destroy } = openSocket(
       path,
-      (msg) => {
-        if (onMessageRef.current) onMessageRef.current(msg);
-      },
-      () => {
-        // Connection errors are expected during reconnection; state is
-        // already tracked via onConnChange callback.
-      },
+      (msg) => { if (onMessageRef.current) onMessageRef.current(msg); },
+      () => {},
       30_000,
       stableGetToken,
-      (connected) => setIsConnected(connected)
+      (ok) => setIsConnected(ok)
     );
 
-    // 包裝 destroy 並追蹤連線
-    const wrappedDestroy = () => {
-      activeConnections.delete(path);
-      destroy();
-    };
-    destroyRef.current = wrappedDestroy;
+    const wrappedDestroy = () => { activeConnections.delete(path); destroy(); };
     activeConnections.set(path, { destroy: wrappedDestroy });
 
-    return () => {
-      if (destroyRef.current) {
-        destroyRef.current();
-      }
-    };
-  }, [path]); // ← 只依賴 path，不再依賴 getValidToken
+    return wrappedDestroy;
+  }, [path]); // ← 只依賴 path
 
-  return {
-    isConnected
-  };
+  return { isConnected };
 }

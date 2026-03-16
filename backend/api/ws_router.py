@@ -54,6 +54,7 @@ async def safe_send_text(ws: WebSocket, text: str) -> bool:
         if not _is_connected(ws):
             return False
         await asyncio.wait_for(ws.send_text(text), timeout=5.0)
+        ws_manager.touch(ws)  # keep last_active fresh
         return True
     except Exception:
         return False
@@ -64,6 +65,7 @@ async def safe_send_json(ws: WebSocket, data: dict) -> bool:
         if not _is_connected(ws):
             return False
         await asyncio.wait_for(ws.send_json(data), timeout=5.0)
+        ws_manager.touch(ws)  # keep last_active fresh so prune doesn't kill this connection
         return True
     except Exception:
         return False

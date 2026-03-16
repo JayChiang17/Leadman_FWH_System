@@ -30,6 +30,8 @@ const PCBATracking       = lazy(() => import("../features/pcbaTracking/PCBATrack
 const EmailSettings      = lazy(() => import("../features/emailSettings/EmailSettings"));
 const ATETesting         = lazy(() => import("../features/ateTesting/ATETesting"));
 const SystemMonitor      = lazy(() => import("../features/systemMonitor/SystemMonitor"));
+const WIPTracking        = lazy(() => import("../features/wipTracking/WIPTracking"));
+const NGAnalysis         = lazy(() => import("../features/ngAnalysis/NGAnalysis"));
 
 /* ───── loading fallback ───── */
 const PageLoader = () => (
@@ -52,6 +54,19 @@ function AdminRoute() {
   return role === "admin" ? <Outlet /> : <Navigate to="/" replace />;
 }
 
+/* ───── per-page access guard ───── */
+function PageRoute({ pageKey, element }) {
+  const { role, allowedPages, isInitialized } = useContext(AuthCtx);
+
+  if (!isInitialized) return <PageLoader />;
+  if (role === "admin") return element;
+  if (allowedPages === null || allowedPages === undefined) return element;
+  if (allowedPages.includes(pageKey)) return element;
+  // User doesn't have access — redirect to first allowed page or show a notice
+  const first = allowedPages[0];
+  return <Navigate to={first ? `/${first}` : "/no-access"} replace />;
+}
+
 export default function AppRouter() {
   return (
     <AuthProvider>
@@ -68,18 +83,20 @@ export default function AppRouter() {
                 <Route index element={<Navigate to="/dashboard" replace />} />
 
                 {/* --- Production --- */}
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="production-charts" element={<ProductionCharts />} />
-                <Route path="ng-dashboard" element={<NGDashboard />} />
-                <Route path="pcba-tracking" element={<PCBATracking />} />
-                <Route path="module_production" element={<ModuleProduction />} />
-                <Route path="assembly_production" element={<AssemblyProduction />} />
-                <Route path="downtime" element={<Downtime />} />
+                <Route path="dashboard"           element={<PageRoute pageKey="dashboard"           element={<Dashboard />} />} />
+                <Route path="production-charts"   element={<PageRoute pageKey="production-charts"   element={<ProductionCharts />} />} />
+                <Route path="ng-dashboard"        element={<PageRoute pageKey="ng-dashboard"        element={<NGDashboard />} />} />
+                <Route path="pcba-tracking"       element={<PageRoute pageKey="pcba-tracking"       element={<PCBATracking />} />} />
+                <Route path="module_production"   element={<PageRoute pageKey="module_production"   element={<ModuleProduction />} />} />
+                <Route path="assembly_production" element={<PageRoute pageKey="assembly_production" element={<AssemblyProduction />} />} />
+                <Route path="downtime"            element={<PageRoute pageKey="downtime"            element={<Downtime />} />} />
+                <Route path="wip-tracking"        element={<PageRoute pageKey="wip-tracking"        element={<WIPTracking />} />} />
+                <Route path="ng-analysis"         element={<PageRoute pageKey="ng-analysis"         element={<NGAnalysis />} />} />
                 {/* --- Monitoring & Tools --- */}
-                <Route path="search" element={<Search />} />
-                <Route path="ai-query" element={<AIQuery />} />
-                <Route path="qc-check" element={<QCCheck />} />
-                <Route path="ate-testing" element={<ATETesting />} />
+                <Route path="search"      element={<PageRoute pageKey="search"      element={<Search />} />} />
+                <Route path="ai-query"    element={<PageRoute pageKey="ai-query"    element={<AIQuery />} />} />
+                <Route path="qc-check"    element={<PageRoute pageKey="qc-check"    element={<QCCheck />} />} />
+                <Route path="ate-testing" element={<PageRoute pageKey="ate-testing" element={<ATETesting />} />} />
 
                 {/* --- admin only --- */}
                 <Route element={<AdminRoute />}>
@@ -90,8 +107,8 @@ export default function AppRouter() {
               </Route>
             </Route>
 
-            {/* fallback */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            {/* fallback: authenticated users go to dashboard; PrivateRoute handles unauth redirect */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </Suspense>
         </ErrorBoundary>

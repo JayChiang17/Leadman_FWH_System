@@ -51,18 +51,161 @@ def _chunked(seq: List[str], size: int = PG_IN_LIMIT):
         yield seq[i:i + size]
 
 
+def _normalize_sns(sns: List[str]) -> List[str]:
+    cleaned = [sn.strip() for sn in (sns or []) if sn and sn.strip()]
+    return list(dict.fromkeys(cleaned))
+
+
 def _fetch_qc_status_map(cur, sns: List[str]) -> Dict[str, dict]:
     row_map: Dict[str, dict] = {}
     unique_sns = list(dict.fromkeys(sns))
     for chunk in _chunked(unique_sns):
         placeholders = ",".join(["%s"] * len(chunk))
         cur.execute(
-            f"SELECT sn, fqc_ready_at, shipped_at FROM qc_records WHERE sn IN ({placeholders})",
+            f"SELECT sn, fqc_ready_at, shipped_at, created_at FROM qc_records WHERE sn IN ({placeholders})",
             chunk,
         )
         for r in cur.fetchall():
             row_map[r["sn"]] = r
     return row_map
+
+
+def _fetch_assembly_timestamps(sns: List[str]) -> Dict[str, str]:
+    """Look up production timestamps from assembly scans for SNs not found in qc_records."""
+    ts_map: Dict[str, str] = {}
+    try:
+        with get_cursor("assembly") as cur_asm:
+            unique = list(dict.fromkeys(sns))
+            for chunk in _chunked(unique):
+                placeholders = ",".join(["%s"] * len(chunk))
+                cur_asm.execute(
+                    f"SELECT us_sn, scanned_at FROM scans WHERE us_sn IN ({placeholders})",
+                    chunk,
+                )
+                for r in cur_asm.fetchall():
+                    v = r["scanned_at"]
+                    ts_map[r["us_sn"]] = v.strftime("%Y-%m-%d %H:%M:%S") if hasattr(v, "strftime") else str(v) if v else None
+    except Exception:
+        pass
+    return ts_map
+
+
+def _build_fqc_check_results(cur, sns: List[str]) -> List[Dict[str, Any]]:
+    row_map = _fetch_qc_status_map(cur, sns)
+    missing_from_qc = [sn for sn in sns if sn not in row_map]
+    assembly_ts = _fetch_assembly_timestamps(missing_from_qc) if missing_from_qc else {}
+
+    results: List[Dict[str, Any]] = []
+    for sn in sns:
+        record = row_map.get(sn)
+        if not record:
+            production_time = assembly_ts.get(sn)
+            if production_time:
+                results.append({
+                    "sn": sn,
+                    "status": "ready_for_fqc",
+                    "reason": "Found in assembly production records",
+                    "production_time": production_time,
+                    "created_at": None,
+                    "fqc_ready_at": None,
+                    "shipped_at": None,
+                })
+            else:
+                results.append({
+                    "sn": sn,
+                    "status": "not_found",
+                    "reason": "Not found in production or QC system",
+                    "production_time": None,
+                    "created_at": None,
+                    "fqc_ready_at": None,
+                    "shipped_at": None,
+                })
+            continue
+
+        if record["shipped_at"]:
+            results.append({
+                "sn": sn,
+                "status": "already_shipped",
+                "reason": "Already shipped",
+                "production_time": record["created_at"],
+                "created_at": record["created_at"],
+                "fqc_ready_at": record["fqc_ready_at"],
+                "shipped_at": record["shipped_at"],
+            })
+        elif record["fqc_ready_at"]:
+            results.append({
+                "sn": sn,
+                "status": "already_fqc",
+                "reason": "Already FQC ready",
+                "production_time": record["created_at"],
+                "created_at": record["created_at"],
+                "fqc_ready_at": record["fqc_ready_at"],
+                "shipped_at": None,
+            })
+        else:
+            results.append({
+                "sn": sn,
+                "status": "ready_for_fqc",
+                "reason": "Found in QC system, FQC not completed",
+                "production_time": record["created_at"],
+                "created_at": record["created_at"],
+                "fqc_ready_at": None,
+                "shipped_at": None,
+            })
+
+    return results
+
+
+def _build_ship_check_results(cur, sns: List[str]) -> List[Dict[str, Any]]:
+    row_map = _fetch_qc_status_map(cur, sns)
+    missing_from_qc = [sn for sn in sns if sn not in row_map]
+    assembly_ts = _fetch_assembly_timestamps(missing_from_qc) if missing_from_qc else {}
+
+    results: List[Dict[str, Any]] = []
+    for sn in sns:
+        record = row_map.get(sn)
+        if not record:
+            results.append({
+                "sn": sn,
+                "status": "not_found",
+                "reason": "Not found in QC system",
+                "production_time": assembly_ts.get(sn),
+                "created_at": None,
+                "fqc_ready_at": None,
+                "shipped_at": None,
+            })
+        elif record["shipped_at"]:
+            results.append({
+                "sn": sn,
+                "status": "already_shipped",
+                "reason": "Already shipped",
+                "production_time": record["created_at"],
+                "created_at": record["created_at"],
+                "fqc_ready_at": record["fqc_ready_at"],
+                "shipped_at": record["shipped_at"],
+            })
+        elif not record["fqc_ready_at"]:
+            results.append({
+                "sn": sn,
+                "status": "not_ready",
+                "reason": "FQC not completed",
+                "production_time": record["created_at"],
+                "created_at": record["created_at"],
+                "fqc_ready_at": None,
+                "shipped_at": None,
+            })
+        else:
+            results.append({
+                "sn": sn,
+                "status": "ready_to_ship",
+                "reason": "FQC ready, pending shipment",
+                "production_time": record["created_at"],
+                "created_at": record["created_at"],
+                "fqc_ready_at": record["fqc_ready_at"],
+                "shipped_at": None,
+            })
+
+    return results
 
 # ────────────────────────── Dashboard 快取 ────────────────────────────
 _DASHBOARD_CACHE: Dict[str, Any] = {}
@@ -165,14 +308,14 @@ router = APIRouter(prefix="/qc", tags=["qc"])
 
 
 # 0) QC line issues（產線問題回報）
-@router.post("/issues", response_model=QCIssue, dependencies=[Depends(require_roles("admin", "qc"))])
+@router.post("/issues", response_model=QCIssue)
 def create_issue(
     body: QCIssueCreate,
     db=Depends(get_db),
     user=Depends(require_roles("admin", "qc")),
 ):
     """記錄產線 QC 問題，可附上 base64 圖片。"""
-    conn, cur = db
+    _, cur = db
     now = now_iso()
     cur.execute(
         """INSERT INTO qc_issues(line,title,description,category,severity,image_path,created_by,created_at,updated_at)
@@ -204,7 +347,7 @@ def list_issues(
     offset: int = Query(0, ge=0),
     db=Depends(get_db),
 ):
-    conn, cur = db
+    _, cur = db
     where, params = [], []
     if line:
         where.append("line = %s"); params.append(line.strip())
@@ -216,6 +359,18 @@ def list_issues(
     cur.execute(sql, params)
     rows = cur.fetchall()
     return [_row_to_issue(r) for r in rows]
+
+
+@router.delete("/issues/{issue_id}", dependencies=[Depends(require_roles("admin", "qc"))])
+def delete_issue(issue_id: int, db=Depends(get_db)):
+    """Delete a QC line issue by ID."""
+    _, cur = db
+    cur.execute("SELECT id FROM qc_issues WHERE id = %s", (issue_id,))
+    if not cur.fetchone():
+        raise HTTPException(404, f"Issue {issue_id} not found")
+    cur.execute("DELETE FROM qc_issues WHERE id = %s", (issue_id,))
+    conn.commit()
+    return {"status": "success", "message": f"Issue {issue_id} deleted"}
 
 
 # ①  SN 狀態查詢 ------------------------------------------------
@@ -377,6 +532,98 @@ def series(db=Depends(get_db)):
     }
 
 
+# ③.6 History chart（FQC Ready vs Shipped by day/month for custom date range）
+@router.get("/history-chart")
+def history_chart(
+    from_date: str | None = Query(None, pattern=r"\d{4}-\d{2}-\d{2}"),
+    to_date:   str | None = Query(None, pattern=r"\d{4}-\d{2}-\d{2}"),
+    db=Depends(get_db),
+):
+    """FQC Ready vs Shipped counts for a date range.
+    Defaults to all-time when no dates given.
+    Auto-aggregates by month when range > 90 days for readability.
+    """
+    conn, cur = db
+    now = datetime.now()
+
+    # Default: all-time (from 2020-01-01 to now)
+    start = datetime.strptime(from_date, "%Y-%m-%d") if from_date else datetime(2020, 1, 1)
+    end   = (datetime.strptime(to_date, "%Y-%m-%d") + timedelta(days=1)) if to_date else (now + timedelta(days=1))
+
+    total_days = max(1, (end - start).days)
+    use_monthly = total_days > 90
+
+    if use_monthly:
+        # Aggregate by month for readability
+        cur.execute(
+            """SELECT TO_CHAR(fqc_ready_at, 'YYYY-MM') AS period, COUNT(*) AS c
+               FROM qc_records
+               WHERE fqc_ready_at IS NOT NULL AND fqc_ready_at >= %s AND fqc_ready_at < %s
+               GROUP BY period ORDER BY period""",
+            (start.isoformat(), end.isoformat()),
+        )
+        fqc_map = {r["period"]: int(r["c"]) for r in cur.fetchall()}
+
+        cur.execute(
+            """SELECT TO_CHAR(shipped_at, 'YYYY-MM') AS period, COUNT(*) AS c
+               FROM qc_records
+               WHERE shipped_at IS NOT NULL AND shipped_at >= %s AND shipped_at < %s
+               GROUP BY period ORDER BY period""",
+            (start.isoformat(), end.isoformat()),
+        )
+        shipped_map = {r["period"]: int(r["c"]) for r in cur.fetchall()}
+
+        # Walk months in range
+        daily = []
+        m = start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        while m < end:
+            period = m.strftime("%Y-%m")
+            daily.append({
+                "date": period,
+                "label": period,
+                "fqc_ready": fqc_map.get(period, 0),
+                "shipped":   shipped_map.get(period, 0),
+            })
+            if m.month == 12:
+                m = m.replace(year=m.year + 1, month=1)
+            else:
+                m = m.replace(month=m.month + 1)
+
+        return {"daily": daily, "granularity": "month"}
+
+    else:
+        # Daily aggregation for short ranges (≤ 90 days)
+        cur.execute(
+            """SELECT TO_CHAR(fqc_ready_at, 'YYYY-MM-DD') AS d, COUNT(*) AS c
+               FROM qc_records
+               WHERE fqc_ready_at IS NOT NULL AND fqc_ready_at >= %s AND fqc_ready_at < %s
+               GROUP BY d ORDER BY d""",
+            (start.isoformat(), end.isoformat()),
+        )
+        fqc_map = {r["d"]: int(r["c"]) for r in cur.fetchall()}
+
+        cur.execute(
+            """SELECT TO_CHAR(shipped_at, 'YYYY-MM-DD') AS d, COUNT(*) AS c
+               FROM qc_records
+               WHERE shipped_at IS NOT NULL AND shipped_at >= %s AND shipped_at < %s
+               GROUP BY d ORDER BY d""",
+            (start.isoformat(), end.isoformat()),
+        )
+        shipped_map = {r["d"]: int(r["c"]) for r in cur.fetchall()}
+
+        daily = []
+        for i in range(total_days):
+            d = (start + timedelta(days=i)).date().isoformat()
+            daily.append({
+                "date": d,
+                "label": d[5:],  # MM-DD
+                "fqc_ready": fqc_map.get(d, 0),
+                "shipped":   shipped_map.get(d, 0),
+            })
+
+        return {"daily": daily, "granularity": "day"}
+
+
 # ④  Records 查詢（新增日期篩選 + 正確 total） --------------------
 @router.get("/records")
 def records(
@@ -444,6 +691,7 @@ def records(
 
     def fmt(r):
         return {
+            "id": r["id"],
             "sn": r["sn"],
             "fqc_ready_at": r["fqc_ready_at"],
             "shipped_at": r["shipped_at"],
@@ -537,35 +785,31 @@ async def delete(sn: str, db=Depends(get_db)):
 
 
 # ⑦ 批量檢查 ------------------------------------------------
-@router.post("/batch-check")
-def batch_check(batch_data: BatchCheckIn, db=Depends(get_db)):
-    """一次查多個 SN, 單一 SQL 完成"""
-    conn, cur = db
-    if not batch_data.sns:
+@router.post("/batch-fqc-check")
+def batch_fqc_check(batch_data: BatchCheckIn, db=Depends(get_db)):
+    """一次查多個 SN, 單一 SQL 完成，回傳 reason + production_time"""
+    _, cur = db
+    sns = _normalize_sns(batch_data.sns)
+    if not sns:
         return {"results": []}
 
-    row_map = _fetch_qc_status_map(cur, batch_data.sns)
+    return {"results": _build_fqc_check_results(cur, sns)}
 
-    results = []
-    for sn in batch_data.sns:
-        r = row_map.get(sn)
-        if not r:
-            results.append({"sn": sn, "fqc_ready": False, "shipped": False, "status": "not_ready"})
-        elif r["shipped_at"]:
-            results.append({"sn": sn, "fqc_ready": True, "shipped": True, "status": "shipped"})
-        elif r["fqc_ready_at"]:
-            results.append({"sn": sn, "fqc_ready": True, "shipped": False, "status": "pending"})
-        else:
-            results.append({"sn": sn, "fqc_ready": False, "shipped": False, "status": "not_ready"})
 
-    return {"results": results}
+@router.post("/batch-ship-check")
+def batch_ship_check(batch_data: BatchCheckIn, db=Depends(get_db)):
+    _, cur = db
+    sns = _normalize_sns(batch_data.sns)
+    if not sns:
+        return {"results": []}
+    return {"results": _build_ship_check_results(cur, sns)}
 
 
 # ⑧ 批量出貨 ------------------------------------------------
 @router.post("/batch-ship", dependencies=[Depends(require_roles("admin", "qc"))])
 async def batch_ship(batch_data: BatchShipIn, db=Depends(get_db)):
     conn, cur = db
-    sns = batch_data.sns
+    sns = _normalize_sns(batch_data.sns)
     if not sns:
         return {"status": "success", "message": "no sn provided", "results": []}
 
@@ -589,14 +833,13 @@ async def batch_ship(batch_data: BatchShipIn, db=Depends(get_db)):
             results.append({"sn": sn, "status": "success", "message": "Shipped successfully"})
             success_count += 1
 
-    unique_update_targets = list(dict.fromkeys(update_targets))
+    unique_update_targets = _normalize_sns(update_targets)
     if unique_update_targets:
         try:
-            for sn in unique_update_targets:
-                cur.execute(
-                    "UPDATE qc_records SET shipped_at=%s, updated_at=%s WHERE sn=%s",
-                    (ts, ts, sn),
-                )
+            cur.execute(
+                "UPDATE qc_records SET shipped_at=%s, updated_at=%s WHERE sn = ANY(%s)",
+                (ts, ts, unique_update_targets),
+            )
             conn.commit()
         except Exception as e:
             conn.rollback()
@@ -610,6 +853,111 @@ async def batch_ship(batch_data: BatchShipIn, db=Depends(get_db)):
         "message": f"Successfully shipped {success_count} units",
         "results": results,
     }
+
+
+# ⑧.5 批量 FQC Ready -----------------------------------------------
+@router.post("/batch-fqc", dependencies=[Depends(require_roles("admin", "qc"))])
+async def batch_fqc(batch_data: BatchShipIn, db=Depends(get_db)):
+    """Mark multiple SNs as FQC ready in one transaction."""
+    conn, cur = db
+    sns = _normalize_sns(batch_data.sns)
+    if not sns:
+        return {"status": "success", "message": "No SNs provided", "results": []}
+
+    ts = now_iso()
+    cur_map = _fetch_qc_status_map(cur, sns)
+
+    results: List[Dict] = []
+    success_count = 0
+    insert_sns: List[str] = []
+    update_sns: List[str] = []
+
+    for sn in sns:
+        existing = cur_map.get(sn)
+        if not existing:
+            insert_sns.append(sn)
+            results.append({"sn": sn, "status": "success", "message": "FQC marked"})
+            success_count += 1
+        elif existing["fqc_ready_at"]:
+            results.append({"sn": sn, "status": "warning", "message": "Already FQC ready"})
+        else:
+            update_sns.append(sn)
+            results.append({"sn": sn, "status": "success", "message": "FQC marked"})
+            success_count += 1
+
+    try:
+        if insert_sns:
+            unique_insert = _normalize_sns(insert_sns)
+            cur.executemany(
+                "INSERT INTO qc_records (sn, fqc_ready_at, created_at) VALUES (%s,%s,%s)",
+                [(s, ts, ts) for s in unique_insert],
+            )
+        if update_sns:
+            unique_update = _normalize_sns(update_sns)
+            cur.execute(
+                "UPDATE qc_records SET fqc_ready_at=%s, updated_at=%s WHERE sn = ANY(%s)",
+                (ts, ts, unique_update),
+            )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(500, f"Batch FQC update failed: {e}")
+
+    _invalidate_dashboard_cache()
+    await _broadcast_dashboard_update(cur)
+
+    return {
+        "status": "success",
+        "message": f"Successfully marked {success_count} units as FQC ready",
+        "results": results,
+    }
+
+
+# ⑩ 3D 圖表資料 --------------------------------------------------------
+
+@router.get("/3d/activity-surface")
+def qc_3d_activity_surface(
+    days: int = Query(90, ge=7, le=365),
+    db=Depends(get_db),
+):
+    """FQC activity by hour × day-of-week for surface chart (Pacific time)."""
+    _, cur = db
+    cur.execute(
+        """
+        SELECT
+            EXTRACT(DOW  FROM fqc_ready_at AT TIME ZONE 'America/Los_Angeles')::int AS dow,
+            EXTRACT(HOUR FROM fqc_ready_at AT TIME ZONE 'America/Los_Angeles')::int AS hour,
+            COUNT(*) AS fqc_count
+        FROM qc_records
+        WHERE fqc_ready_at IS NOT NULL
+          AND fqc_ready_at >= NOW() - (%s * INTERVAL '1 day')
+        GROUP BY dow, hour
+        ORDER BY dow, hour
+        """,
+        (days,),
+    )
+    rows = [dict(r) for r in cur.fetchall()]
+    return {"status": "success", "days": days, "data": rows}
+
+
+@router.get("/3d/calendar-surface")
+def qc_3d_calendar_surface(db=Depends(get_db)):
+    """Shipped count by month × day-of-month for calendar surface (Pacific time)."""
+    _, cur = db
+    cur.execute(
+        """
+        SELECT
+            EXTRACT(MONTH FROM shipped_at AT TIME ZONE 'America/Los_Angeles')::int AS month,
+            EXTRACT(DAY   FROM shipped_at AT TIME ZONE 'America/Los_Angeles')::int AS dom,
+            COUNT(*) AS ship_count
+        FROM qc_records
+        WHERE shipped_at IS NOT NULL
+        GROUP BY month, dom
+        ORDER BY month, dom
+        """
+    )
+    rows = [dict(r) for r in cur.fetchall()]
+    return {"status": "success", "data": rows}
 
 
 # ⑨ 批量匯出 PCBA 對應表 ------------------------------------------------

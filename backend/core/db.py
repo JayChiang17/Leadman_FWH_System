@@ -7,6 +7,9 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Generator
 
+# Sentinel: distinguishes "caller didn't pass allowed_pages" from "caller passed None (→ clear)"
+_UNSET = object()
+
 from core.pg import get_conn, get_cursor
 
 logger = logging.getLogger(__name__)
@@ -73,6 +76,7 @@ def update_user(
     hashed_pw: str | None = None,
     role: str | None = None,
     is_active: int | None = None,
+    allowed_pages=_UNSET,  # _UNSET=no change, None=set to NULL, list=set to those pages
 ):
     conn, cur = db
     sets, params = [], []
@@ -88,6 +92,9 @@ def update_user(
     if is_active is not None:
         sets.append("is_active = %s")
         params.append(bool(is_active))
+    if allowed_pages is not _UNSET:
+        sets.append("allowed_pages = %s")
+        params.append(allowed_pages)  # None → NULL, [] → {}, [...] → array
 
     if not sets:
         cur.execute("SELECT * FROM users WHERE id = %s", (uid,))

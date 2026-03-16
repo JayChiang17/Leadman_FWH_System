@@ -1,4 +1,6 @@
 // 共同工具（你原檔裡的 helper 拿出來）
+import { useState, useEffect } from "react";
+
 export const API_BASE = (process.env.REACT_APP_API_BASE || `${window.location.origin}/api`).replace(/\/+$/, "");
 
 export const decodeJWT = (jwt) => {
@@ -10,8 +12,6 @@ export const decodeJWT = (jwt) => {
 export const getToken = () => localStorage.getItem("token");
 
 export const useDebounced = (value, delay = 350) => {
-  const React = require("react");
-  const { useState, useEffect } = React;
   const [v, setV] = useState(value);
   useEffect(() => {
     const t = setTimeout(() => setV(value), delay);
@@ -106,14 +106,16 @@ export const authFetch = async (path, options = {}) => {
       signal: options.signal
     });
 
-    // Handle authentication errors (401/403)
-    if (res.status === 401 || res.status === 403) {
-      console.warn(`Authentication error (${res.status}) on ${path}`);
-      // Clear token and redirect to login
+    // Handle authentication errors
+    if (res.status === 401) {
+      console.warn(`Authentication required (401) on ${path}`);
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
       throw new Error('Authentication required');
+    }
+    if (res.status === 403) {
+      throw new Error('Permission denied');
     }
 
     // Handle other HTTP errors
@@ -138,18 +140,3 @@ export const authFetch = async (path, options = {}) => {
   }
 };
 
-/**
- * Wrapper for API calls with user-friendly error notifications
- * Fixes issue #13: API calls with inadequate error handling
- */
-export const apiCall = async (path, options = {}, showErrorToast = true) => {
-  try {
-    const res = await authFetch(path, options);
-    return await safeJsonParse(res);
-  } catch (error) {
-    if (showErrorToast && window.showToast) {
-      window.showToast(error.message || 'Request failed', 'error');
-    }
-    throw error;
-  }
-};

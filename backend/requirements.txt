@@ -4,15 +4,16 @@ uvicorn[standard]
 
 # Google Sheets Integration
 gspread
-gspread-async
 google-auth
 
 # Environment Variables
 python-dotenv
 
 # Authentication & Security
-passlib[bcrypt]
+bcrypt
 python-jose[cryptography]
+pydantic-settings
+email-validator
 
 # Data Processing & Excel
 pandas
@@ -27,6 +28,7 @@ redis
 
 # System Monitoring
 psutil
+docker
 
 # Task Scheduling
 apscheduler
@@ -37,6 +39,24 @@ msal
 
 # PostgreSQL
 psycopg2-binary
+
+# ML: NG prediction + clustering
+scikit-learn
+xgboost
+sentence-transformers
+hdbscan
+numpy
+joblib
+
+# AI document search (RAG system)
+PyPDF2
+python-docx
+pytesseract
+Pillow
+langchain
+langchain-huggingface
+langchain-community
+faiss-cpu
 
 # Standard libraries (already included in Python)
 # json - built-in

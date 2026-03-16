@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict
 import os
+import json
 
 from core.time_utils import ca_day_bounds, ca_now, ca_today
 from core.pg import get_cursor
@@ -18,6 +19,95 @@ class DataCollectionService:
 
     def __init__(self):
         logger.info("Data collection service initialized (PostgreSQL pool)")
+
+    @staticmethod
+    def _to_int(value) -> int:
+        try:
+            return max(int(value), 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _parse_plan_values(self, raw_plan) -> List[int]:
+        """
+        Normalize plan_json to a list[int].
+        Supports:
+        - JSONB decoded objects (list/dict)
+        - JSON strings
+        - list items as numbers or objects with plan_total / A+B / value
+        """
+        if raw_plan is None:
+            return []
+
+        parsed = raw_plan
+        if isinstance(parsed, str):
+            text = parsed.strip()
+            if not text:
+                return []
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                logger.warning("Failed to decode plan JSON string: %s", text[:100])
+                return []
+
+        if isinstance(parsed, list):
+            out: List[int] = []
+            for item in parsed:
+                if isinstance(item, dict):
+                    if "plan_total" in item:
+                        out.append(self._to_int(item.get("plan_total")))
+                    elif "A" in item or "B" in item:
+                        out.append(self._to_int(item.get("A")) + self._to_int(item.get("B")))
+                    elif "value" in item:
+                        out.append(self._to_int(item.get("value")))
+                    else:
+                        out.append(0)
+                else:
+                    out.append(self._to_int(item))
+            return out
+
+        if isinstance(parsed, dict):
+            numeric_items = []
+            for k, v in parsed.items():
+                try:
+                    idx = int(k)
+                except (TypeError, ValueError):
+                    continue
+                if idx >= 0:
+                    numeric_items.append((idx, self._to_int(v)))
+            if numeric_items:
+                numeric_items.sort(key=lambda x: x[0])
+                out = [0] * (numeric_items[-1][0] + 1)
+                for idx, value in numeric_items:
+                    out[idx] = value
+                return out
+
+            date_items = []
+            for k, v in parsed.items():
+                if not isinstance(k, str) or len(k) != 10 or k[4] != "-" or k[7] != "-":
+                    continue
+                if isinstance(v, dict):
+                    date_items.append((k, self._to_int(v.get("plan_total"))))
+                else:
+                    date_items.append((k, self._to_int(v)))
+            if date_items:
+                date_items.sort(key=lambda x: x[0])
+                return [v for _, v in date_items]
+
+        return []
+
+    def _extract_today_plan(self, plan_row: Dict, weekday: int) -> int:
+        if not plan_row:
+            return 0
+        plan_values = self._parse_plan_values(plan_row.get("plan_json"))
+        if 0 <= weekday < len(plan_values):
+            return plan_values[weekday]
+        return 0
+
+    def _sum_plan_days(self, plan_row: Dict, plan_days_count: int) -> int:
+        if not plan_row or plan_days_count <= 0:
+            return 0
+        plan_values = self._parse_plan_values(plan_row.get("plan_json"))
+        return sum(plan_values[:plan_days_count]) if plan_values else 0
 
     def _get_california_date(self, days_ago: int = 0) -> str:
         """Get California time date"""
@@ -60,8 +150,6 @@ class DataCollectionService:
 
     def _collect_report_data(self) -> Dict:
         """Internal method to collect report data (synchronous) with error handling"""
-        import json
-
         try:
             today = self._get_california_date(0)
             current_month = ca_now().strftime('%Y-%m')
@@ -87,15 +175,7 @@ class DataCollectionService:
                 """, (week_start,))
                 plan_row = cur.fetchone()
 
-                if plan_row and weekday < 5:
-                    try:
-                        plan_array = json.loads(plan_row["plan_json"])
-                        module_plan = plan_array[weekday] if weekday < len(plan_array) else 120
-                    except (json.JSONDecodeError, IndexError, TypeError) as e:
-                        logger.warning(f"Failed to parse module plan JSON: {e}")
-                        module_plan = 120
-                else:
-                    module_plan = 120
+                module_plan = self._extract_today_plan(plan_row, weekday)
 
                 cur.execute("""
                     SELECT COUNT(*) AS cnt FROM scans
@@ -128,15 +208,7 @@ class DataCollectionService:
                 """, (week_start,))
                 assy_plan_row = cur.fetchone()
 
-                if assy_plan_row and weekday < 5:
-                    try:
-                        assy_plan_array = json.loads(assy_plan_row["plan_json"])
-                        assembly_plan = assy_plan_array[weekday] if weekday < len(assy_plan_array) else 120
-                    except (json.JSONDecodeError, IndexError, TypeError) as e:
-                        logger.warning(f"Failed to parse assembly plan JSON: {e}")
-                        assembly_plan = 120
-                else:
-                    assembly_plan = 120
+                assembly_plan = self._extract_today_plan(assy_plan_row, weekday)
 
                 cur.execute("""
                     SELECT COUNT(*) AS cnt FROM scans
@@ -423,8 +495,6 @@ class DataCollectionService:
         """
         Get weekly cumulative data (Monday to current day, California time)
         """
-        import json
-
         try:
             ca_now_dt = ca_now()
             weekday = ca_now_dt.weekday()  # 0=Monday, 6=Sunday
@@ -472,15 +542,7 @@ class DataCollectionService:
                 """, (week_start_str,))
                 plan_row = cur.fetchone()
 
-                if plan_row:
-                    try:
-                        plan_array = json.loads(plan_row["plan_json"])
-                        for i in range(plan_days_count):
-                            if i < len(plan_array):
-                                weekly_module_plan += plan_array[i] if plan_array[i] else 0
-                    except (json.JSONDecodeError, IndexError, TypeError) as e:
-                        logger.warning(f"Failed to parse module weekly plan JSON: {e}")
-                        weekly_module_plan = plan_days_count * 120
+                weekly_module_plan = self._sum_plan_days(plan_row, plan_days_count)
 
             # 2. Get weekly assembly production
             with get_cursor('assembly') as cur:
@@ -504,15 +566,7 @@ class DataCollectionService:
                 """, (week_start_str,))
                 assy_plan_row = cur.fetchone()
 
-                if assy_plan_row:
-                    try:
-                        assy_plan_array = json.loads(assy_plan_row["plan_json"])
-                        for i in range(plan_days_count):
-                            if i < len(assy_plan_array):
-                                weekly_assembly_plan += assy_plan_array[i] if assy_plan_array[i] else 0
-                    except (json.JSONDecodeError, IndexError, TypeError) as e:
-                        logger.warning(f"Failed to parse assembly weekly plan JSON: {e}")
-                        weekly_assembly_plan = plan_days_count * 120
+                weekly_assembly_plan = self._sum_plan_days(assy_plan_row, plan_days_count)
 
             weekly_module_efficiency = round((weekly_module_count / weekly_module_plan * 100), 1) if weekly_module_plan > 0 else 0
             weekly_assembly_efficiency = round((weekly_assembly_count / weekly_assembly_plan * 100), 1) if weekly_assembly_plan > 0 else 0

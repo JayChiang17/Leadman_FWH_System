@@ -134,8 +134,8 @@ def normalize_ng_reason(reason: str) -> str:
 # ========= 1. Module Production =========
 @router.get("/module/production")
 async def module_prod(
-    period: str = Query(..., regex="^(daily|weekly|monthly)$"),
-    target_date: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}-\d{2}$"),
+    period: str = Query(..., pattern="^(daily|weekly|monthly)$"),
+    target_date: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     current_user: dict = Depends(get_current_user),
 ):
     """獲取模組生產數據（含 OK/NG 與良率趨勢）"""
@@ -338,8 +338,8 @@ async def module_prod(
 # ========= 2. Assembly Production（含 NG 正規化） =========
 @router.get("/assembly/production")
 async def assembly_prod(
-    period: str = Query(..., regex="^(daily|weekly|monthly)$"),
-    target_date: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}-\d{2}$"),
+    period: str = Query(..., pattern="^(daily|weekly|monthly)$"),
+    target_date: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     current_user: dict = Depends(get_current_user),
 ):
     """獲取總裝生產數據（OK/NG、良率、NG 原因正規化 Top）"""
@@ -530,7 +530,7 @@ async def assembly_prod(
 # ========= 3. Trend Analysis =========
 @router.get("/trend-analysis")
 async def trend_analysis(
-    line_type: str = Query(..., regex="^(module|assembly)$"),
+    line_type: str = Query(..., pattern="^(module|assembly)$"),
     days: int = Query(30, ge=7, le=90),
     current_user: dict = Depends(get_current_user),
 ):
@@ -643,9 +643,9 @@ async def trend_analysis(
 # ========= 4. Comparison =========
 @router.get("/comparison")
 async def comparison(
-    start_date: str = Query(..., regex=r"^\d{4}-\d{2}-\d{2}$"),
-    end_date: str = Query(..., regex=r"^\d{4}-\d{2}-\d{2}$"),
-    period: str = Query("weekly", regex="^(daily|weekly|monthly)$"),
+    start_date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    end_date: str = Query(..., pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    period: str = Query("weekly", pattern="^(daily|weekly|monthly)$"),
     current_user: dict = Depends(get_current_user),
 ):
     """模組 vs 總裝對比（以可配對數做相關性）"""
@@ -746,10 +746,10 @@ async def comparison(
 # ========= 5. Hourly Distribution =========
 @router.get("/hourly-distribution")
 async def hourly_dist(
-    line_type: str = Query(..., regex="^(module|assembly)$"),
+    line_type: str = Query(..., pattern="^(module|assembly)$"),
     days: int = Query(7, ge=1, le=90),
-    period: str = Query("weekly", regex="^(daily|weekly|monthly)$"),
-    target_date: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}-\d{2}$"),
+    period: str = Query("weekly", pattern="^(daily|weekly|monthly)$"),
+    target_date: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     current_user: dict = Depends(get_current_user),
 ):
     """每小時生產分布（支援 period/target_date 僅到 target day）"""
@@ -916,8 +916,8 @@ async def get_data_summary(current_user: dict = Depends(get_current_user)):
 # ========= 7. NG 詳細分析（支援搜尋/Top-N，含正規化） =========
 @router.get("/ng-analysis")
 async def ng_analysis(
-    period: str = Query("weekly", regex="^(daily|weekly|monthly)$"),
-    target_date: Optional[str] = Query(None, regex=r"^\d{4}-\d{2}-\d{2}$"),
+    period: str = Query("weekly", pattern="^(daily|weekly|monthly)$"),
+    target_date: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     search_term: Optional[str] = Query(None, description="模糊搜尋（套用於正規化後的原因）"),
     limit: int = Query(10, ge=5, le=50),
     current_user: dict = Depends(get_current_user),
@@ -1135,7 +1135,7 @@ async def ng_timeline(
 # ========= 9. Hourly Heatmap (Hour x Weekday) =========
 @router.get("/hourly-heatmap")
 async def hourly_heatmap(
-    line_type: str = Query(..., regex="^(module|assembly)$"),
+    line_type: str = Query(..., pattern="^(module|assembly)$"),
     days: int = Query(30, ge=7, le=90),
     current_user: dict = Depends(get_current_user),
 ):

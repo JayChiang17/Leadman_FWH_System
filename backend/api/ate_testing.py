@@ -1,6 +1,8 @@
 # backend/api/ate_testing.py
 # ATE Testing - NG Management API (PostgreSQL)
 
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Depends, Request
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date, timedelta
@@ -176,6 +178,13 @@ async def mark_ng(body: MarkNGRequest, request: Request = None, user=Depends(req
             "status": "NG",
             "reason": reason
         })
+
+        # Trigger ML counter (non-blocking background task)
+        try:
+            from ml.ng_trigger import record_new_ng
+            asyncio.create_task(record_new_ng(us_sn, reason, None))
+        except Exception:
+            pass  # ML is optional; never break the main flow
 
         uname = getattr(user, "username", "unknown")
         logger.info(f"ATE: Marked {us_sn} as NG by {uname}")

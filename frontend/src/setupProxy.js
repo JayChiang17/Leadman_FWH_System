@@ -1,7 +1,8 @@
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const httpProxy = require('http-proxy');
 
-const BACKEND = 'http://192.168.10.100:8000';
+// Docker 內用 BACKEND_URL env var；本機開發 fallback 到固定 IP
+const BACKEND = process.env.BACKEND_URL || 'http://192.168.10.100:8000';
 
 // 創建原生 http-proxy 實例用於 WebSocket
 const wsProxy = httpProxy.createProxyServer({

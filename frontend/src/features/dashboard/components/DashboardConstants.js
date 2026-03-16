@@ -16,10 +16,10 @@ export const DOWNTIME_TYPES = {
     icon: '🟠'
   },
   'Material Shortage': {
-    color: '#8B5CF6',
-    bgColor: 'rgba(139, 92, 246, 0.18)',
+    color: '#f59e0b',
+    bgColor: 'rgba(245, 158, 11, 0.18)',
     label: '缺料',
-    icon: '🟣'
+    icon: '🟡'
   },
   'Maintenance': {
     color: '#10B981',
@@ -109,8 +109,13 @@ export const getRiskColor = (level) => {
 };
 
 /* ───────────────── CSS 變數取色 ───────────────── */
-const css = (v, d) =>
-  (getComputedStyle(document.documentElement).getPropertyValue(v) || d).trim();
+const css = (v, d) => {
+  try {
+    return (getComputedStyle(document.documentElement).getPropertyValue(v) || d).trim();
+  } catch {
+    return d;
+  }
+};
 
 export const COL_A       = css("--kpi-a", "#0ea5e9");
 export const COL_B       = css("--kpi-b", "#f97316");

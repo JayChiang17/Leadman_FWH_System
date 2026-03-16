@@ -819,7 +819,10 @@ def get_one(us_sn: str):
         row = cur.fetchone()
     if not row:
         raise HTTPException(404, f"{us_sn} not found")
-    return dict(row)
+    record = dict(row)
+    if isinstance(record.get("timestamp"), datetime):
+        record["timestamp"] = record["timestamp"].strftime("%Y-%m-%d %H:%M:%S")
+    return record
 
 # ───────────────────────────── ③ Update ─────────────────────────────
 class AssemblyUpdate(BaseModel):
@@ -1226,7 +1229,7 @@ def get_plan_range(start_date: str = Query(..., description="YYYY-MM-DD"),
 @router.get("/production-charts/assembly/production",
             summary="Assembly production with optional plan_data for daily/weekly/monthly")
 def production_charts_assembly_production(
-    period: str = Query("daily", regex="^(daily|weekly|monthly)$"),
+    period: str = Query("daily", pattern="^(daily|weekly|monthly)$"),
     target_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
     user=Depends(get_current_user)
 ):
@@ -1666,3 +1669,31 @@ def get_pcba_inventory(user=Depends(get_current_user)):
         "availableTotal": payload["availableTotal"],
         "usedTotal": payload["consumedTotal"],
     }
+
+
+# ───────────────────────────── ⑯ UPH 3D Pattern ────────────────────────────
+@router.get("/assembly-inventory/uph-3d",
+            summary="Assembly scan pattern: Hour × DayOfWeek × Count (last N days)")
+async def uph_3d(days: int = 30, user=Depends(get_current_user)):
+    """Returns scan counts grouped by hour-of-day and day-of-week for 3-D surface chart."""
+    try:
+        with get_cursor("assembly") as cur:
+            cur.execute(
+                """
+                SELECT
+                    EXTRACT(HOUR FROM scanned_at AT TIME ZONE 'America/Los_Angeles')::int AS hour,
+                    EXTRACT(DOW  FROM scanned_at AT TIME ZONE 'America/Los_Angeles')::int AS dow,
+                    COUNT(*) AS scan_count
+                FROM assembly.scans
+                WHERE scanned_at >= NOW() - (%s * INTERVAL '1 day')
+                  AND scanned_at IS NOT NULL
+                GROUP BY hour, dow
+                ORDER BY dow, hour
+                """,
+                (days,),
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+    except Exception as e:
+        raise HTTPException(500, f"DB error: {e}")
+
+    return {"days": days, "data": rows}

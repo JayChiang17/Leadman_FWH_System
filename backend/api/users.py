@@ -23,6 +23,7 @@ class UserOut(BaseModel):
     username: str
     role: Literal["admin", "operator", "qc", "viewer"]
     is_active: bool
+    allowed_pages: Optional[List[str]] = None
 
 class UserCreate(BaseModel):
     username: str = Field(..., min_length=2, max_length=64)
@@ -34,6 +35,7 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(None, min_length=4)
     role: Optional[Literal["admin", "operator", "qc", "viewer"]] = None
     is_active: Optional[bool] = None
+    allowed_pages: Optional[List[str]] = None  # None=no change; []=restrict all; [..]=set pages
 
 # ──────────────────────────────────────────────
 router = APIRouter(prefix="/users", tags=["users"])
@@ -90,6 +92,11 @@ def edit_user(uid: int, payload: UserUpdate, db = Depends(get_db), current_user 
     if payload.is_active is not None:
         fields["is_active"] = payload.is_active
 
+    # allowed_pages: only update when explicitly provided in request body
+    fields_set = getattr(payload, "model_fields_set", None) or getattr(payload, "__fields_set__", set())
+    if "allowed_pages" in fields_set:
+        fields["allowed_pages"] = payload.allowed_pages  # None → clear, list → set pages
+
     if not fields:
         raise HTTPException(status_code=400, detail="Nothing to update")
 
@@ -116,8 +123,8 @@ def edit_user(uid: int, payload: UserUpdate, db = Depends(get_db), current_user 
 
 # ③-1 可選：PATCH 與 PUT 一樣行為 -----------------------------------
 @router.patch("/{uid}", response_model=UserOut, dependencies=[require_admin])
-def patch_user(uid: int, payload: UserUpdate, db = Depends(get_db)):
-    return edit_user(uid, payload, db)
+def patch_user(uid: int, payload: UserUpdate, db = Depends(get_db), current_user = Depends(get_current_user)):
+    return edit_user(uid, payload, db, current_user)
 
 # ④ 刪除使用者 -----------------------------------------------------
 @router.delete(

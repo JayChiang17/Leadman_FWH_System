@@ -1,13 +1,12 @@
 # core/security.py
 from __future__ import annotations
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Optional, List
+import bcrypt as _bcrypt
 from jose import jwt
-from passlib.context import CryptContext
 from core.config import settings
 import secrets
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ALGORITHM = "HS256"
 ISSUER = getattr(settings, "JWT_ISSUER", "fwh-system")
 
@@ -17,19 +16,22 @@ def _now_utc() -> datetime:
 
 
 def hash_password(pw: str) -> str:
-    return pwd_context.hash(pw)
+    return _bcrypt.hashpw(pw.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
 
 
 get_password_hash = hash_password
 
 
 def verify_password(pw: str, hashed: str) -> bool:
-    return pwd_context.verify(pw, hashed)
+    try:
+        return _bcrypt.checkpw(pw.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
 
 
-def create_access_token(sub: str, role: str) -> str:
+def create_access_token(sub: str, role: str, allowed_pages: Optional[List[str]] = None) -> str:
     exp = _now_utc() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    payload = {
+    payload: dict[str, Any] = {
         "sub": sub,
         "role": role,
         "type": "access",
@@ -37,6 +39,8 @@ def create_access_token(sub: str, role: str) -> str:
         "exp": exp,
         "iss": ISSUER,
     }
+    if allowed_pages is not None:
+        payload["allowed_pages"] = allowed_pages
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 

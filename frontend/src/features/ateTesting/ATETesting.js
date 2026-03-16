@@ -334,223 +334,166 @@ export default function ATETesting() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-3 py-4 md:px-6 md:py-6 space-y-4 md:space-y-6">
+      <main className="max-w-7xl mx-auto px-3 py-4 md:px-6 md:py-6 space-y-4 md:space-y-5">
 
-        {/* Stats Cards - Responsive Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-
-          {/* NG Count */}
+        {/* Stats Cards — 2 cols mobile, 4 cols desktop */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
           <div className="bg-white rounded-lg border border-amber-200 p-3 md:p-4 shadow-sm">
-            <p className="text-xs md:text-sm font-semibold text-amber-700 uppercase tracking-wide">
-              NG Units
-            </p>
-            <p className="text-2xl md:text-3xl lg:text-4xl font-bold text-amber-700 mt-1">
-              {stats.ng_count}
-            </p>
+            <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">NG Units</p>
+            <p className="text-2xl md:text-3xl font-bold text-amber-700 mt-1">{stats.ng_count}</p>
           </div>
-
-          {/* Fixed Count */}
           <div className="bg-white rounded-lg border border-emerald-200 p-3 md:p-4 shadow-sm">
-            <p className="text-xs md:text-sm font-semibold text-emerald-700 uppercase tracking-wide">
-              Fixed
-            </p>
-            <p className="text-2xl md:text-3xl lg:text-4xl font-bold text-emerald-700 mt-1">
-              {stats.fixed_count}
+            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Fixed</p>
+            <p className="text-2xl md:text-3xl font-bold text-emerald-700 mt-1">{stats.fixed_count}</p>
+          </div>
+          <div className="bg-white rounded-lg border border-teal-200 p-3 md:p-4 shadow-sm">
+            <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide">Pass Rate</p>
+            <p className="text-2xl md:text-3xl font-bold text-teal-700 mt-1">
+              {typeof stats.pass_rate === 'number' ? `${stats.pass_rate.toFixed(1)}%` : '—'}
             </p>
           </div>
-
-          {/* Desktop: Search Area in Stats Row */}
-          <div className="hidden lg:block bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl border-2 border-teal-200 p-4 shadow-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <Search className="w-5 h-5 text-teal-600" />
-              <label className="block text-sm font-bold text-teal-900">
-                Scan Serial Number
-              </label>
-            </div>
-            <div className="relative mb-2">
-              <input
-                ref={snInputRef}
-                value={sn}
-                onChange={(e) => setSn(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleScan()}
-                placeholder="US SN..."
-                className="w-full px-4 py-3 bg-white border-2 border-teal-300
-                           rounded-lg text-base font-semibold text-stone-900
-                           focus:ring-2 focus:ring-teal-400 focus:border-teal-500
-                           transition-all shadow-inner placeholder:text-stone-400"
-                autoFocus
-              />
-            </div>
-            <button
-              onClick={handleScan}
-              disabled={!sn.trim() || loading}
-              className="w-full px-4 py-3 bg-teal-600 hover:bg-teal-700
-                         text-white font-bold text-sm rounded-lg
-                         transition-colors disabled:opacity-50 disabled:cursor-not-allowed
-                         shadow-md active:scale-95 flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <Search className="w-4 h-4" />
-                  <span>Search</span>
-                </>
-              )}
-            </button>
+          <div className="bg-white rounded-lg border border-stone-200 p-3 md:p-4 shadow-sm">
+            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Total Today</p>
+            <p className="text-2xl md:text-3xl font-bold text-stone-700 mt-1">{stats.total_today ?? 0}</p>
           </div>
         </div>
 
-        {/* Mobile/Tablet: Search Area (Separate) - HERO SECTION */}
-        <div className="lg:hidden bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl border-2 border-teal-200 p-5 md:p-6 shadow-lg">
+        {/* Scan Section — always full width, unified for all breakpoints */}
+        <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl border-2 border-teal-200 p-4 md:p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
-            <Search className="w-6 h-6 text-teal-600" />
-            <label className="block text-base md:text-lg font-bold text-teal-900">
-              Scan Serial Number
-            </label>
+            <Search className="w-5 h-5 text-teal-600" />
+            <label className="text-sm md:text-base font-bold text-teal-900">Scan Serial Number</label>
           </div>
-
-          <div className="relative mb-4">
+          <div className="flex gap-3">
             <input
               ref={snInputRef}
               value={sn}
               onChange={(e) => setSn(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleScan()}
               placeholder="Enter or scan US SN..."
-              className="w-full px-5 py-5 md:py-4 bg-white border-2 border-teal-300
-                         rounded-xl text-xl md:text-lg font-semibold text-stone-900
-                         focus:ring-4 focus:ring-teal-400 focus:border-teal-500
+              className="flex-1 px-4 py-3 md:py-3 bg-white border-2 border-teal-300
+                         rounded-lg text-base md:text-lg font-semibold text-stone-900
+                         focus:ring-2 focus:ring-teal-400 focus:border-teal-500
                          transition-all shadow-inner placeholder:text-stone-400"
-              autoFocus
+              style={{ fontSize: '16px' }}
             />
+            <button
+              onClick={handleScan}
+              disabled={!sn.trim() || loading}
+              className="px-5 md:px-6 py-3 bg-teal-600 hover:bg-teal-700 active:bg-teal-800
+                         text-white font-bold text-sm md:text-base rounded-lg
+                         transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+                         shadow-md active:scale-95 flex items-center gap-2 whitespace-nowrap"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Search className="w-4 h-4" /><span className="hidden sm:inline">Search</span></>}
+            </button>
           </div>
 
-          <button
-            onClick={handleScan}
-            disabled={!sn.trim() || loading}
-            className="w-full px-8 py-6 md:py-5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800
-                       text-white font-bold text-xl md:text-lg rounded-xl
-                       transition-all disabled:opacity-50 disabled:cursor-not-allowed
-                       shadow-xl hover:shadow-2xl active:scale-98
-                       flex items-center justify-center gap-3"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-6 h-6 animate-spin" />
-                <span>Searching...</span>
-              </>
-            ) : (
-              <>
-                <Search className="w-6 h-6" />
-                <span>Search Serial Number</span>
-              </>
-            )}
-          </button>
-
-          {/* Current Record Display */}
+          {/* Record info — shown on all screen sizes after scan */}
           {currentRecord && (
-            <div className="mt-4 p-3 bg-stone-50 rounded-lg border border-stone-200">
-              <p className="text-xs font-semibold text-stone-600 uppercase mb-2">Record Info</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <span className="text-stone-500">Status:</span>{" "}
-                  <span className={`font-semibold ${
-                    currentRecord.status === 'NG' ? 'text-red-600' :
-                    currentRecord.status === 'FIXED' ? 'text-emerald-600' :
-                    'text-stone-800'
-                  }`}>
-                    {currentRecord.status || 'OK'}
-                  </span>
-                </div>
-                {currentRecord.ng_reason && (
-                  <div className="col-span-2">
-                    <span className="text-stone-500">Reason:</span>{" "}
-                    <span className="font-medium text-stone-700">{currentRecord.ng_reason}</span>
-                  </div>
-                )}
+            <div className={`mt-3 px-4 py-3 rounded-lg border flex flex-wrap items-center gap-x-5 gap-y-1 text-sm ${
+              isNgRecord
+                ? 'bg-red-50 border-red-200'
+                : currentRecord.status === 'FIXED'
+                ? 'bg-emerald-50 border-emerald-200'
+                : 'bg-white border-stone-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                <span className="text-stone-500 font-medium">SN:</span>
+                <span className="font-mono font-semibold text-stone-800">{currentRecord.us_sn || sn}</span>
               </div>
+              <div className="flex items-center gap-2">
+                <span className="text-stone-500 font-medium">Status:</span>
+                <span className={`font-bold ${
+                  isNgRecord ? 'text-red-600' :
+                  currentRecord.status === 'FIXED' ? 'text-emerald-600' :
+                  'text-teal-700'
+                }`}>
+                  {currentRecord.status || 'OK'}
+                </span>
+              </div>
+              {currentRecord.ng_reason && (
+                <div className="flex items-center gap-2">
+                  <span className="text-stone-500 font-medium">Reason:</span>
+                  <span className="font-medium text-stone-700">{currentRecord.ng_reason}</span>
+                </div>
+              )}
+              {currentRecord.operator && (
+                <div className="flex items-center gap-2">
+                  <span className="text-stone-500 font-medium">Operator:</span>
+                  <span className="text-stone-700">{currentRecord.operator}</span>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* NG Management & Recent Records - Responsive Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+        {/* NG Management & Recent Records */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
 
-          {/* NG Operations */}
-          <div className="bg-white rounded-lg border border-stone-200 p-4 md:p-5 shadow-sm">
-            <h2 className="text-base md:text-lg font-semibold text-stone-800 mb-4 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-600" />
+          {/* Left: NG Operations */}
+          <div className="bg-white rounded-lg border border-stone-200 p-4 md:p-5 shadow-sm flex flex-col">
+            <h2 className="text-base font-semibold text-stone-800 mb-4 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600" />
               NG Management
             </h2>
 
-            {isNgRecord ? (
+            {/* Idle state — no record scanned yet */}
+            {!hasRecord ? (
+              <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
+                <div className="w-14 h-14 bg-stone-100 rounded-lg flex items-center justify-center mb-3">
+                  <Search className="w-7 h-7 text-stone-400" />
+                </div>
+                <p className="text-stone-600 font-semibold text-base">Scan a serial number to begin</p>
+                <p className="text-stone-400 text-sm mt-1">Results will appear here after scanning</p>
+                <div className="mt-5 flex flex-col gap-2 text-sm text-stone-500 text-left">
+                  {[
+                    { step: '1', text: 'Enter or scan US serial number above' },
+                    { step: '2', text: 'Enter NG reason (if marking NG)' },
+                    { step: '3', text: 'Press Label NG or Clean NG' },
+                  ].map(({ step, text }) => (
+                    <div key={step} className="flex items-center gap-3">
+                      <span className="w-6 h-6 bg-teal-100 text-teal-700 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0">
+                        {step}
+                      </span>
+                      <span>{text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : isNgRecord ? (
               <>
                 <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                   <span className="font-semibold">Current NG Reason:</span>{" "}
                   <span>{currentRecord?.ng_reason || "-"}</span>
                 </div>
-
                 <p className="text-sm font-medium text-stone-700 mb-2">
                   Update Module / PCBA SN (optional)
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-600 mb-1">
-                      Module A SN
-                    </label>
-                    <input
-                      value={moduleA}
-                      onChange={(e) => setModuleA(e.target.value)}
-                      placeholder="Module A SN"
-                      className="w-full px-3 py-2 bg-white border-2 border-stone-300 rounded-lg
-                                 focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-                                 text-base text-stone-800 transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-600 mb-1">
-                      Module B SN
-                    </label>
-                    <input
-                      value={moduleB}
-                      onChange={(e) => setModuleB(e.target.value)}
-                      placeholder="Module B SN"
-                      className="w-full px-3 py-2 bg-white border-2 border-stone-300 rounded-lg
-                                 focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-                                 text-base text-stone-800 transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-600 mb-1">
-                      AU8 SN
-                    </label>
-                    <input
-                      value={pcbaAu8}
-                      onChange={(e) => setPcbaAu8(e.target.value)}
-                      placeholder="AU8 SN"
-                      className="w-full px-3 py-2 bg-white border-2 border-stone-300 rounded-lg
-                                 focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-                                 text-base text-stone-800 transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-stone-600 mb-1">
-                      AM7 SN
-                    </label>
-                    <input
-                      value={pcbaAm7}
-                      onChange={(e) => setPcbaAm7(e.target.value)}
-                      placeholder="AM7 SN"
-                      className="w-full px-3 py-2 bg-white border-2 border-stone-300 rounded-lg
-                                 focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-                                 text-base text-stone-800 transition-colors"
-                    />
-                  </div>
+                  {[
+                    { label: 'Module A SN', value: moduleA, setter: setModuleA, placeholder: 'Module A SN' },
+                    { label: 'Module B SN', value: moduleB, setter: setModuleB, placeholder: 'Module B SN' },
+                    { label: 'AU8 SN',      value: pcbaAu8, setter: setPcbaAu8, placeholder: 'AU8 SN' },
+                    { label: 'AM7 SN',      value: pcbaAm7, setter: setPcbaAm7, placeholder: 'AM7 SN' },
+                  ].map(({ label, value, setter, placeholder }) => (
+                    <div key={label}>
+                      <label className="block text-xs font-semibold text-stone-600 mb-1">{label}</label>
+                      <input
+                        value={value}
+                        onChange={(e) => setter(e.target.value)}
+                        placeholder={placeholder}
+                        className="w-full px-3 py-2 bg-white border-2 border-stone-300 rounded-lg
+                                   focus:ring-2 focus:ring-teal-500 focus:border-teal-500
+                                   text-base text-stone-800 transition-colors"
+                      />
+                    </div>
+                  ))}
                 </div>
               </>
             ) : (
               <>
-                <label className="block text-sm md:text-base font-medium text-stone-700 mb-2">
+                <label className="block text-sm font-medium text-stone-700 mb-2">
                   NG Reason <span className="text-red-600">*</span>
                 </label>
                 <textarea
@@ -558,176 +501,123 @@ export default function ATETesting() {
                   onChange={(e) => setNgReason(e.target.value)}
                   placeholder="Enter NG reason..."
                   rows={4}
-                  disabled={!hasRecord}
                   className="w-full px-4 py-3 bg-white border-2 border-stone-300 rounded-lg
                              focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-                             text-base md:text-lg text-stone-800 resize-none transition-colors"
+                             text-base text-stone-800 resize-none transition-colors"
                   required
                 />
               </>
             )}
 
-            {/* Action Buttons - Responsive */}
-            <div className="mt-4 space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-4">
-
-              {/* Label NG Button */}
+            {/* Action Buttons */}
+            <div className="mt-4 grid grid-cols-2 gap-3">
               <button
                 onClick={markNG}
                 disabled={!sn || !hasRecord || isNgRecord || !ngReason.trim() || loading}
-                className="w-full px-6 py-6 md:py-5 lg:py-4
+                className="w-full px-4 py-4 md:py-3
                            bg-red-600 hover:bg-red-700 active:bg-red-800
-                           text-white font-bold text-lg md:text-xl lg:text-lg
-                           rounded-lg transition-all duration-150
-                           disabled:opacity-50 disabled:cursor-not-allowed
-                           shadow-lg hover:shadow-xl active:scale-95
-                           flex items-center justify-center gap-3"
+                           text-white font-bold text-base rounded-lg transition-colors
+                           disabled:opacity-40 disabled:cursor-not-allowed
+                           shadow-sm active:scale-95 flex items-center justify-center gap-2"
               >
-                {loading ? (
-                  <Loader2 className="w-7 h-7 md:w-6 md:h-6 animate-spin" />
-                ) : (
-                  <>
-                    <XCircle size={28} className="md:w-6 md:h-6" />
-                    <span>Label NG</span>
-                  </>
-                )}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><XCircle className="w-5 h-5" /><span>Label NG</span></>}
               </button>
-
-              {/* Clean NG Button */}
               <button
                 onClick={cleanNG}
                 disabled={!sn || !hasRecord || !isNgRecord || loading}
-                className="w-full px-6 py-6 md:py-5 lg:py-4
+                className="w-full px-4 py-4 md:py-3
                            bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800
-                           text-white font-bold text-lg md:text-xl lg:text-lg
-                           rounded-lg transition-all duration-150
-                           disabled:opacity-50 disabled:cursor-not-allowed
-                           shadow-lg hover:shadow-xl active:scale-95
-                           flex items-center justify-center gap-3"
+                           text-white font-bold text-base rounded-lg transition-colors
+                           disabled:opacity-40 disabled:cursor-not-allowed
+                           shadow-sm active:scale-95 flex items-center justify-center gap-2"
               >
-                {loading ? (
-                  <Loader2 className="w-7 h-7 md:w-6 md:h-6 animate-spin" />
-                ) : (
-                  <>
-                    <CheckCircle size={28} className="md:w-6 md:h-6" />
-                    <span>Clean NG</span>
-                  </>
-                )}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CheckCircle className="w-5 h-5" /><span>Clean NG</span></>}
               </button>
             </div>
           </div>
 
-          {/* Recent NG Records - Responsive Display */}
-          <div className="bg-white rounded-lg border border-stone-200 p-4 md:p-5 shadow-sm">
-            <h2 className="text-base md:text-lg font-semibold text-stone-800 mb-4">
-              Recent NG Records
-              <span className="ml-2 text-xs font-normal text-stone-500">(Live)</span>
-            </h2>
-
-            {/* Mobile: Card Style */}
-            <div className="block md:hidden space-y-3 max-h-96 overflow-y-auto">
-              {recentNg.length === 0 ? (
-                <p className="text-center text-stone-500 py-8">No records</p>
-              ) : (
-                recentNg.slice(0, 10).map((record) => (
-                  <div
-                    key={record.id}
-                    className={`border rounded-lg p-3 transition-colors ${
-                      record.status === 'NG'
-                        ? 'bg-red-50/50 border-red-200'
-                        : 'bg-emerald-50/50 border-emerald-200'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <span className="font-mono text-sm font-semibold text-stone-800">
-                        {record.us_sn}
-                      </span>
-                      <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                        record.status === 'NG'
-                          ? 'bg-red-100 text-red-700'
-                          : 'bg-emerald-100 text-emerald-700'
-                      }`}>
-                        {record.status}
-                      </span>
-                    </div>
-                    <p className="text-sm text-stone-600 mb-1">
-                      Reason: {record.ng_reason || '-'}
-                    </p>
-                    <p className="text-xs text-stone-500">
-                      {new Date(record.timestamp).toLocaleString('en-US', {
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                  </div>
-                ))
+          {/* Right: Recent NG Records */}
+          <div className="bg-white rounded-lg border border-stone-200 p-4 md:p-5 shadow-sm flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-stone-800 flex items-center gap-2">
+                Recent NG Records
+                <span className="text-xs font-normal text-stone-400">(Live)</span>
+              </h2>
+              {recentNg.length > 0 && (
+                <span className="text-xs text-stone-400">{recentNg.length} records</span>
               )}
             </div>
 
-            {/* Tablet/Desktop: Table Style */}
-            <div className="hidden md:block overflow-x-auto max-h-96">
-              <table className="w-full">
-                <thead className="sticky top-0 bg-stone-50">
-                  <tr className="border-b border-stone-200">
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-stone-600 uppercase">
-                      US SN
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-stone-600 uppercase">
-                      Status
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-stone-600 uppercase">
-                      Reason
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-stone-600 uppercase">
-                      Time
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-100">
-                  {recentNg.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-3 py-8 text-center text-stone-500">
-                        No records
-                      </td>
-                    </tr>
-                  ) : (
-                    recentNg.slice(0, 10).map((record) => (
-                      <tr
-                        key={record.id}
-                        className={`hover:bg-stone-50 transition-colors ${
-                          record.status === 'NG' ? 'bg-red-50/30' : 'bg-emerald-50/30'
-                        }`}
-                      >
-                        <td className="px-3 py-2 text-sm font-mono text-stone-800">
-                          {record.us_sn}
-                        </td>
-                        <td className="px-3 py-2">
-                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                            record.status === 'NG'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-emerald-100 text-emerald-700'
-                          }`}>
-                            {record.status}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-sm text-stone-600 max-w-xs truncate" title={record.ng_reason}>
-                          {record.ng_reason || '-'}
-                        </td>
-                        <td className="px-3 py-2 text-xs text-stone-500">
-                          {new Date(record.timestamp).toLocaleString('en-US', {
-                            month: '2-digit',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </td>
+            {recentNg.length === 0 ? (
+              /* Empty state — meaningful, not just "No records" */
+              <div className="flex-1 flex flex-col items-center justify-center py-10 text-center">
+                <div className="w-14 h-14 bg-emerald-50 rounded-lg flex items-center justify-center mb-3">
+                  <CheckCircle className="w-7 h-7 text-emerald-500" />
+                </div>
+                <p className="text-stone-600 font-semibold">No NG records today</p>
+                <p className="text-stone-400 text-sm mt-1">
+                  {stats.total_today > 0
+                    ? `${stats.total_today} units scanned — all passed`
+                    : 'Records will appear here after marking NG'}
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Mobile: Cards */}
+                <div className="block md:hidden space-y-2 max-h-[28rem] overflow-y-auto">
+                  {recentNg.map((record) => (
+                    <div key={record.id} className={`border rounded-lg p-3 ${
+                      record.status === 'NG' ? 'bg-red-50/50 border-red-200' : 'bg-emerald-50/50 border-emerald-200'
+                    }`}>
+                      <div className="flex items-start justify-between mb-1">
+                        <span className="font-mono text-sm font-semibold text-stone-800">{record.us_sn}</span>
+                        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                          record.status === 'NG' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                        }`}>{record.status}</span>
+                      </div>
+                      <p className="text-xs text-stone-600">{record.ng_reason || '—'}</p>
+                      <p className="text-xs text-stone-400 mt-1">
+                        {new Date(record.timestamp).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Tablet/Desktop: Table */}
+                <div className="hidden md:block overflow-y-auto flex-1" style={{ maxHeight: '360px' }}>
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-stone-50 z-10">
+                      <tr className="border-b border-stone-200">
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-stone-500 uppercase">US SN</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-stone-500 uppercase">Status</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-stone-500 uppercase">Reason</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-stone-500 uppercase">Time</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {recentNg.map((record) => (
+                        <tr key={record.id} className={`hover:bg-stone-50 transition-colors ${
+                          record.status === 'NG' ? 'bg-red-50/20' : 'bg-emerald-50/20'
+                        }`}>
+                          <td className="px-3 py-2 font-mono text-stone-800">{record.us_sn}</td>
+                          <td className="px-3 py-2">
+                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                              record.status === 'NG' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                            }`}>{record.status}</span>
+                          </td>
+                          <td className="px-3 py-2 text-stone-600 max-w-[160px] truncate" title={record.ng_reason}>
+                            {record.ng_reason || '—'}
+                          </td>
+                          <td className="px-3 py-2 text-xs text-stone-400 whitespace-nowrap">
+                            {new Date(record.timestamp).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </main>

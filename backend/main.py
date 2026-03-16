@@ -40,6 +40,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Missing-Count", "X-Found-Count", "X-Total-Count"],
 )
 
 
@@ -160,6 +161,24 @@ async def startup_event():
             "ERROR",
             "pg_pool",
             str(e),
+            (_time.perf_counter() - step_started) * 1000,
+        )
+
+    step_started = _time.perf_counter()
+    try:
+        from api.ml import _ensure_ml_schema
+        _ensure_ml_schema()
+        _print_step(
+            "OK",
+            "ml_schema",
+            "ML schema and tables ensured",
+            (_time.perf_counter() - step_started) * 1000,
+        )
+    except Exception as e:
+        _print_step(
+            "WARN",
+            "ml_schema",
+            f"skipped: {e}",
             (_time.perf_counter() - step_started) * 1000,
         )
 

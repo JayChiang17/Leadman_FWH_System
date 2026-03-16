@@ -67,7 +67,6 @@ export default function Dashboard() {
   const [hasSaturdayActivity, setHasSaturdayActivity] = useState(false);
   const [riskData, setRiskData] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [, setDowntimeData] = useState({ module: [], assembly: [] });
 
   const weeklyChartRef = useRef(null);
   const assyWeeklyChartRef = useRef(null);
@@ -216,22 +215,9 @@ export default function Dashboard() {
     }
   }, []);
 
-  const loadDowntimeData = useCallback(async () => {
-    try {
-      const { data } = await api.get(`downtime/events/today`);
-      if (data.status === 'success' && data.records) {
-        const moduleDowntimes = data.records.filter(r => r.line === 'cell');
-        const assemblyDowntimes = data.records.filter(r => r.line === 'assembly');
-        setDowntimeData({ module: moduleDowntimes, assembly: assemblyDowntimes });
-      }
-    } catch (err) {
-      console.error("Failed to load downtime data:", err);
-    }
-  }, []);
-
   const refresh = useCallback(() => {
-    loadMod(); loadAssy(); loadWeek(); loadAssyWeek(); loadRiskData(); loadDowntimeData();
-  }, [loadMod, loadAssy, loadWeek, loadAssyWeek, loadRiskData, loadDowntimeData]);
+    loadMod(); loadAssy(); loadWeek(); loadAssyWeek(); loadRiskData();
+  }, [loadMod, loadAssy, loadWeek, loadAssyWeek, loadRiskData]);
 
   /* ③ ────────── 處理風險更新 ────────── */
   const handleRiskUpdate = useCallback((data) => {
@@ -333,13 +319,19 @@ export default function Dashboard() {
     checkWeekReset();
     const intervalId = setInterval(checkWeekReset, 3600000);
 
+    let earlyMondayInterval = null;
+    let earlyMondayTimeout = null;
     const now = new Date();
     if (now.getDay() === 1 && now.getHours() < 6) {
-      const earlyMondayInterval = setInterval(checkWeekReset, 300000);
-      setTimeout(() => clearInterval(earlyMondayInterval), 21600000);
+      earlyMondayInterval = setInterval(checkWeekReset, 300000);
+      earlyMondayTimeout = setTimeout(() => clearInterval(earlyMondayInterval), 21600000);
     }
 
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+      if (earlyMondayInterval) clearInterval(earlyMondayInterval);
+      if (earlyMondayTimeout) clearTimeout(earlyMondayTimeout);
+    };
   }, [refresh]);
 
   useEffect(() => {

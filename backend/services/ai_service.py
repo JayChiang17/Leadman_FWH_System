@@ -49,21 +49,21 @@ from PIL import Image
 import pytesseract
 
 # ─────────────────────────── LangChain / 向量庫 ───────────────────────────
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
-from langchain.prompts import PromptTemplate
-from langchain.schema import Document
+from langchain_classic.prompts import PromptTemplate
+from langchain_classic.schema import Document
 
-from langchain.retrievers import ParentDocumentRetriever, ContextualCompressionRetriever
-from langchain.storage import InMemoryStore
-from langchain.retrievers.document_compressors import (
+from langchain_classic.retrievers import ParentDocumentRetriever, ContextualCompressionRetriever
+from langchain_classic.storage import InMemoryStore
+from langchain_classic.retrievers.document_compressors import (
     EmbeddingsFilter,
     DocumentCompressorPipeline,
 )
 
 try:
-    from langchain.retrievers.contextual_compression import LLMChainExtractor
+    from langchain_classic.retrievers.contextual_compression import LLMChainExtractor
     from langchain_openai import ChatOpenAI
 except Exception:
     LLMChainExtractor = None

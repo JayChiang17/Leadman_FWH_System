@@ -20,6 +20,8 @@ from .pcba                import router as pcba_router      # ★ NEW - PCBA Tra
 from .email_settings      import router as email_settings_router  # ★ NEW - Email Settings
 from .ate_testing         import router as ate_router            # ★ NEW - ATE Testing NG Management
 from .monitor             import router as monitor_router        # ★ NEW - System Monitor
+from .wip                 import router as wip_router             # ★ NEW - WIP Tracking
+from .ml                  import router as ml_router              # ★ NEW - ML predictions & clusters
 
 # ── WebSocket router（獨立）────────────────────────────
 from .ws_router           import router as ws_router
@@ -41,6 +43,8 @@ api_router.include_router(pcba_router)              # ★ NEW – PCBA Productio
 api_router.include_router(email_settings_router)    # ★ NEW – Email Settings (Admin Only)
 api_router.include_router(ate_router)               # ★ NEW – ATE Testing NG Management
 api_router.include_router(monitor_router)           # ★ NEW – System Monitor (Admin Only)
+api_router.include_router(wip_router)               # ★ NEW – WIP Tracking
+api_router.include_router(ml_router)                # ★ NEW – ML predictions & clusters
 
 # ---- Health Check (無需認證，供前端 proxy warmup 使用) ----
 @api_router.get("/health", tags=["System"])

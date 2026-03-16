@@ -7,6 +7,7 @@ from typing import Dict, List
 from collections import Counter
 import os
 import logging
+import json
 
 from core.time_utils import ca_now
 from core.pg import get_cursor
@@ -30,16 +31,40 @@ class DailyReportService:
         today_end = ca_now_dt.replace(hour=23, minute=59, second=59, microsecond=999999)
         month_start = ca_now_dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
+        module_plan   = self._get_today_plan("model",    "weekly_plan")
+        assembly_plan = self._get_today_plan("assembly", "assembly_weekly_plan")
+        module_production   = self._get_module_production_count(today_start, today_end)
+        assembly_production = self._get_assembly_production_count(today_start, today_end)
+
+        _dt = self._get_downtime_by_line(today_start, today_end)
+        mod_a_hourly, mod_b_hourly = self._get_module_hourly_by_kind(today_start, today_end)
+        asm_hourly                 = self._get_assembly_hourly(today_start, today_end)
+        cell_dt_hourly, asm_dt_hourly = self._get_downtime_hourly_by_line(today_start, today_end)
+
         data = {
-            'module_production': self._get_module_production_count(today_start, today_end),
-            'assembly_production': self._get_assembly_production_count(today_start, today_end),
-            'total_ng': self._get_total_ng_count(month_start, ca_now_dt),
-            'ng_reasons': self._get_ng_reasons_breakdown(month_start, ca_now_dt),
-            'downtime_hours': self._get_downtime_hours(today_start, today_end),
-            'module_efficiency': 95.0,
-            'assembly_efficiency': 92.0,
-            'report_date': ca_now_dt.strftime('%Y-%m-%d'),
-            'generated_at': ca_now_dt.strftime('%Y-%m-%d %H:%M:%S')
+            'module_production':   module_production,
+            'module_plan':         module_plan,
+            'assembly_production': assembly_production,
+            'assembly_plan':       assembly_plan,
+            'total_ng':       self._get_total_ng_count(month_start, ca_now_dt),
+            'ng_reasons':     self._get_ng_reasons_breakdown(month_start, ca_now_dt),
+            # downtime — total (backwards compat) + per-line breakdown
+            'downtime_hours':          _dt['total'],
+            'cell_downtime_hours':     _dt['cell'],
+            'assembly_downtime_hours': _dt['assembly'],
+            'downtime_details':        _dt['top5'],
+            'cell_downtime_top5':      _dt['cell_top5'],
+            'assembly_downtime_top5':  _dt['assembly_top5'],
+            # hourly data for charts (previously always empty → "No hourly data")
+            'module_a_hourly':         mod_a_hourly,
+            'module_b_hourly':         mod_b_hourly,
+            'assembly_hourly':         asm_hourly,
+            'downtime_cell_hourly':    cell_dt_hourly,
+            'downtime_assembly_hourly': asm_dt_hourly,
+            'module_efficiency':   round(module_production   / module_plan   * 100, 1) if module_plan   else 0.0,
+            'assembly_efficiency': round(assembly_production / assembly_plan * 100, 1) if assembly_plan else 0.0,
+            'report_date':    ca_now_dt.strftime('%Y-%m-%d'),
+            'generated_at':   ca_now_dt.strftime('%Y-%m-%d %H:%M:%S'),
         }
 
         print(f"数据汇总完成！")
@@ -49,6 +74,28 @@ class DailyReportService:
         print(f"   停机时间: {data['downtime_hours']:.1f} 小时")
 
         return data
+
+    def _get_today_plan(self, schema: str, table: str) -> int:
+        """讀取本週計畫中今天的目標數量（與 risk_router._today_plan 邏輯一致）"""
+        try:
+            ca_now_dt = ca_now()
+            today   = ca_now_dt.date()
+            monday  = today - timedelta(days=today.weekday())
+            with get_cursor(schema) as cur:
+                cur.execute(
+                    f"SELECT plan_json FROM {table} WHERE week_start = %s",
+                    (monday.strftime("%Y-%m-%d"),)
+                )
+                row = cur.fetchone()
+            if not row:
+                return 0
+            pj   = row["plan_json"]
+            plan = pj if isinstance(pj, (list, dict)) else json.loads(pj)
+            idx  = today.weekday()
+            return int(plan[idx]) if isinstance(plan, list) and 0 <= idx < len(plan) else 0
+        except Exception as e:
+            print(f"Warning  讀取 {schema}.{table} 計畫失敗: {e}")
+            return 0
 
     def _get_module_production_count(self, start_time: datetime, end_time: datetime) -> int:
         """获取 Module 生产数量"""
@@ -206,34 +253,141 @@ class DailyReportService:
 
         return reason.capitalize()
 
-    def _get_downtime_hours(self, start_time: datetime, end_time: datetime) -> float:
-        """获取停机时间（小时）"""
+    def _get_module_hourly_by_kind(self, start_time: datetime, end_time: datetime):
+        """每小時 Module 產量，按 kind 分 (AM7=Module A, AU8=Module B)。回傳 (am7_list, au8_list)"""
+        try:
+            with get_cursor("model") as cur:
+                cur.execute("""
+                    SELECT EXTRACT(HOUR FROM scanned_at) AS hour,
+                           kind, COUNT(*) AS cnt
+                    FROM scans
+                    WHERE scanned_at >= %s AND scanned_at <= %s
+                      AND status != 'ng'
+                    GROUP BY hour, kind
+                    ORDER BY hour, kind
+                """, (start_time.isoformat(), end_time.isoformat()))
+                rows = cur.fetchall()
+            am7, au8 = {}, {}
+            for r in rows:
+                h = int(r["hour"])
+                k = (r["kind"] or "").upper()
+                c = int(r["cnt"] or 0)
+                if k == "AM7":
+                    am7[h] = am7.get(h, 0) + c
+                else:
+                    au8[h] = au8.get(h, 0) + c
+            return (
+                [{'hour': h, 'count': c} for h, c in sorted(am7.items())],
+                [{'hour': h, 'count': c} for h, c in sorted(au8.items())],
+            )
+        except Exception as e:
+            print(f"Warning  获取 Module 小时数据失败: {e}")
+            return [], []
+
+    def _get_assembly_hourly(self, start_time: datetime, end_time: datetime):
+        """每小時 Assembly 產量"""
+        try:
+            with get_cursor("assembly") as cur:
+                cur.execute("""
+                    SELECT EXTRACT(HOUR FROM scanned_at) AS hour,
+                           COUNT(*) AS cnt
+                    FROM scans
+                    WHERE scanned_at >= %s AND scanned_at <= %s
+                      AND status != 'ng'
+                    GROUP BY hour
+                    ORDER BY hour
+                """, (start_time.isoformat(), end_time.isoformat()))
+                rows = cur.fetchall()
+            return [{'hour': int(r["hour"]), 'count': int(r["cnt"] or 0)} for r in rows]
+        except Exception as e:
+            print(f"Warning  获取 Assembly 小时数据失败: {e}")
+            return []
+
+    def _get_downtime_hourly_by_line(self, start_time: datetime, end_time: datetime):
+        """每小時停機時間，按 line 分 (cell / assembly)。回傳 (cell_list, asm_list)"""
         try:
             with get_cursor("downtime") as cur:
                 cur.execute("""
-                    SELECT start_local, end_local FROM downtime_logs
+                    SELECT EXTRACT(HOUR FROM start_local) AS hour,
+                           line, SUM(duration_min) AS total_min
+                    FROM downtime_logs
                     WHERE start_local >= %s AND start_local <= %s
+                    GROUP BY hour, line
+                    ORDER BY hour, line
+                """, (start_time, end_time))
+                rows = cur.fetchall()
+            cell, asm = {}, {}
+            for r in rows:
+                h = int(r["hour"])
+                ln = (r["line"] or "").strip().lower()
+                m  = float(r["total_min"] or 0)
+                if ln == "cell":
+                    cell[h] = cell.get(h, 0) + m
+                elif ln == "assembly":
+                    asm[h] = asm.get(h, 0) + m
+            return (
+                [{'hour': h, 'minutes': round(m, 1)} for h, m in sorted(cell.items())],
+                [{'hour': h, 'minutes': round(m, 1)} for h, m in sorted(asm.items())],
+            )
+        except Exception as e:
+            print(f"Warning  获取停机小时数据失败: {e}")
+            return [], []
+
+    def _get_downtime_by_line(self, start_time: datetime, end_time: datetime) -> dict:
+        """获取按生产线分开的停机时间，回傳 {total, cell, assembly, top5, cell_top5, assembly_top5}"""
+        empty = {'total': 0.0, 'cell': 0.0, 'assembly': 0.0,
+                 'top5': [], 'cell_top5': [], 'assembly_top5': []}
+        try:
+            with get_cursor("downtime") as cur:
+                cur.execute("""
+                    SELECT line, station, start_local, end_local, duration_min
+                    FROM downtime_logs
+                    WHERE start_local >= %s AND start_local <= %s
+                    ORDER BY duration_min DESC NULLS LAST
                 """, (start_time, end_time))
                 rows = cur.fetchall()
 
-            total_hours = 0
-            for row in rows:
-                start = row["start_local"]
-                end = row["end_local"]
-                if start and end:
-                    if isinstance(start, datetime) and isinstance(end, datetime):
-                        duration = (end - start).total_seconds() / 3600
-                    else:
-                        start_dt = datetime.fromisoformat(str(start))
-                        end_dt = datetime.fromisoformat(str(end))
-                        duration = (end_dt - start_dt).total_seconds() / 3600
-                    total_hours += duration
+            cell_hours     = 0.0
+            assembly_hours = 0.0
+            all_events     = []
+            cell_events    = []
+            asm_events     = []
 
-            return round(total_hours, 1)
+            for row in rows:
+                dm = row["duration_min"]
+                if dm is None:
+                    s, e = row["start_local"], row["end_local"]
+                    if not (s and e):
+                        continue
+                    if isinstance(s, datetime) and isinstance(e, datetime):
+                        dm = (e - s).total_seconds() / 60
+                    else:
+                        dm = (datetime.fromisoformat(str(e)) - datetime.fromisoformat(str(s))).total_seconds() / 60
+
+                dm   = round(float(dm), 1)
+                line = (row["line"] or "other").strip().lower()
+                evt  = {'line': line, 'station': row["station"] or "", 'duration_minutes': dm}
+                all_events.append(evt)
+
+                if line == "cell":
+                    cell_hours += dm / 60
+                    cell_events.append(evt)
+                elif line == "assembly":
+                    assembly_hours += dm / 60
+                    asm_events.append(evt)
+
+            return {
+                'total':          round(cell_hours + assembly_hours, 1),
+                'cell':           round(cell_hours, 1),
+                'assembly':       round(assembly_hours, 1),
+                'top5':           all_events[:5],
+                'cell_top5':      cell_events[:5],
+                'assembly_top5':  asm_events[:5],
+            }
 
         except Exception as e:
-            print(f"Warning  获取停机时间失败: {e}")
-            return 0.0
+            print(f"Warning  获取分线停机时间失败: {e}")
+            return empty
 
 
 # 测试函数

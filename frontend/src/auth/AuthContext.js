@@ -24,6 +24,7 @@ export function AuthProvider({ children }) {
   const [role, setRole] = useState(null);
   const [name, setName] = useState(null);
   const [exp, setExp] = useState(null);
+  const [allowedPages, setAllowedPages] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const refreshPromiseRef = useRef(null);
@@ -36,6 +37,7 @@ export function AuthProvider({ children }) {
     setRole(null);
     setName(null);
     setExp(null);
+    setAllowedPages(null);
     try {
       localStorage.setItem("__logout_broadcast__", String(Date.now()));
       localStorage.setItem("__token_changed__", String(Date.now()));
@@ -57,10 +59,11 @@ export function AuthProvider({ children }) {
     setRole(payload.role);
     setName(payload.name || payload.username || payload.sub || "User");
     setExp(payload.exp);
+    setAllowedPages(payload.allowed_pages ?? null);
     setAuthHeader(accessToken);
 
     localStorage.setItem("token", accessToken);
-    localStorage.setItem("refreshToken", refreshTokenValue);
+    if (refreshTokenValue != null) localStorage.setItem("refreshToken", refreshTokenValue);
     try { localStorage.setItem("__token_changed__", String(Date.now())); } catch {}
   }, [clearAuth]);
 
@@ -189,12 +192,13 @@ export function AuthProvider({ children }) {
     token,
     role,
     name,
+    allowedPages,
     login: setAuthFromTokens,
     logout,
     getValidToken,
     isRefreshing,
     isInitialized
-  }), [token, role, name, setAuthFromTokens, logout, getValidToken, isRefreshing, isInitialized]);
+  }), [token, role, name, allowedPages, setAuthFromTokens, logout, getValidToken, isRefreshing, isInitialized]);
 
   return (
     <AuthCtx.Provider value={ctxValue}>

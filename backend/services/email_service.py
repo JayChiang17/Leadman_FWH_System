@@ -264,14 +264,17 @@ class GraphAPIEmailService:
         # Extract data
         today = ca_now().strftime("%Y-%m-%d")
         module_count = data.get('module_production', 0)
-        module_plan = data.get('module_plan', 120)
+        module_plan = data.get('module_plan', 0)
         assembly_count = data.get('assembly_production', 0)
-        assembly_plan = data.get('assembly_plan', 120)
+        assembly_plan = data.get('assembly_plan', 0)
         total_ng = data.get('total_ng', 0)
         ng_reasons = data.get('ng_reasons', [])
-        downtime_hours = data.get('downtime_hours', 0)
-        downtime_details = data.get('downtime_details', [])
-        downtime_by_line = data.get('downtime_by_line', [])
+        downtime_hours          = data.get('downtime_hours', 0)
+        cell_downtime_hours     = data.get('cell_downtime_hours', 0)
+        assembly_downtime_hours = data.get('assembly_downtime_hours', 0)
+        downtime_details        = data.get('downtime_details', [])
+        cell_downtime_top5      = data.get('cell_downtime_top5', [])
+        assembly_downtime_top5  = data.get('assembly_downtime_top5', [])
         module_efficiency = data.get('module_efficiency', 0)
         assembly_efficiency = data.get('assembly_efficiency', 0)
         module_a_hourly = data.get('module_a_hourly', [])
@@ -294,7 +297,7 @@ class GraphAPIEmailService:
         day_range = data.get('day_range', 'N/A')
 
         # Generate hourly production chart with A/B lines (side-by-side bars) - COMPACT PREMIUM DESIGN
-        def generate_dual_line_chart(data_a, data_b, color_a, color_b, label):
+        def generate_dual_line_chart(data_a, data_b, color_a, color_b, label, label_a="Module A", label_b="Module B"):
             if not data_a and not data_b:
                 return '<div style="text-align: center; color: #9ca3af; padding: 20px;">No hourly data</div>'
 
@@ -328,6 +331,8 @@ class GraphAPIEmailService:
                 if count_b > 0:
                     height_b = max(height_b, 2)
 
+                h_label = f"{hour}h" if hour % 4 == 0 else ""
+
                 bar_a_html = (
                     f'<table cellspacing="0" cellpadding="0" border="0" width="{bar_width}" height="{height_a}" role="presentation" bgcolor="{color_a}" style="border-collapse: collapse; mso-table-lspace:0pt; mso-table-rspace:0pt;">'
                     f'<tr><td height="{height_a}" bgcolor="{color_a}" style="height:{height_a}px; font-size:0; line-height:0; mso-line-height-rule:exactly;">&nbsp;</td></tr></table>'
@@ -348,8 +353,8 @@ class GraphAPIEmailService:
                 <td width="{col_width}" style="padding: 0; vertical-align: bottom; border: none; text-align: center;">
                     <table cellspacing="0" cellpadding="0" border="0" width="{col_width}" role="presentation" style="border-collapse: collapse; mso-table-lspace:0pt; mso-table-rspace:0pt;">
                         <tr>
-                            <td colspan="3" style="text-align: center; padding: 0 0 3px 0; font-size: 10px; font-weight: 700; color: #000000; border: none; line-height: 1;">
-                                {hour:02d}h
+                            <td colspan="3" style="text-align: center; padding: 0 0 3px 0; font-size: 10px; font-weight: 700; color: #374151; border: none; line-height: 1; white-space: nowrap;">
+                                {h_label}
                             </td>
                         </tr>
                         <tr>
@@ -377,9 +382,9 @@ class GraphAPIEmailService:
                         <td style="text-align: left; font-size: 14px; font-weight: 700; color: #000000; letter-spacing: -0.02em;">{label}</td>
                         <td style="text-align: right;">
                             <span style="display: inline-block; width: 12px; height: 12px; background-color: {color_a}; vertical-align: middle;"></span>
-                            <span style="font-size: 11px; font-weight: 600; color: #000000; margin: 0 8px 0 4px;">A</span>
+                            <span style="font-size: 11px; font-weight: 700; color: {color_a}; margin: 0 10px 0 4px;">{label_a}</span>
                             <span style="display: inline-block; width: 12px; height: 12px; background-color: {color_b}; vertical-align: middle;"></span>
-                            <span style="font-size: 11px; font-weight: 600; color: #000000; margin-left: 4px;">B</span>
+                            <span style="font-size: 11px; font-weight: 700; color: {color_b}; margin-left: 4px;">{label_b}</span>
                         </td>
                     </tr>
                 </table>
@@ -414,6 +419,8 @@ class GraphAPIEmailService:
                 if count > 0:
                     height = max(height, 2)
 
+                h_label = f"{hour}h" if hour % 4 == 0 else ""
+
                 bar_html = (
                     f'<table cellspacing="0" cellpadding="0" border="0" width="{bar_width}" height="{height}" role="presentation" bgcolor="{color}" style="border-collapse: collapse; mso-table-lspace:0pt; mso-table-rspace:0pt;">'
                     f'<tr><td height="{height}" bgcolor="{color}" style="height:{height}px; font-size:0; line-height:0; mso-line-height-rule:exactly;">&nbsp;</td></tr></table>'
@@ -426,8 +433,8 @@ class GraphAPIEmailService:
                 <td width="{bar_width}" style="padding: 0; vertical-align: bottom; border: none; text-align: center;">
                     <table cellspacing="0" cellpadding="0" border="0" width="{bar_width}" align="center" role="presentation" style="border-collapse: collapse; mso-table-lspace:0pt; mso-table-rspace:0pt;">
                         <tr>
-                            <td style="text-align: center; padding: 0 0 3px 0; font-size: 10px; font-weight: 700; color: #000000; border: none; line-height: 1;">
-                                {hour:02d}h
+                            <td style="text-align: center; padding: 0 0 3px 0; font-size: 10px; font-weight: 700; color: #374151; border: none; line-height: 1; white-space: nowrap;">
+                                {h_label}
                             </td>
                         </tr>
                         <tr>
@@ -515,6 +522,8 @@ class GraphAPIEmailService:
                 if dt > 0:
                     dt_height = max(dt_height, 2)
 
+                h_label = f"{hour}h" if hour % 4 == 0 else ""
+
                 uph_bar_html = (
                     f'<table cellspacing="0" cellpadding="0" border="0" width="{bar_width}" height="{uph_height}" role="presentation" bgcolor="{color_uph}" style="border-collapse: collapse; mso-table-lspace:0pt; mso-table-rspace:0pt;">'
                     f'<tr><td height="{uph_height}" bgcolor="{color_uph}" style="height:{uph_height}px; font-size:0; line-height:0; mso-line-height-rule:exactly;">&nbsp;</td></tr></table>'
@@ -535,8 +544,8 @@ class GraphAPIEmailService:
                 <td width="{col_width}" style="padding: 0; vertical-align: bottom; border: none; text-align: center;">
                     <table cellspacing="0" cellpadding="0" border="0" width="{col_width}" role="presentation" style="border-collapse: collapse; mso-table-lspace:0pt; mso-table-rspace:0pt;">
                         <tr>
-                            <td colspan="3" style="text-align: center; padding: 0 0 3px 0; font-size: 10px; font-weight: 700; color: #000000; border: none; line-height: 1;">
-                                {hour:02d}h
+                            <td colspan="3" style="text-align: center; padding: 0 0 3px 0; font-size: 10px; font-weight: 700; color: #374151; border: none; line-height: 1; white-space: nowrap;">
+                                {h_label}
                             </td>
                         </tr>
                         <tr>
@@ -564,9 +573,9 @@ class GraphAPIEmailService:
                         <td style="text-align: left; font-size: 14px; font-weight: 700; color: #000000; letter-spacing: -0.02em;">{label}</td>
                         <td style="text-align: right;">
                             <span style="display: inline-block; width: 12px; height: 12px; background-color: {color_uph}; vertical-align: middle;"></span>
-                            <span style="font-size: 11px; font-weight: 600; color: #000000; margin: 0 8px 0 4px;">UPH</span>
+                            <span style="font-size: 11px; font-weight: 700; color: {color_uph}; margin: 0 10px 0 4px;">UPH</span>
                             <span style="display: inline-block; width: 12px; height: 12px; background-color: {color_dt}; vertical-align: middle;"></span>
-                            <span style="font-size: 11px; font-weight: 600; color: #000000; margin-left: 4px;">Downtime (min)</span>
+                            <span style="font-size: 11px; font-weight: 700; color: {color_dt}; margin-left: 4px;">Downtime (min)</span>
                         </td>
                     </tr>
                 </table>
@@ -582,8 +591,13 @@ class GraphAPIEmailService:
             """
             return chart
 
-        module_chart = generate_dual_line_chart(module_a_hourly, module_b_hourly, '#1e40af', '#3b82f6', 'Module Hourly Production (Line A & B)')
-        assembly_chart = generate_single_chart(assembly_hourly, '#059669', 'Assembly Hourly Production')
+        module_chart = generate_dual_line_chart(
+            module_a_hourly, module_b_hourly,
+            '#0d9488', '#f59e0b',           # teal (Module A) vs amber (Module B) — clearly distinct
+            'Module Hourly Production',
+            label_a='Module A', label_b='Module B',
+        )
+        assembly_chart = generate_single_chart(assembly_hourly, '#0891b2', 'Assembly Hourly Production')
 
         if not module_total_hourly:
             module_total_hourly = merge_hourly_totals(module_a_hourly, module_b_hourly)
@@ -593,16 +607,16 @@ class GraphAPIEmailService:
         uph_vs_dt_cell_chart = generate_uph_downtime_chart(
             module_total_hourly,
             downtime_cell_hourly,
-            '#2563eb',
-            '#ef4444',
-            'UPH vs Downtime - Today (Cell Line)'
+            '#0d9488',   # teal — matches Module card brand color
+            '#ef4444',   # red — downtime
+            'UPH vs Downtime — Cell Line (Module A+B Combined)'
         )
         uph_vs_dt_assembly_chart = generate_uph_downtime_chart(
             assembly_total_hourly,
             downtime_assembly_hourly,
-            '#2563eb',
-            '#ef4444',
-            'UPH vs Downtime - Today (Assembly Line)'
+            '#059669',   # emerald — matches Assembly card color
+            '#ef4444',   # red — downtime
+            'UPH vs Downtime — Assembly Line'
         )
 
         # Generate NG reasons HTML - COMPACT PROFESSIONAL STYLE
@@ -622,19 +636,87 @@ class GraphAPIEmailService:
             f"font-style: italic;\">{no_ng_message}</td></tr>"
         )
 
-        # Generate downtime details HTML - TOP 5 LONGEST DOWNTIME
-        downtime_details_html = ""
-        for idx, dt in enumerate(downtime_details[:5], 1):
-            duration_hours = dt['duration_minutes'] / 60
-            duration_display = f"{int(duration_hours)}h {int(dt['duration_minutes'] % 60)}m" if duration_hours >= 1 else f"{int(dt['duration_minutes'])}m"
-            downtime_details_html += f"""
-            <tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 6px 8px; color: #64748b; font-weight: 600;">{idx}</td>
-                <td style="padding: 6px 8px; color: #334155; font-weight: 600;">{dt['line']}</td>
-                <td style="padding: 6px 8px; color: #334155;">{dt['station']}</td>
-                <td style="padding: 6px 8px; text-align: right; color: #dc2626; font-weight: 700;">{duration_display}</td>
-            </tr>
-            """
+        # Generate per-line downtime rows (# | Station | Duration, no Line column)
+        def _dt_rows(events, empty_msg):
+            if not events:
+                return (
+                    f'<tr><td colspan="3" style="padding: 12px; text-align: center; '
+                    f'color: #94a3b8; font-style: italic;">{empty_msg}</td></tr>'
+                )
+            rows_html = ""
+            for idx, dt in enumerate(events, 1):
+                dm = dt['duration_minutes']
+                dh = dm / 60
+                disp = f"{int(dh)}h {int(dm % 60)}m" if dh >= 1 else f"{int(dm)}m"
+                rows_html += (
+                    f'<tr style="border-bottom: 1px solid #e2e8f0;">'
+                    f'<td style="padding: 6px 8px; color: #64748b; font-weight: 600;">{idx}</td>'
+                    f'<td style="padding: 6px 8px; color: #334155;">{dt["station"]}</td>'
+                    f'<td style="padding: 6px 8px; text-align: right; color: #dc2626; font-weight: 700;">{disp}</td>'
+                    f'</tr>'
+                )
+            return rows_html
+
+        cell_dt_rows     = _dt_rows(cell_downtime_top5,     "No Cell line downtime today")
+        assembly_dt_rows = _dt_rows(assembly_downtime_top5, "No Assembly downtime today")
+
+        # ── Plan B: Outlook-safe efficiency progress bar ──────────────────────
+        def _eff_color(pct):
+            if pct >= 100: return '#059669'
+            if pct >= 80:  return '#0d9488'
+            if pct >= 60:  return '#f59e0b'
+            return '#dc2626'
+
+        def _eff_bar(pct, color):
+            p = min(max(int(pct or 0), 0), 100)
+            r = 100 - p
+            right = (
+                f'<td width="{r}%" height="5" bgcolor="#e2e8f0" '
+                f'style="height:5px;font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>'
+            ) if r > 0 else ''
+            return (
+                f'<table cellspacing="0" cellpadding="0" border="0" width="100%" role="presentation" '
+                f'style="border-collapse:collapse;margin-top:8px;mso-table-lspace:0pt;mso-table-rspace:0pt;">'
+                f'<tr>'
+                f'<td width="{p}%" height="5" bgcolor="{color}" '
+                f'style="height:5px;font-size:0;line-height:0;mso-line-height-rule:exactly;">&nbsp;</td>'
+                f'{right}'
+                f'</tr></table>'
+            )
+
+        mod_eff_color = _eff_color(module_efficiency)
+        asm_eff_color = _eff_color(assembly_efficiency)
+        mod_bar       = _eff_bar(module_efficiency,   mod_eff_color)
+        asm_bar       = _eff_bar(assembly_efficiency, asm_eff_color)
+
+        # ── Plan C: Production status banner ─────────────────────────────────
+        min_eff = min(
+            module_efficiency   if module_plan   > 0 else 100,
+            assembly_efficiency if assembly_plan > 0 else 100,
+        )
+        if min_eff >= 90 and total_ng == 0:
+            sb_bg, sb_bd  = '#f0fdf4', '#86efac'
+            sb_tc, sb_dot = '#15803d', '#059669'
+            sb_label      = 'ALL LINES ON TRACK'
+        elif min_eff < 60 or total_ng > 5:
+            sb_bg, sb_bd  = '#fef2f2', '#fca5a5'
+            sb_tc, sb_dot = '#b91c1c', '#dc2626'
+            sb_label      = 'ACTION REQUIRED'
+        else:
+            sb_bg, sb_bd  = '#fffbeb', '#fcd34d'
+            sb_tc, sb_dot = '#92400e', '#d97706'
+            sb_label      = 'ATTENTION NEEDED'
+
+        # ── Plan D: One-line summary sentence ────────────────────────────────
+        _parts = []
+        if assembly_plan > 0:
+            _parts.append(f'{assembly_count}/{assembly_plan} assembled ({assembly_efficiency}% eff.)')
+        if module_plan > 0:
+            _parts.append(f'{module_count}/{module_plan} module ({module_efficiency}% eff.)')
+        _parts.append(f'{total_ng} NG unit{"s" if total_ng != 1 else ""} today')
+        if downtime_hours > 0:
+            _parts.append(f'{downtime_hours}h downtime (Cell {cell_downtime_hours}h / Asm {assembly_downtime_hours}h)')
+        summary_sentence = ' — '.join(_parts) + '.'
 
         # HTML template - PREMIUM COMPACT PROFESSIONAL DESIGN
         html = f"""
@@ -654,20 +736,47 @@ class GraphAPIEmailService:
                         <!-- Email Content (max-width 1100px) -->
                         <table cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width: 1200px; background-color: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
 
-                            <!-- Header -->
+                            <!-- Header — Plan A: dark charcoal + teal accent -->
                             <tr>
-                                <td style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 24px 30px; border-radius: 8px 8px 0 0;">
-                                    <table cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <td style="background-color: #0f172a; padding: 22px 30px 18px 30px; border-radius: 8px 8px 0 0; border-bottom: 3px solid #0d9488;">
+                                    <table cellspacing="0" cellpadding="0" border="0" width="100%" role="presentation" style="border-collapse:collapse;">
                                         <tr>
                                             <td>
-                                                <div style="font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.8); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Daily Production Report</div>
-                                                <div style="font-size: 26px; font-weight: 800; color: white; letter-spacing: -0.5px;">FranklinWH</div>
+                                                <div style="font-size: 10px; font-weight: 700; color: #0d9488; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px;">Daily Production Report</div>
+                                                <div style="font-size: 28px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; line-height: 1;">FranklinWH</div>
+                                                <div style="font-size: 11px; color: #64748b; margin-top: 4px; font-weight: 500;">Leadman Manufacturing System</div>
                                             </td>
-                                            <td align="right">
-                                                <div style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); padding: 8px 14px; border-radius: 6px; display: inline-block;">
-                                                    <div style="font-size: 10px; color: rgba(255,255,255,0.9); font-weight: 600; margin-bottom: 2px;">DATE</div>
-                                                    <div style="font-size: 15px; color: white; font-weight: 700; letter-spacing: 0.3px;">{today}</div>
+                                            <td align="right" valign="middle">
+                                                <div style="background: rgba(13,148,136,0.15); border: 1px solid rgba(13,148,136,0.4); padding: 10px 16px; border-radius: 6px; display: inline-block; text-align: center;">
+                                                    <div style="font-size: 10px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 3px;">Report Date</div>
+                                                    <div style="font-size: 16px; color: #ffffff; font-weight: 700; letter-spacing: 0.5px;">{today}</div>
                                                 </div>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                            </tr>
+
+                            <!-- Plan C: Status Banner -->
+                            <tr>
+                                <td style="padding: 14px 30px 0 30px;">
+                                    <table cellspacing="0" cellpadding="0" border="0" width="100%" role="presentation"
+                                           style="border-collapse:collapse; background:{sb_bg}; border:1.5px solid {sb_bd}; border-radius:6px;">
+                                        <tr>
+                                            <td style="padding: 10px 16px;">
+                                                <table cellspacing="0" cellpadding="0" border="0" width="100%" role="presentation" style="border-collapse:collapse;">
+                                                    <tr>
+                                                        <td>
+                                                            <table cellspacing="0" cellpadding="0" border="0" role="presentation" style="border-collapse:collapse; display:inline-table;">
+                                                                <tr>
+                                                                    <td width="9" height="9" bgcolor="{sb_dot}" style="height:9px;width:9px;font-size:0;line-height:0;border-radius:50%;mso-line-height-rule:exactly;">&nbsp;</td>
+                                                                    <td style="padding-left:8px; font-size:12px; font-weight:800; color:{sb_tc}; text-transform:uppercase; letter-spacing:1.5px; white-space:nowrap;">{sb_label}</td>
+                                                                </tr>
+                                                            </table>
+                                                        </td>
+                                                        <td align="right" style="font-size:11px; color:{sb_tc}; font-weight:500; padding-left:16px;">{summary_sentence}</td>
+                                                    </tr>
+                                                </table>
                                             </td>
                                         </tr>
                                     </table>
@@ -679,33 +788,52 @@ class GraphAPIEmailService:
                                 <td style="padding: 24px 30px 16px 30px;">
                                     <table cellspacing="0" cellpadding="0" border="0" width="100%">
                                         <tr>
-                                            <!-- Module Production Card -->
-                                            <td width="32%" style="background: #eff6ff; border: 2px solid #3b82f6; border-radius: 6px; padding: 18px; vertical-align: top;">
-                                                <div style="font-size: 11px; font-weight: 700; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Module Production</div>
-                                                <div style="font-size: 38px; font-weight: 800; color: #1e3a8a; line-height: 1; margin-bottom: 4px;">
+                                            <!-- Module Production Card — Plan A (teal) + Plan B (progress bar) -->
+                                            <td width="32%" style="background: #f0fdfa; border: 2px solid #0d9488; border-radius: 6px; padding: 18px; vertical-align: top;">
+                                                <div style="font-size: 10px; font-weight: 700; color: #0d9488; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Module Production</div>
+                                                <div style="font-size: 38px; font-weight: 800; color: #0f172a; line-height: 1; margin-bottom: 4px;">
                                                     {module_count}<span style="font-size: 18px; font-weight: 600; color: #64748b;"> / {module_plan}</span>
                                                 </div>
-                                                <div style="font-size: 13px; font-weight: 600; color: {'#059669' if module_efficiency >= 90 else '#f59e0b' if module_efficiency >= 70 else '#dc2626'};">
+                                                <div style="font-size: 13px; font-weight: 700; color: {mod_eff_color};">
                                                     {module_efficiency}% Efficiency
                                                 </div>
+                                                {mod_bar}
                                             </td>
                                             <td width="2%"></td>
-                                            <!-- Assembly Production Card -->
+                                            <!-- Assembly Production Card — Plan B (progress bar) -->
                                             <td width="32%" style="background: #f0fdf4; border: 2px solid #10b981; border-radius: 6px; padding: 18px; vertical-align: top;">
-                                                <div style="font-size: 11px; font-weight: 700; color: #059669; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Assembly Production</div>
-                                                <div style="font-size: 38px; font-weight: 800; color: #065f46; line-height: 1; margin-bottom: 4px;">
+                                                <div style="font-size: 10px; font-weight: 700; color: #059669; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Assembly Production</div>
+                                                <div style="font-size: 38px; font-weight: 800; color: #0f172a; line-height: 1; margin-bottom: 4px;">
                                                     {assembly_count}<span style="font-size: 18px; font-weight: 600; color: #64748b;"> / {assembly_plan}</span>
                                                 </div>
-                                                <div style="font-size: 13px; font-weight: 600; color: {'#059669' if assembly_efficiency >= 90 else '#f59e0b' if assembly_efficiency >= 70 else '#dc2626'};">
+                                                <div style="font-size: 13px; font-weight: 700; color: {asm_eff_color};">
                                                     {assembly_efficiency}% Efficiency
                                                 </div>
+                                                {asm_bar}
                                             </td>
                                             <td width="2%"></td>
-                                            <!-- NG Card -->
-                                            <td width="32%" style="background: #fef2f2; border: 2px solid #ef4444; border-radius: 6px; padding: 18px; text-align: center; vertical-align: top;">
-                                                <div style="font-size: 11px; font-weight: 700; color: #dc2626; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Total NG Today</div>
-                                                <div style="font-size: 44px; font-weight: 800; color: #991b1b; line-height: 1;">
+                                            <!-- NG Card — Plan D: downtime totals below NG count -->
+                                            <td width="32%" style="background: #fef2f2; border: 2px solid #ef4444; border-radius: 6px; padding: 18px; vertical-align: top;">
+                                                <div style="font-size: 10px; font-weight: 700; color: #dc2626; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px;">Total NG Today</div>
+                                                <div style="font-size: 44px; font-weight: 800; color: #991b1b; line-height: 1; margin-bottom: 8px;">
                                                     {total_ng}
+                                                </div>
+                                                <div style="border-top: 1px solid #fecaca; padding-top: 8px; margin-top: 2px;">
+                                                    <div style="font-size: 10px; font-weight: 700; color: #dc2626; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Downtime Today</div>
+                                                    <table cellspacing="0" cellpadding="0" border="0" width="100%" role="presentation" style="border-collapse:collapse;">
+                                                        <tr>
+                                                            <td style="font-size: 11px; font-weight: 600; color: #991b1b;">Cell</td>
+                                                            <td align="right" style="font-size: 13px; font-weight: 800; color: #991b1b;">{cell_downtime_hours}h</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="font-size: 11px; font-weight: 600; color: #1d4ed8; padding-top: 3px;">Assembly</td>
+                                                            <td align="right" style="font-size: 13px; font-weight: 800; color: #1d4ed8; padding-top: 3px;">{assembly_downtime_hours}h</td>
+                                                        </tr>
+                                                        <tr>
+                                                            <td style="font-size: 10px; color: #64748b; padding-top: 4px; border-top: 1px solid #fecaca;">Total</td>
+                                                            <td align="right" style="font-size: 12px; font-weight: 700; color: #475569; padding-top: 4px; border-top: 1px solid #fecaca;">{downtime_hours}h</td>
+                                                        </tr>
+                                                    </table>
                                                 </div>
                                             </td>
                                         </tr>
@@ -777,13 +905,13 @@ class GraphAPIEmailService:
                                 </td>
                             </tr>
 
-                            <!-- 2-Column: NG Reasons + Downtime -->
+                            <!-- 3-Column: NG Reasons | Cell Downtime | Assembly Downtime -->
                             <tr>
                                 <td style="padding: 10px 30px 20px 30px;">
                                     <table cellspacing="0" cellpadding="0" border="0" width="100%">
                                         <tr>
                                             <!-- NG Reasons Column -->
-                                            <td width="48%" style="vertical-align: top;">
+                                            <td width="36%" style="vertical-align: top;">
                                                 <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 14px;">
                                                     <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #dc2626; letter-spacing: -0.02em;">NG Analysis (Today)</div>
                                                     <table cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 11px;">
@@ -797,26 +925,53 @@ class GraphAPIEmailService:
                                                     </table>
                                                 </div>
                                             </td>
-                                            <td width="4%"></td>
-                                            <!-- Downtime Column -->
-                                            <td width="48%" style="vertical-align: top;">
-                                                <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 14px;">
-                                                    <div style="margin-bottom: 10px;">
-                                                        <table cellspacing="0" cellpadding="0" border="0" width="100%">
-                                                            <tr>
-                                                                <td style="font-size: 13px; font-weight: 700; color: #0f172a; letter-spacing: -0.02em; padding-bottom: 8px; border-bottom: 2px solid #f59e0b;">Top 5 Downtime Events</td>
-                                                                <td align="right" style="font-size: 22px; font-weight: 800; color: #92400e; padding-bottom: 8px; border-bottom: 2px solid #f59e0b;">{downtime_hours} hrs</td>
-                                                            </tr>
-                                                        </table>
-                                                    </div>
-                                                    <table cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 11px; margin-top: 8px;">
-                                                        <tr style="background: #f1f5f9;">
-                                                            <th style="padding: 6px 8px; text-align: left; font-size: 10px; font-weight: 700; color: #475569; border-bottom: 1px solid #cbd5e1;">#</th>
-                                                            <th style="padding: 6px 8px; text-align: left; font-size: 10px; font-weight: 700; color: #475569; border-bottom: 1px solid #cbd5e1;">Line</th>
-                                                            <th style="padding: 6px 8px; text-align: left; font-size: 10px; font-weight: 700; color: #475569; border-bottom: 1px solid #cbd5e1;">Station</th>
-                                                            <th style="padding: 6px 8px; text-align: right; font-size: 10px; font-weight: 700; color: #475569; border-bottom: 1px solid #cbd5e1;">Duration</th>
+                                            <td width="2%"></td>
+
+                                            <!-- Cell Line Downtime Column -->
+                                            <td width="29%" style="vertical-align: top;">
+                                                <div style="background: #fff5f5; border: 1px solid #fecaca; border-radius: 6px; padding: 14px;">
+                                                    <table cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom: 10px;">
+                                                        <tr>
+                                                            <td style="font-size: 13px; font-weight: 700; color: #0f172a; letter-spacing: -0.02em; padding-bottom: 8px; border-bottom: 2px solid #ef4444;">
+                                                                Cell Line
+                                                            </td>
+                                                            <td align="right" style="font-size: 20px; font-weight: 800; color: #b91c1c; padding-bottom: 8px; border-bottom: 2px solid #ef4444;">
+                                                                {cell_downtime_hours} hrs
+                                                            </td>
                                                         </tr>
-                                                        {downtime_details_html if downtime_details_html else '<tr><td colspan="4" style="padding: 12px; text-align: center; color: #94a3b8; font-style: italic;">No downtime records today</td></tr>'}
+                                                    </table>
+                                                    <table cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 11px;">
+                                                        <tr style="background: #fee2e2;">
+                                                            <th style="padding: 5px 8px; text-align: left; font-size: 10px; font-weight: 700; color: #991b1b; border-bottom: 1px solid #fecaca;">#</th>
+                                                            <th style="padding: 5px 8px; text-align: left; font-size: 10px; font-weight: 700; color: #991b1b; border-bottom: 1px solid #fecaca;">Station</th>
+                                                            <th style="padding: 5px 8px; text-align: right; font-size: 10px; font-weight: 700; color: #991b1b; border-bottom: 1px solid #fecaca;">Duration</th>
+                                                        </tr>
+                                                        {cell_dt_rows}
+                                                    </table>
+                                                </div>
+                                            </td>
+                                            <td width="2%"></td>
+
+                                            <!-- Assembly Line Downtime Column -->
+                                            <td width="29%" style="vertical-align: top;">
+                                                <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 14px;">
+                                                    <table cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom: 10px;">
+                                                        <tr>
+                                                            <td style="font-size: 13px; font-weight: 700; color: #0f172a; letter-spacing: -0.02em; padding-bottom: 8px; border-bottom: 2px solid #3b82f6;">
+                                                                Assembly Line
+                                                            </td>
+                                                            <td align="right" style="font-size: 20px; font-weight: 800; color: #1d4ed8; padding-bottom: 8px; border-bottom: 2px solid #3b82f6;">
+                                                                {assembly_downtime_hours} hrs
+                                                            </td>
+                                                        </tr>
+                                                    </table>
+                                                    <table cellspacing="0" cellpadding="0" border="0" width="100%" style="font-size: 11px;">
+                                                        <tr style="background: #dbeafe;">
+                                                            <th style="padding: 5px 8px; text-align: left; font-size: 10px; font-weight: 700; color: #1e40af; border-bottom: 1px solid #bfdbfe;">#</th>
+                                                            <th style="padding: 5px 8px; text-align: left; font-size: 10px; font-weight: 700; color: #1e40af; border-bottom: 1px solid #bfdbfe;">Station</th>
+                                                            <th style="padding: 5px 8px; text-align: right; font-size: 10px; font-weight: 700; color: #1e40af; border-bottom: 1px solid #bfdbfe;">Duration</th>
+                                                        </tr>
+                                                        {assembly_dt_rows}
                                                     </table>
                                                 </div>
                                             </td>

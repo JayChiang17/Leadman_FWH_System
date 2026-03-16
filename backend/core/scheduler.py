@@ -12,12 +12,14 @@ from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 # Add parent directory to path for service imports
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from services.email_service import GraphAPIEmailService
 from services.data_collection_service import DataCollectionService
+from services.alert_service import check_and_send_alerts
 from core.email_db import (
     init_email_tables,
     get_email_config,
@@ -48,6 +50,7 @@ class ReportScheduler:
         except Exception as e:
             self._log("WARN", f"failed to initialize email tables: {e}")
 
+        self._load_scheduler_runtime_options()
         self._load_config()
 
         if self._emit_init_log:
@@ -55,9 +58,33 @@ class ReportScheduler:
             self._log("INFO", f"daily report time: {self.report_time}")
             self._log("INFO", f"daily report enabled: {self.enabled}")
             self._log("INFO", f"recipients: {self._recipients_summary()}")
+            self._log(
+                "INFO",
+                (
+                    "scheduler runtime options: "
+                    f"misfire_grace_time={self.misfire_grace_seconds}s, "
+                    f"coalesce={self.coalesce}, max_instances={self.max_instances}"
+                ),
+            )
 
     def _log(self, level: str, message: str):
         print(f"[{level:<5}] {message}")
+
+    def _load_scheduler_runtime_options(self):
+        """Load runtime options that affect missed-run handling and concurrency."""
+        try:
+            grace = int(os.getenv("SCHEDULER_MISFIRE_GRACE_SECONDS", "90"))
+        except (TypeError, ValueError):
+            grace = 90
+        self.misfire_grace_seconds = max(5, min(grace, 3600))
+
+        self.coalesce = os.getenv("SCHEDULER_COALESCE", "1") != "0"
+
+        try:
+            max_instances = int(os.getenv("SCHEDULER_MAX_INSTANCES", "1"))
+        except (TypeError, ValueError):
+            max_instances = 1
+        self.max_instances = max(1, min(max_instances, 5))
 
     @staticmethod
     def _extract_production_counts(report_data: dict) -> tuple[int, int]:
@@ -267,12 +294,35 @@ class ReportScheduler:
             except Exception as log_error:
                 self._log("WARN", f"failed to log email error: {log_error}")
 
+    def send_system_alerts(self):
+        """Health-check task called every 5 minutes by scheduler."""
+        try:
+            n = check_and_send_alerts(self.email_service)
+            if n:
+                self._log("OK", f"system alert email sent: {n} alert(s)")
+        except Exception as e:
+            self._log("ERROR", f"system alert check failed: {e}")
+
     def start(self, quiet: bool = False) -> bool:
         """Start scheduler."""
         if not self._acquire_leader_lock():
             if not quiet:
                 self._log("INFO", f"scheduler lock held by another worker, skip start ({self._lock_file})")
             return False
+
+        # ── System health alerts every 5 minutes (always active) ─────────
+        self.scheduler.add_job(
+            func=self.send_system_alerts,
+            trigger=IntervalTrigger(minutes=5),
+            id="system_alerts",
+            name="System Health Alerts",
+            replace_existing=True,
+            misfire_grace_time=self.misfire_grace_seconds,
+            max_instances=1,
+            coalesce=True,
+        )
+        if not quiet:
+            self._log("OK", "system health alert check configured (every 5 min)")
 
         if not self.enabled:
             if not quiet:
@@ -295,6 +345,9 @@ class ReportScheduler:
                 id="daily_report",
                 name="Daily Production Report",
                 replace_existing=True,
+                misfire_grace_time=self.misfire_grace_seconds,
+                coalesce=self.coalesce,
+                max_instances=self.max_instances,
             )
             if not quiet:
                 self._log("OK", f"daily report configured at {self.report_time} PT")
@@ -367,6 +420,9 @@ class ReportScheduler:
                     id="daily_report",
                     name="Daily Production Report",
                     replace_existing=True,
+                    misfire_grace_time=self.misfire_grace_seconds,
+                    coalesce=self.coalesce,
+                    max_instances=self.max_instances,
                 )
 
                 self._log("OK", "schedule reloaded successfully")

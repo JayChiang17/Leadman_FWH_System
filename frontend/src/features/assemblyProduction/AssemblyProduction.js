@@ -553,17 +553,14 @@ export default function AssemblyProduction() {
   // WebSocket connection
   const handleWsMessage = useCallback((d) => {
     if (d.event === "assembly_updated") {
-      let changed = false;
-      setDaily(prev => {
-        const next = {
+      const hasUpdate = (d.count !== undefined) || (d.ng !== undefined) || (d.fixed !== undefined);
+      if (hasUpdate) {
+        setDaily(prev => ({
           count: d.count ?? prev.count,
           ng: d.ng ?? prev.ng,
           fixed: d.fixed ?? prev.fixed,
-        };
-        changed = (d.count !== undefined) || (d.ng !== undefined) || (d.fixed !== undefined);
-        return next;
-      });
-      if (!changed) {
+        }));
+      } else {
         fetchDaily();
       }
       if (d.production_seconds !== undefined) {
