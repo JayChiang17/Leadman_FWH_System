@@ -18,3 +18,7 @@ backend/data/*.db-wal
 # Lock files and OS artefacts
 backend/data/*.lock
 frontend/nul
+
+# Local caches and package installs
+backend/.cache/
+backend/.local/
