@@ -1,0 +1,116 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Development — hot-reload backend + React dev server
+# Usage: docker compose -f docker-compose.dev.yml up
+#        make dev
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: leadman-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: leadman
+      POSTGRES_USER: leadman
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-leadman_dev_pw}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/migrations/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./backend/migrations/002_add_apower_wip.sql:/docker-entrypoint-initdb.d/02-wip.sql
+      - ./backend/migrations/003_ml_schema.sql:/docker-entrypoint-initdb.d/03-ml.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leadman"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    ports:
+      - "5432:5432"   # expose to host for local DB tools (dev only)
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    container_name: leadman-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - internal
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: leadman-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql://leadman:${POSTGRES_PASSWORD:-leadman_dev_pw}@postgres:5432/leadman
+      - WS_REDIS_URL=redis://redis:6379/0
+      - WS_REDIS_CHANNEL=leadman:ws:broadcast
+    # Dev: source code mounted, uvicorn --reload auto-detects changes
+    command: ["python", "-m", "uvicorn", "main:app",
+              "--host", "0.0.0.0", "--port", "8000",
+              "--reload", "--reload-dir", "/app",
+              "--log-level", "info"]
+    volumes:
+      - ./backend:/app                              # live source mount
+      - vectorstore:/app/vectorstore
+      - backend_data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock   # container monitor
+    group_add:
+      - "0"   # docker.sock access (WSL2: root:root GID 0)
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\""]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+    expose:
+      - "8000"
+
+  frontend:
+    image: node:20-alpine
+    container_name: leadman-frontend
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install && npm start"
+    environment:
+      - REACT_APP_API_BASE=/api
+      - BACKEND_URL=http://backend:8000
+      - CHOKIDAR_USEPOLLING=true    # Windows host file-watch polling
+      - WATCHPACK_POLLING=true
+      - PORT=3000
+      - HOST=0.0.0.0
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules   # isolated to avoid host override
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  pgdata:
+  vectorstore:
+  backend_data:
+  frontend_node_modules:

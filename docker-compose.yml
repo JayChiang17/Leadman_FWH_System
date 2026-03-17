@@ -1,0 +1,113 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Production — nginx static serve + 4-worker uvicorn
+# Usage: docker compose up -d
+#        make prod
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: leadman-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: leadman
+      POSTGRES_USER: leadman
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/migrations/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./backend/migrations/002_add_apower_wip.sql:/docker-entrypoint-initdb.d/02-wip.sql
+      - ./backend/migrations/003_ml_schema.sql:/docker-entrypoint-initdb.d/03-ml.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leadman"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    expose:
+      - "5432"   # internal network only — no host port in production
+    networks:
+      - internal
+
+  redis:
+    image: redis:7-alpine
+    container_name: leadman-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - internal
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: leadman-backend:latest
+    container_name: leadman-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      - DATABASE_URL=postgresql://leadman:${POSTGRES_PASSWORD}@postgres:5432/leadman
+      - WS_REDIS_URL=redis://redis:6379/0
+      - WS_REDIS_CHANNEL=leadman:ws:broadcast
+    volumes:
+      - vectorstore:/app/vectorstore
+      - backend_data:/app/data
+      # Read-only docker.sock for SystemMonitor container stats
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    group_add:
+      - "0"   # docker.sock read access
+    deploy:
+      resources:
+        limits:
+          memory: 3g
+          cpus: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\""]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - internal
+    expose:
+      - "8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile   # multi-stage: React build → nginx
+    image: leadman-frontend:latest
+    container_name: leadman-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  pgdata:
+  vectorstore:
+  backend_data:
