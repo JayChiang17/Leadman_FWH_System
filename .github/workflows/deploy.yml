@@ -18,11 +18,6 @@ on:
     branches: [main]
   workflow_dispatch:   # allow manual trigger from GitHub UI
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_BACKEND:  ghcr.io/${{ github.repository_owner }}/leadman-backend
-  IMAGE_FRONTEND: ghcr.io/${{ github.repository_owner }}/leadman-frontend
-
 jobs:
   build-and-push:
     name: Build & Push Images
@@ -32,7 +27,7 @@ jobs:
       packages: write   # needed to push to ghcr.io
 
     outputs:
-      tag: ${{ steps.meta.outputs.version }}
+      version: ${{ steps.meta-backend.outputs.version }}
 
     steps:
       - uses: actions/checkout@v4
@@ -43,15 +38,25 @@ jobs:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract image metadata
-        id: meta
+      # docker/metadata-action auto-lowercases image names (required by ghcr.io)
+      - name: Image metadata — backend
+        id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_BACKEND }}
+          images: ghcr.io/${{ github.repository_owner }}/leadman-backend
+          tags: |
+            type=sha,prefix=,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Image metadata — frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/leadman-frontend
           tags: |
             type=sha,prefix=,format=short
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
@@ -62,9 +67,8 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: |
-            ${{ env.IMAGE_BACKEND }}:${{ steps.meta.outputs.version }}
-            ${{ env.IMAGE_BACKEND }}:latest
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -74,9 +78,8 @@ jobs:
           context: ./frontend
           file: ./frontend/Dockerfile
           push: true
-          tags: |
-            ${{ env.IMAGE_FRONTEND }}:${{ steps.meta.outputs.version }}
-            ${{ env.IMAGE_FRONTEND }}:latest
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
           build-args: |
             REACT_APP_API_BASE=/api
           cache-from: type=gha
@@ -102,14 +105,14 @@ jobs:
             # Pull latest code
             git pull origin main
 
-            # Pull latest images
+            # Pull latest images from ghcr.io
             docker compose pull
 
-            # Restart with zero-downtime (recreate only changed containers)
+            # Restart with zero-downtime
             POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
               docker compose up -d --remove-orphans
 
             # Remove old dangling images
             docker image prune -f
 
-            echo "✅ Deployed ${{ needs.build-and-push.outputs.tag }} at $(date)"
+            echo "✅ Deployed ${{ needs.build-and-push.outputs.version }} at $(date)"

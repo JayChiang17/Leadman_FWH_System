@@ -315,7 +315,7 @@ def create_issue(
     user=Depends(require_roles("admin", "qc")),
 ):
     """記錄產線 QC 問題，可附上 base64 圖片。"""
-    _, cur = db
+    conn, cur = db
     now = now_iso()
     cur.execute(
         """INSERT INTO qc_issues(line,title,description,category,severity,image_path,created_by,created_at,updated_at)
@@ -364,7 +364,7 @@ def list_issues(
 @router.delete("/issues/{issue_id}", dependencies=[Depends(require_roles("admin", "qc"))])
 def delete_issue(issue_id: int, db=Depends(get_db)):
     """Delete a QC line issue by ID."""
-    _, cur = db
+    conn, cur = db
     cur.execute("SELECT id FROM qc_issues WHERE id = %s", (issue_id,))
     if not cur.fetchone():
         raise HTTPException(404, f"Issue {issue_id} not found")
