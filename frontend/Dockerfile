@@ -34,12 +34,12 @@ COPY --from=build /app/build /usr/share/nginx/html
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy SSL certificates (optional — for HTTPS termination at nginx)
-COPY ssl/cert.pem  /etc/nginx/ssl/cert.pem
-COPY ssl/key.pem   /etc/nginx/ssl/key.pem
-
-# Non-root nginx (alpine nginx runs as nginx user by default)
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
+# SSL certs are NOT baked into the image.
+# They are mounted at runtime via docker-compose volume:
+#   ./frontend/ssl:/etc/nginx/ssl:ro
+# This keeps private keys off the image registry.
+RUN mkdir -p /etc/nginx/ssl && \
+    chown -R nginx:nginx /usr/share/nginx/html && \
     chown -R nginx:nginx /etc/nginx/ssl
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

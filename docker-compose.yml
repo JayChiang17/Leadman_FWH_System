@@ -92,6 +92,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    volumes:
+      # SSL certs are mounted from the server — never baked into the image.
+      # Place your real cert.pem + key.pem in ./frontend/ssl/ on the server.
+      - ./frontend/ssl:/etc/nginx/ssl:ro
     deploy:
       resources:
         limits:
