@@ -91,32 +91,29 @@ jobs:
 
   deploy:
     name: Deploy to Server
-    runs-on: ubuntu-latest
+    # Runs on the self-hosted runner installed on the LAN server (192.168.10.100).
+    # GitHub cloud runners cannot reach a private LAN IP.
+    # Setup: Settings → Actions → Runners → New self-hosted runner
+    runs-on: self-hosted
     needs: build-and-push
     environment: production   # adds manual approval gate in GitHub UI (optional)
 
     steps:
-      - name: SSH deploy
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            set -e
-            cd ${{ secrets.DEPLOY_PATH }}
+      - name: Pull latest code
+        run: git -C ${{ secrets.DEPLOY_PATH }} pull origin main
 
-            # Pull latest code
-            git pull origin main
+      - name: Pull latest images from ghcr.io
+        run: docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml pull
 
-            # Pull latest images from ghcr.io
-            docker compose pull
+      - name: Restart production containers
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml \
+            up -d --remove-orphans
 
-            # Restart with zero-downtime
-            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-              docker compose up -d --remove-orphans
+      - name: Remove dangling images
+        run: docker image prune -f
 
-            # Remove old dangling images
-            docker image prune -f
-
-            echo "✅ Deployed ${{ needs.build-and-push.outputs.version }} at $(date)"
+      - name: Done
+        run: echo "✅ Deployed ${{ needs.build-and-push.outputs.version }} at $(date)"
