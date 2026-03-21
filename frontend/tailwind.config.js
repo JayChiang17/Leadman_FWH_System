@@ -10,8 +10,44 @@ module.exports = {
 
   theme: {
     extend: {
+      /* ---------- Splunk-inspired color tokens ---------- */
+      colors: {
+        surface: {
+          base:    '#161b2d',
+          panel:   '#1e2437',
+          raised:  '#262d42',
+          overlay: '#2f384f',
+        },
+        ink: {
+          primary:   '#c8cedc',
+          secondary: '#8d93a5',
+          muted:     '#565e74',
+        },
+        stroke: {
+          DEFAULT: '#2e3650',
+          subtle:  '#222840',
+          strong:  '#3d4867',
+        },
+        signal: {
+          ok:    '#10b981',
+          warn:  '#f59e0b',
+          error: '#ef4444',
+          info:  '#22d3ee',
+        },
+      },
+
       /* ---------- keyframes ---------- */
       keyframes: {
+        /* Splunk panel fade-up */
+        "panel-in": {
+          "0%":   { opacity: "0", transform: "translateY(6px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        /* Metric shimmer */
+        "value-tick": {
+          "0%,100%": { opacity: "1" },
+          "50%":     { opacity: "0.6" },
+        },
         /* 背景漸層圓 blob 浮動 */
         "blob-float": {
           "0%,100%": { transform: "translate(0,0) scale(1)" },
@@ -46,6 +82,8 @@ module.exports = {
         "back-glow":         "back-glow 6s ease-in-out infinite",
         "board-pop":         "board-pop 0.8s ease-out",
         "number-slide":      "number-slide 0.6s ease-out both",
+        "panel-in":          "panel-in 0.25s ease-out both",
+        "value-tick":        "value-tick 0.4s ease-in-out",
       },
 
       /* 例：若想快取一個可重用的 glow 陰影 */
@@ -68,6 +106,14 @@ module.exports = {
       // 漸層用色
       pattern:
         /(from|via|to)-(sky|indigo|amber|emerald|violet|blue|cyan|teal|yellow|orange|green|purple|red|gray|rose)-(50|100|200|300|400|500|600|700|800|900)(\/\d{2})?/,
+    },
+    {
+      // Splunk color tokens (bg, text, border, placeholder, divide, ring, fill)
+      pattern: /(bg|text|border|placeholder|divide|ring|fill)-(surface|ink|stroke|signal)-(base|panel|raised|overlay|primary|secondary|muted|ok|warn|error|info|subtle|strong)/,
+    },
+    {
+      // Splunk token opacity variants
+      pattern: /(bg|border|ring)-(surface|signal)-(base|panel|raised|overlay|ok|warn|error|info)\/(10|15|20|25|30)/,
     },
   ],
 

@@ -43,6 +43,7 @@ psycopg2-binary
 # ML: NG prediction + clustering
 scikit-learn
 xgboost
+shap
 sentence-transformers
 hdbscan
 numpy

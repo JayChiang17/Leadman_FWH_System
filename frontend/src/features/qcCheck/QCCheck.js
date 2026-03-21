@@ -638,7 +638,7 @@ export default function QCCheck() {
     "inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors duration-150";
 
   return (
-    <div className="min-h-screen bg-stone-50">
+    <div className="min-h-screen bg-surface-base">
       {/* Toast Notification */}
       <div
         className={`fixed top-4 right-4 z-[100] max-w-sm w-full transition-all duration-300 ${
@@ -653,7 +653,7 @@ export default function QCCheck() {
                 : toast.type === "error"
                 ? "bg-red-600 text-white border-red-700"
                 : toast.type === "warning"
-                ? "bg-amber-500 text-white border-amber-600"
+                ? "bg-signal-warn text-white border-amber-600"
                 : "bg-gray-800 text-white border-gray-700"
             }`}
           >
@@ -678,12 +678,12 @@ export default function QCCheck() {
       </div>
 
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
+      <header className="bg-surface-panel border-b border-stroke">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <Database className="w-8 h-8 text-gray-700 mr-3" />
-              <h1 className="text-xl font-semibold text-gray-900">QC Check System</h1>
+              <Database className="w-8 h-8 text-ink-secondary mr-3" />
+              <h1 className="text-xl font-semibold text-ink-primary">QC Check System</h1>
             </div>
           </div>
         </div>
@@ -692,12 +692,12 @@ export default function QCCheck() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-4">
         {/* Header Bar */}
-        <section className="rounded-lg bg-white border border-stone-200 shadow-sm p-4">
+        <section className="rounded-lg bg-surface-panel border border-stroke shadow-sm p-4">
           <div className="flex flex-col lg:flex-row lg:items-center gap-4">
             <div className="flex flex-wrap items-center gap-2 flex-1">
-              <span className="text-xs font-semibold uppercase tracking-[0.15em] text-emerald-700 whitespace-nowrap">QC Command Center</span>
-              <span className="text-gray-300 hidden sm:inline">|</span>
-              <h2 className="text-base font-bold text-gray-900 whitespace-nowrap">FQC & Shipping Control</h2>
+              <span className="text-xs font-semibold uppercase tracking-[0.15em] text-emerald-400 whitespace-nowrap">QC Command Center</span>
+              <span className="text-ink-muted hidden sm:inline">|</span>
+              <h2 className="text-base font-bold text-ink-primary whitespace-nowrap">FQC & Shipping Control</h2>
               <div className="flex flex-wrap gap-2 ml-auto lg:ml-2">
                 <button
                   onClick={() => { if (!showDashboard) fetchSeries(); setShowDashboard(true); }}
@@ -708,21 +708,21 @@ export default function QCCheck() {
                 </button>
                 <button
                   onClick={() => { fetchRecords(recordsFilter, recordsFrom, recordsTo, recordsPage, recordsLimit); setShowRecords(true); }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-gray-700 text-sm font-medium hover:bg-stone-50 transition-colors duration-150"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stroke bg-surface-panel text-ink-secondary text-sm font-medium hover:bg-surface-base transition-colors duration-150"
                 >
                   <ClipboardList className="w-4 h-4" />
                   Records
                 </button>
                 <button
                   onClick={() => setShowExport(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-gray-700 text-sm font-medium hover:bg-stone-50 transition-colors duration-150"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stroke bg-surface-panel text-ink-secondary text-sm font-medium hover:bg-surface-base transition-colors duration-150"
                 >
                   <Download className="w-4 h-4" />
                   Export
                 </button>
                 <button
                   onClick={() => { fetchIssues(); setShowLineIssues(true); }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-gray-700 text-sm font-medium hover:bg-stone-50 transition-colors duration-150"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stroke bg-surface-panel text-ink-secondary text-sm font-medium hover:bg-surface-base transition-colors duration-150"
                 >
                   <AlertTriangle className="w-4 h-4" />
                   Line Issues
@@ -731,24 +731,24 @@ export default function QCCheck() {
             </div>
 
             <div className="grid grid-cols-3 gap-3 w-full lg:w-auto lg:min-w-[340px]">
-              <div className="rounded-lg bg-white border border-stone-200 px-3 py-3 shadow-sm">
-                <p className="text-xs font-medium text-stone-500 mb-1.5">Today FQC</p>
+              <div className="rounded-lg bg-surface-panel border border-stroke px-3 py-3 shadow-sm">
+                <p className="text-xs font-medium text-ink-muted mb-1.5">Today FQC</p>
                 <div className="flex items-end gap-1.5">
-                  <span className="text-2xl font-bold text-gray-900">{dashboard.today_fqc}</span>
+                  <span className="text-2xl font-bold text-ink-primary">{dashboard.today_fqc}</span>
                   <CheckCircle2 className="w-4 h-4 text-emerald-500 mb-0.5" />
                 </div>
               </div>
-              <div className="rounded-lg bg-white border border-stone-200 px-3 py-3 shadow-sm">
-                <p className="text-xs font-medium text-stone-500 mb-1.5">Today Shipped</p>
+              <div className="rounded-lg bg-surface-panel border border-stroke px-3 py-3 shadow-sm">
+                <p className="text-xs font-medium text-ink-muted mb-1.5">Today Shipped</p>
                 <div className="flex items-end gap-1.5">
-                  <span className="text-2xl font-bold text-gray-900">{dashboard.today_shipped}</span>
+                  <span className="text-2xl font-bold text-ink-primary">{dashboard.today_shipped}</span>
                   <TruckIcon className="w-4 h-4 text-sky-500 mb-0.5" />
                 </div>
               </div>
-              <div className="rounded-lg bg-white border border-stone-200 px-3 py-3 shadow-sm">
-                <p className="text-xs font-medium text-stone-500 mb-1.5">Pending Ship</p>
+              <div className="rounded-lg bg-surface-panel border border-stroke px-3 py-3 shadow-sm">
+                <p className="text-xs font-medium text-ink-muted mb-1.5">Pending Ship</p>
                 <div className="flex items-end gap-1.5">
-                  <span className={`text-2xl font-bold ${dashboard.pending_shipment > 0 ? "text-amber-600" : "text-gray-900"}`}>{dashboard.pending_shipment}</span>
+                  <span className={`text-2xl font-bold ${dashboard.pending_shipment > 0 ? "text-amber-400" : "text-ink-primary"}`}>{dashboard.pending_shipment}</span>
                   <Clock className={`w-4 h-4 mb-0.5 ${dashboard.pending_shipment > 0 ? "text-amber-500" : "text-stone-400"}`} />
                 </div>
               </div>
@@ -757,20 +757,20 @@ export default function QCCheck() {
         </section>
 
         {/* Mode + Scan */}
-        <section className={`rounded-lg bg-white shadow-sm p-6 space-y-4 border-l-4 border border-stone-200 transition-colors duration-200 ${
+        <section className={`rounded-lg bg-surface-panel shadow-sm p-6 space-y-4 border-l-4 border border-stroke transition-colors duration-200 ${
           mode === "fqc" ? "border-l-emerald-500" : "border-l-sky-500"
         }`}>
           {/* Mode toggle + rates row */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold text-gray-700">Mode</span>
+              <span className="text-sm font-semibold text-ink-secondary">Mode</span>
               <div className="flex gap-2">
                 <button
                   onClick={() => setMode("fqc")}
                   className={`${modeBaseClass} ${
                     mode === "fqc"
                       ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
-                      : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                      : "bg-surface-panel border-stroke text-ink-secondary hover:bg-surface-base"
                   }`}
                 >
                   <CheckCircle2 className="w-4 h-4" />
@@ -781,7 +781,7 @@ export default function QCCheck() {
                   className={`${modeBaseClass} ${
                     mode === "shipping"
                       ? "bg-sky-600 border-sky-600 text-white shadow-sm"
-                      : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
+                      : "bg-surface-panel border-stroke text-ink-secondary hover:bg-surface-base"
                   }`}
                 >
                   <TruckIcon className="w-4 h-4" />
@@ -790,11 +790,11 @@ export default function QCCheck() {
               </div>
             </div>
             <div className="flex gap-2 text-xs">
-              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-stone-50 border border-stone-200 text-stone-600">
+              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-surface-base border border-stroke text-ink-secondary">
                 <Activity className="w-3.5 h-3.5" />
                 Today {dashboard.shipping_rate_today}%
               </div>
-              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-stone-50 border border-stone-200 text-stone-600">
+              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-surface-base border border-stroke text-ink-secondary">
                 <TrendingUp className="w-3.5 h-3.5" />
                 Week {dashboard.shipping_rate_week}%
               </div>
@@ -807,14 +807,14 @@ export default function QCCheck() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-gray-800">Scan Serial Number</p>
-                  <p className="text-xs text-gray-500">Press Enter to submit. Auto-focus after each scan.</p>
+                  <p className="text-sm font-semibold text-ink-primary">Scan Serial Number</p>
+                  <p className="text-xs text-ink-muted">Press Enter to submit. Auto-focus after each scan.</p>
                 </div>
                 <div className="flex gap-2">
                   {mode === "fqc" && (
                     <button
                       onClick={() => { setBatchFqcResults(null); setBatchFqcInput(""); setShowBatchFqc(true); }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50 transition-colors duration-150"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-emerald-500/30 bg-surface-panel text-emerald-400 hover:bg-signal-ok/10 transition-colors duration-150"
                     >
                       <ClipboardList className="w-4 h-4" />
                       Batch FQC
@@ -823,7 +823,7 @@ export default function QCCheck() {
                   {mode === "shipping" && (
                     <button
                       onClick={() => setShowBatchShip(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-sky-200 bg-white text-sky-700 hover:bg-sky-50 transition-colors duration-150"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-sky-500/30 bg-surface-panel text-sky-400 hover:bg-signal-info/10 transition-colors duration-150"
                     >
                       <FileText className="w-4 h-4" />
                       Batch Ship
@@ -840,7 +840,7 @@ export default function QCCheck() {
                   onChange={(e) => setSn(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleScan()}
                   placeholder={mode === "fqc" ? "Scan or type SN for FQC..." : "Scan or type SN for Shipping..."}
-                  className={`flex-1 px-4 py-4 text-base border-2 rounded-lg focus:ring-2 text-black bg-white font-mono transition-colors duration-150 ${
+                  className={`flex-1 px-4 py-4 text-base border-2 rounded-lg focus:ring-2 text-ink-primary bg-surface-panel font-mono transition-colors duration-150 ${
                     mode === "fqc"
                       ? "border-emerald-300 focus:ring-emerald-400 focus:border-emerald-500"
                       : "border-sky-300 focus:ring-sky-400 focus:border-sky-500"
@@ -867,12 +867,12 @@ export default function QCCheck() {
               {/* Recent Scans */}
               {recentScans.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Recent Scans</p>
+                  <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">Recent Scans</p>
                   <div className="space-y-1">
                     {recentScans.map((s, i) => (
                       <div
                         key={i}
-                        className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md bg-white border border-stone-100 border-l-2 ${
+                        className={`flex items-center gap-2.5 px-3 py-1.5 rounded-md bg-surface-panel border border-stroke-subtle border-l-2 ${
                           s.status === "success" ? "border-l-emerald-400"
                           : s.status === "error" ? "border-l-red-400"
                           : "border-l-amber-400"
@@ -885,9 +885,9 @@ export default function QCCheck() {
                         ) : (
                           <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
                         )}
-                        <span className="font-mono text-xs font-medium text-gray-800 truncate">{s.sn}</span>
+                        <span className="font-mono text-xs font-medium text-ink-primary truncate">{s.sn}</span>
                         <span className={`text-xs px-1.5 py-0.5 rounded flex-shrink-0 font-medium ${
-                          s.action === "fqc" ? "bg-emerald-50 text-emerald-700" : "bg-sky-50 text-sky-700"
+                          s.action === "fqc" ? "bg-signal-ok/10 text-emerald-400" : "bg-signal-info/10 text-sky-400"
                         }`}>
                           {s.action === "fqc" ? "FQC" : "SHIP"}
                         </span>
@@ -901,29 +901,29 @@ export default function QCCheck() {
 
             {/* Right: Throughput + Pending */}
             <div className="space-y-3">
-              <div className="rounded-lg border border-stone-200 bg-stone-50 p-4">
+              <div className="rounded-lg border border-stroke bg-surface-base p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-semibold text-gray-800">Throughput</p>
+                  <p className="text-sm font-semibold text-ink-primary">Throughput</p>
                   <span className="text-xs text-stone-400">{todayStr()}</span>
                 </div>
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-stone-200">
+                    <tr className="border-b border-stroke">
                       <th className="text-left pb-2 text-xs font-semibold text-stone-400 uppercase tracking-wide"></th>
-                      <th className="text-right pb-2 text-xs font-semibold text-emerald-600 uppercase tracking-wide">FQC</th>
-                      <th className="text-right pb-2 text-xs font-semibold text-sky-600 uppercase tracking-wide">Shipped</th>
+                      <th className="text-right pb-2 text-xs font-semibold text-emerald-400 uppercase tracking-wide">FQC</th>
+                      <th className="text-right pb-2 text-xs font-semibold text-sky-400 uppercase tracking-wide">Shipped</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-stone-100">
                     <tr>
-                      <td className="py-2.5 text-xs font-medium text-stone-500">Week</td>
-                      <td className="py-2.5 text-right text-lg font-bold text-gray-900">{dashboard.week_fqc}</td>
-                      <td className="py-2.5 text-right text-lg font-bold text-gray-900">{dashboard.week_shipped}</td>
+                      <td className="py-2.5 text-xs font-medium text-ink-muted">Week</td>
+                      <td className="py-2.5 text-right text-lg font-bold text-ink-primary">{dashboard.week_fqc}</td>
+                      <td className="py-2.5 text-right text-lg font-bold text-ink-primary">{dashboard.week_shipped}</td>
                     </tr>
                     <tr>
-                      <td className="py-2.5 text-xs font-medium text-stone-500">Month</td>
-                      <td className="py-2.5 text-right text-lg font-bold text-gray-900">{dashboard.month_fqc}</td>
-                      <td className="py-2.5 text-right text-lg font-bold text-gray-900">{dashboard.month_shipped}</td>
+                      <td className="py-2.5 text-xs font-medium text-ink-muted">Month</td>
+                      <td className="py-2.5 text-right text-lg font-bold text-ink-primary">{dashboard.month_fqc}</td>
+                      <td className="py-2.5 text-right text-lg font-bold text-ink-primary">{dashboard.month_shipped}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -931,12 +931,12 @@ export default function QCCheck() {
 
               {/* Pending Shipment with CTA */}
               {dashboard.pending_shipment > 0 && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                <div className="rounded-lg border border-amber-500/30 bg-signal-warn/10 p-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
                     <div>
-                      <p className="text-sm font-semibold text-amber-800">{dashboard.pending_shipment} units pending</p>
-                      <p className="text-xs text-amber-600 mt-0.5">FQC passed, awaiting shipment</p>
+                      <p className="text-sm font-semibold text-amber-300">{dashboard.pending_shipment} units pending</p>
+                      <p className="text-xs text-amber-400 mt-0.5">FQC passed, awaiting shipment</p>
                     </div>
                   </div>
                   {mode !== "shipping" && (
@@ -961,30 +961,30 @@ export default function QCCheck() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4">
             <div className="fixed inset-0 bg-black/50" onClick={() => setShowLineIssues(false)} />
-            <div className="relative bg-white rounded-lg max-w-6xl w-full max-h-[90vh] overflow-auto shadow-xl">
-              <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
+            <div className="relative bg-surface-panel rounded-lg max-w-6xl w-full max-h-[90vh] overflow-auto shadow-xl">
+              <div className="sticky top-0 bg-surface-panel border-b px-6 py-4 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Line Findings</p>
-                  <h2 className="text-xl font-semibold text-gray-900">Log QC Issues on Line</h2>
+                  <p className="text-sm font-medium text-ink-secondary">Line Findings</p>
+                  <h2 className="text-xl font-semibold text-ink-primary">Log QC Issues on Line</h2>
                 </div>
-                <button onClick={() => setShowLineIssues(false)} className="p-1.5 hover:bg-gray-100 rounded-md">
-                  <X className="w-5 h-5 text-gray-500" />
+                <button onClick={() => setShowLineIssues(false)} className="p-1.5 hover:bg-surface-raised rounded-md">
+                  <X className="w-5 h-5 text-ink-muted" />
                 </button>
               </div>
 
               <div className="p-6 space-y-4">
-                <p className="text-sm text-gray-500">Log line issues with photos and line tags for smoother follow-up.</p>
+                <p className="text-sm text-ink-muted">Log line issues with photos and line tags for smoother follow-up.</p>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Form */}
-                  <div className="space-y-4 rounded-lg border border-stone-200 bg-stone-50 p-4">
+                  <div className="space-y-4 rounded-lg border border-stroke bg-surface-base p-4">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Line</label>
+                        <label className="block text-sm font-medium text-ink-secondary mb-1">Line</label>
                         <select
                           value={issueLine}
                           onChange={(e) => setIssueLine(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-emerald-500 focus:border-emerald-500"
+                          className="w-full px-3 py-2 border border-stroke rounded-md text-sm focus:ring-emerald-500 focus:border-emerald-500"
                         >
                           {["Line A", "Line B", "Line C", "Module", "Assembly", "Shipping"].map((l) => (
                             <option key={l} value={l}>{l}</option>
@@ -992,11 +992,11 @@ export default function QCCheck() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Severity</label>
+                        <label className="block text-sm font-medium text-ink-secondary mb-1">Severity</label>
                         <select
                           value={issueSeverity}
                           onChange={(e) => setIssueSeverity(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-emerald-500 focus:border-emerald-500"
+                          className="w-full px-3 py-2 border border-stroke rounded-md text-sm focus:ring-emerald-500 focus:border-emerald-500"
                         >
                           <option value="low">Low</option>
                           <option value="medium">Medium</option>
@@ -1008,11 +1008,11 @@ export default function QCCheck() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <label className="block text-sm font-medium text-ink-secondary mb-1">Category</label>
                         <select
                           value={issueCategory}
                           onChange={(e) => setIssueCategory(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-emerald-500 focus:border-emerald-500"
+                          className="w-full px-3 py-2 border border-stroke rounded-md text-sm focus:ring-emerald-500 focus:border-emerald-500"
                         >
                           <option value="Process">Process</option>
                           <option value="Material">Material</option>
@@ -1022,31 +1022,31 @@ export default function QCCheck() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                        <label className="block text-sm font-medium text-ink-secondary mb-1">Title</label>
                         <input
                           value={issueTitle}
                           onChange={(e) => setIssueTitle(e.target.value)}
                           placeholder="Short summary"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-emerald-500 focus:border-emerald-500"
+                          className="w-full px-3 py-2 border border-stroke rounded-md text-sm focus:ring-emerald-500 focus:border-emerald-500"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                      <label className="block text-sm font-medium text-ink-secondary mb-1">Description</label>
                       <textarea
                         value={issueDesc}
                         onChange={(e) => setIssueDesc(e.target.value)}
                         placeholder="What happened? Impact? Immediate action?"
                         rows={4}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-emerald-500 focus:border-emerald-500 text-black"
+                        className="w-full px-3 py-2 border border-stroke rounded-md text-sm focus:ring-emerald-500 focus:border-emerald-500 text-ink-primary"
                       />
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Attach Photo (optional)</label>
-                        <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-md text-sm text-gray-700 cursor-pointer hover:border-emerald-400">
+                        <label className="block text-sm font-medium text-ink-secondary mb-1">Attach Photo (optional)</label>
+                        <label className="flex items-center gap-2 px-3 py-2 border border-dashed border-stroke rounded-md text-sm text-ink-secondary cursor-pointer hover:border-emerald-400">
                           <Image className="w-4 h-4" />
                           <span>{issueImage ? "Change file" : "Upload file"}</span>
                           <input
@@ -1056,11 +1056,11 @@ export default function QCCheck() {
                             onChange={(e) => handleIssueImage(e.target.files?.[0])}
                           />
                         </label>
-                        <p className="text-xs text-gray-500 mt-1">JPG/PNG, max 1.5 MB. Stored as base64 for quick preview.</p>
+                        <p className="text-xs text-ink-muted mt-1">JPG/PNG, max 1.5 MB. Stored as base64 for quick preview.</p>
                       </div>
                       {issueImage && (
-                        <div className="border rounded-md p-2 bg-white">
-                          <p className="text-xs text-gray-600 mb-1">Preview</p>
+                        <div className="border rounded-md p-2 bg-surface-panel">
+                          <p className="text-xs text-ink-secondary mb-1">Preview</p>
                           <img src={issueImage} alt="Issue" className="max-h-32 object-cover rounded" />
                         </div>
                       )}
@@ -1076,7 +1076,7 @@ export default function QCCheck() {
                       </button>
                       <button
                         onClick={resetIssueForm}
-                        className="px-4 py-2 rounded-md text-sm font-medium border border-gray-300 bg-white hover:bg-gray-50 text-gray-700"
+                        className="px-4 py-2 rounded-md text-sm font-medium border border-stroke bg-surface-panel hover:bg-surface-base text-ink-secondary"
                       >
                         Clear
                       </button>
@@ -1086,7 +1086,7 @@ export default function QCCheck() {
                   {/* List */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-gray-800">Recent Issues</h3>
+                      <h3 className="text-sm font-semibold text-ink-primary">Recent Issues</h3>
                       <div className="flex items-center gap-2">
                         <select
                           value={issueFilterLine}
@@ -1094,60 +1094,60 @@ export default function QCCheck() {
                             setIssueFilterLine(e.target.value);
                             fetchIssues(e.target.value);
                           }}
-                          className="px-2 py-1 text-xs border border-gray-200 rounded-md bg-white text-gray-600 focus:ring-emerald-500 focus:border-emerald-500"
+                          className="px-2 py-1 text-xs border border-stroke rounded-md bg-surface-panel text-ink-secondary focus:ring-emerald-500 focus:border-emerald-500"
                         >
                           <option value="">All Lines</option>
                           {["Line A","Line B","Line C","Module","Assembly","Shipping"].map(l => (
                             <option key={l} value={l}>{l}</option>
                           ))}
                         </select>
-                        <span className="text-xs text-gray-400">Latest 50</span>
+                        <span className="text-xs text-ink-muted">Latest 50</span>
                       </div>
                     </div>
                     <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
                       {issuesLoading ? (
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <div className="flex items-center gap-2 text-sm text-ink-secondary">
                           <Loader2 className="w-4 h-4 animate-spin" />
                           Loading...
                         </div>
                       ) : issues.length === 0 ? (
-                        <p className="text-sm text-gray-600">No issues logged yet.</p>
+                        <p className="text-sm text-ink-secondary">No issues logged yet.</p>
                       ) : (
                         issues.map((it) => (
-                          <div key={it.id} className="border border-gray-200 rounded-lg p-3 bg-white shadow-sm">
+                          <div key={it.id} className="border border-stroke rounded-lg p-3 bg-surface-panel shadow-sm">
                             <div className="flex items-start justify-between">
                               <div>
-                                <p className="text-sm font-semibold text-gray-900">{it.title}</p>
-                                <p className="text-xs text-gray-500">{it.line}</p>
+                                <p className="text-sm font-semibold text-ink-primary">{it.title}</p>
+                                <p className="text-xs text-ink-muted">{it.line}</p>
                               </div>
                               <div className="flex items-center gap-2">
-                                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-700">
+                                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-surface-raised text-ink-secondary">
                                   {it.category || "N/A"}
                                 </span>
                                 <span
                                   className={`px-2 py-0.5 rounded text-xs font-semibold ${
                                     it.severity === "critical"
-                                      ? "bg-red-100 text-red-700"
+                                      ? "bg-signal-error/15 text-red-400"
                                       : it.severity === "high"
-                                      ? "bg-orange-100 text-orange-700"
+                                      ? "bg-signal-warn/15 text-orange-400"
                                       : it.severity === "medium"
-                                      ? "bg-amber-100 text-amber-700"
-                                      : "bg-emerald-100 text-emerald-700"
+                                      ? "bg-signal-warn/15 text-amber-400"
+                                      : "bg-signal-ok/15 text-emerald-400"
                                   }`}
                                 >
                                   {it.severity || "low"}
                                 </span>
                                 <button
                                   onClick={() => deleteIssue(it.id)}
-                                  className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                                  className="p-1 text-ink-muted hover:text-red-400 transition-colors"
                                   title="Delete issue"
                                 >
                                   <X className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </div>
-                            <p className="mt-2 text-sm text-gray-700 whitespace-pre-line">{it.description}</p>
-                            <div className="mt-2 flex items-center text-xs text-gray-500 gap-2">
+                            <p className="mt-2 text-sm text-ink-secondary whitespace-pre-line">{it.description}</p>
+                            <div className="mt-2 flex items-center text-xs text-ink-muted gap-2">
                               <Calendar className="w-3.5 h-3.5" />
                               <span>{it.created_at ? new Date(it.created_at).toLocaleString() : ""}</span>
                               {it.created_by && <span>by {it.created_by}</span>}
@@ -1175,12 +1175,12 @@ export default function QCCheck() {
           <div className="flex items-center justify-center min-h-screen px-4">
             <div className="fixed inset-0 bg-black/50" onClick={() => setShowDashboard(false)} />
 
-            <div className="relative bg-white rounded-lg max-w-5xl w-full max-h-[90vh] overflow-auto">
-              <div className="sticky top-0 bg-white border-b px-6 pt-4 pb-0 z-10">
+            <div className="relative bg-surface-panel rounded-lg max-w-5xl w-full max-h-[90vh] overflow-auto">
+              <div className="sticky top-0 bg-surface-panel border-b px-6 pt-4 pb-0 z-10">
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-xl font-semibold text-gray-900">FQC Dashboard</h2>
-                  <button onClick={() => setShowDashboard(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                    <X className="w-5 h-5 text-gray-500" />
+                  <h2 className="text-xl font-semibold text-ink-primary">FQC Dashboard</h2>
+                  <button onClick={() => setShowDashboard(false)} className="p-2 hover:bg-surface-raised rounded-lg">
+                    <X className="w-5 h-5 text-ink-muted" />
                   </button>
                 </div>
                 <div className="flex gap-0">
@@ -1203,8 +1203,8 @@ export default function QCCheck() {
                       }}
                       className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors duration-150 ${
                         dashboardTab === key
-                          ? "border-teal-600 text-teal-700"
-                          : "border-transparent text-gray-500 hover:text-gray-700"
+                          ? "border-teal-600 text-teal-400"
+                          : "border-transparent text-ink-muted hover:text-ink-secondary"
                       }`}
                     >
                       <Icon className="w-4 h-4" />
@@ -1217,52 +1217,52 @@ export default function QCCheck() {
               {dashboardTab === "overview" && (
               <div className="p-5 space-y-5">
                 {/* Stats table */}
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="border border-stroke rounded-lg overflow-hidden">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide w-28">Period</th>
-                        <th className="px-4 py-2.5 text-right text-xs font-semibold text-emerald-700 uppercase tracking-wide">FQC Ready</th>
-                        <th className="px-4 py-2.5 text-right text-xs font-semibold text-sky-700 uppercase tracking-wide">Shipped</th>
-                        <th className="px-4 py-2.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Ship Rate</th>
-                        <th className="px-4 py-2.5 text-right text-xs font-semibold text-amber-700 uppercase tracking-wide hidden sm:table-cell">Pending</th>
+                      <tr className="bg-surface-base border-b border-stroke">
+                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-ink-muted uppercase tracking-wide w-28">Period</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-semibold text-emerald-400 uppercase tracking-wide">FQC Ready</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-semibold text-sky-400 uppercase tracking-wide">Shipped</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-semibold text-ink-muted uppercase tracking-wide">Ship Rate</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-semibold text-amber-400 uppercase tracking-wide hidden sm:table-cell">Pending</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      <tr className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-700 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-gray-400" />Today</td>
-                        <td className="px-4 py-3 text-right font-bold text-emerald-700 text-lg">{dashboard.today_fqc}</td>
-                        <td className="px-4 py-3 text-right font-bold text-sky-700 text-lg">{dashboard.today_shipped}</td>
+                    <tbody className="divide-y divide-stroke-subtle">
+                      <tr className="hover:bg-surface-base transition-colors">
+                        <td className="px-4 py-3 font-medium text-ink-secondary flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-ink-muted" />Today</td>
+                        <td className="px-4 py-3 text-right font-bold text-emerald-400 text-lg">{dashboard.today_fqc}</td>
+                        <td className="px-4 py-3 text-right font-bold text-sky-400 text-lg">{dashboard.today_shipped}</td>
                         <td className="px-4 py-3 text-right">
-                          <span className={`text-sm font-semibold ${dashboard.shipping_rate_today >= 80 ? "text-emerald-600" : dashboard.shipping_rate_today >= 50 ? "text-amber-600" : "text-red-600"}`}>{dashboard.shipping_rate_today}%</span>
+                          <span className={`text-sm font-semibold ${dashboard.shipping_rate_today >= 80 ? "text-emerald-400" : dashboard.shipping_rate_today >= 50 ? "text-amber-400" : "text-red-400"}`}>{dashboard.shipping_rate_today}%</span>
                         </td>
-                        <td className="px-4 py-3 text-right font-semibold text-amber-700 hidden sm:table-cell">{dashboard.pending_shipment}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-amber-400 hidden sm:table-cell">{dashboard.pending_shipment}</td>
                       </tr>
-                      <tr className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-700 flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5 text-gray-400" />This Week</td>
-                        <td className="px-4 py-3 text-right font-bold text-emerald-700 text-lg">{dashboard.week_fqc}</td>
-                        <td className="px-4 py-3 text-right font-bold text-sky-700 text-lg">{dashboard.week_shipped}</td>
+                      <tr className="hover:bg-surface-base transition-colors">
+                        <td className="px-4 py-3 font-medium text-ink-secondary flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5 text-ink-muted" />This Week</td>
+                        <td className="px-4 py-3 text-right font-bold text-emerald-400 text-lg">{dashboard.week_fqc}</td>
+                        <td className="px-4 py-3 text-right font-bold text-sky-400 text-lg">{dashboard.week_shipped}</td>
                         <td className="px-4 py-3 text-right">
-                          <span className={`text-sm font-semibold ${dashboard.shipping_rate_week >= 80 ? "text-emerald-600" : dashboard.shipping_rate_week >= 50 ? "text-amber-600" : "text-red-600"}`}>{dashboard.shipping_rate_week}%</span>
+                          <span className={`text-sm font-semibold ${dashboard.shipping_rate_week >= 80 ? "text-emerald-400" : dashboard.shipping_rate_week >= 50 ? "text-amber-400" : "text-red-400"}`}>{dashboard.shipping_rate_week}%</span>
                         </td>
-                        <td className="px-4 py-3 text-right text-gray-400 text-sm hidden sm:table-cell">—</td>
+                        <td className="px-4 py-3 text-right text-ink-muted text-sm hidden sm:table-cell">—</td>
                       </tr>
-                      <tr className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-700 flex items-center gap-1.5"><Activity className="w-3.5 h-3.5 text-gray-400" />This Month</td>
-                        <td className="px-4 py-3 text-right font-bold text-emerald-700 text-lg">{dashboard.month_fqc}</td>
-                        <td className="px-4 py-3 text-right font-bold text-sky-700 text-lg">{dashboard.month_shipped}</td>
+                      <tr className="hover:bg-surface-base transition-colors">
+                        <td className="px-4 py-3 font-medium text-ink-secondary flex items-center gap-1.5"><Activity className="w-3.5 h-3.5 text-ink-muted" />This Month</td>
+                        <td className="px-4 py-3 text-right font-bold text-emerald-400 text-lg">{dashboard.month_fqc}</td>
+                        <td className="px-4 py-3 text-right font-bold text-sky-400 text-lg">{dashboard.month_shipped}</td>
                         <td className="px-4 py-3 text-right">
-                          <span className={`text-sm font-semibold ${dashboard.month_fqc > 0 ? (Math.round(dashboard.month_shipped/dashboard.month_fqc*100) >= 80 ? "text-emerald-600" : "text-amber-600") : "text-gray-400"}`}>
+                          <span className={`text-sm font-semibold ${dashboard.month_fqc > 0 ? (Math.round(dashboard.month_shipped/dashboard.month_fqc*100) >= 80 ? "text-emerald-400" : "text-amber-400") : "text-ink-muted"}`}>
                             {dashboard.month_fqc > 0 ? Math.round(dashboard.month_shipped / dashboard.month_fqc * 100) : 0}%
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right text-gray-400 text-sm hidden sm:table-cell">—</td>
+                        <td className="px-4 py-3 text-right text-ink-muted text-sm hidden sm:table-cell">—</td>
                       </tr>
                     </tbody>
                     <tfoot>
-                      <tr className="bg-gray-50 border-t border-gray-200">
-                        <td className="px-4 py-2 text-xs text-gray-400 font-medium">Avg daily output</td>
-                        <td className="px-4 py-2 text-right text-xs text-gray-600 font-semibold" colSpan={4}>{Math.round(dashboard.week_fqc / 5)} units/day (this week)</td>
+                      <tr className="bg-surface-base border-t border-stroke">
+                        <td className="px-4 py-2 text-xs text-ink-muted font-medium">Avg daily output</td>
+                        <td className="px-4 py-2 text-right text-xs text-ink-secondary font-semibold" colSpan={4}>{Math.round(dashboard.week_fqc / 5)} units/day (this week)</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -1270,42 +1270,42 @@ export default function QCCheck() {
 
                 {/* Charts — side by side on lg */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="border border-stroke rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Daily Shipped</p>
-                        <p className="text-xs text-gray-400">This month</p>
+                        <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">Daily Shipped</p>
+                        <p className="text-xs text-ink-muted">This month</p>
                       </div>
-                      {seriesLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-300" />}
+                      {seriesLoading && <Loader2 className="w-4 h-4 animate-spin text-ink-muted" />}
                     </div>
                     <div className="h-52">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={dailyShipSeries} barSize={8}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#2e3650" />
                           <XAxis dataKey="label" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} interval={4} />
                           <YAxis allowDecimals={false} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={28} />
-                          <Tooltip contentStyle={{ fontSize: 11, borderRadius: 4, border: "1px solid #e5e7eb" }} />
+                          <Tooltip contentStyle={{ fontSize: 11, borderRadius: 4, border: "1px solid #2e3650", background: "#262d42" }} />
                           <Bar dataKey="shipped" name="Shipped" fill="#0ea5e9" radius={[2, 2, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
 
-                  <div className="border border-gray-200 rounded-lg p-4">
+                  <div className="border border-stroke rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Monthly Shipped</p>
-                        <p className="text-xs text-gray-400">This year</p>
+                        <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">Monthly Shipped</p>
+                        <p className="text-xs text-ink-muted">This year</p>
                       </div>
-                      {seriesLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-300" />}
+                      {seriesLoading && <Loader2 className="w-4 h-4 animate-spin text-ink-muted" />}
                     </div>
                     <div className="h-52">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={monthlyShipSeries}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#2e3650" />
                           <XAxis dataKey="label" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                           <YAxis allowDecimals={false} tick={{ fontSize: 9 }} tickLine={false} axisLine={false} width={28} />
-                          <Tooltip contentStyle={{ fontSize: 11, borderRadius: 4, border: "1px solid #e5e7eb" }} />
+                          <Tooltip contentStyle={{ fontSize: 11, borderRadius: 4, border: "1px solid #2e3650", background: "#262d42" }} />
                           <Line type="monotone" dataKey="shipped" name="Shipped" stroke="#0d9488" strokeWidth={2} dot={{ r: 3, fill: "#0d9488" }} />
                         </LineChart>
                       </ResponsiveContainer>
@@ -1319,16 +1319,16 @@ export default function QCCheck() {
                 <div className="p-5 space-y-5">
                   {qc3dLoading ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-3">
-                      <Loader2 className="w-7 h-7 animate-spin text-teal-600" />
+                      <Loader2 className="w-7 h-7 animate-spin text-teal-400" />
                       <p className="text-sm text-stone-400">Loading 3D charts…</p>
                     </div>
                   ) : (
                     <>
                       {/* Chart 1: FQC Activity Surface */}
-                      <div className="bg-white border border-stone-200 rounded-xl p-4 shadow-sm">
+                      <div className="bg-surface-panel border border-stroke rounded-xl p-4 shadow-sm">
                         <div className="flex items-center gap-2 mb-1">
-                          <Box className="w-4 h-4 text-teal-600" />
-                          <span className="text-sm font-semibold text-stone-700">FQC Activity — Hour × Day-of-Week (Last 90 Days)</span>
+                          <Box className="w-4 h-4 text-teal-400" />
+                          <span className="text-sm font-semibold text-ink-secondary">FQC Activity — Hour × Day-of-Week (Last 90 Days)</span>
                         </div>
                         <p className="text-xs text-stone-400 mb-3 pl-6">Shows when QC operators scan the most units — peaks identify shift patterns</p>
                         {qc3dActivity.length > 0 ? (
@@ -1357,10 +1357,10 @@ export default function QCCheck() {
                       </div>
 
                       {/* Chart 2: Monthly Shipping Calendar */}
-                      <div className="bg-white border border-stone-200 rounded-xl p-4 shadow-sm">
+                      <div className="bg-surface-panel border border-stroke rounded-xl p-4 shadow-sm">
                         <div className="flex items-center gap-2 mb-1">
-                          <Box className="w-4 h-4 text-sky-600" />
-                          <span className="text-sm font-semibold text-stone-700">Shipping Calendar — Day of Month × Month (All-time)</span>
+                          <Box className="w-4 h-4 text-sky-400" />
+                          <span className="text-sm font-semibold text-ink-secondary">Shipping Calendar — Day of Month × Month (All-time)</span>
                         </div>
                         <p className="text-xs text-stone-400 mb-3 pl-6">Calendar heatmap showing shipment density — spot month-end rushes and seasonal patterns</p>
                         {qc3dCalendar.length > 0 ? (() => {
@@ -1398,7 +1398,7 @@ export default function QCCheck() {
                 <div className="p-6 space-y-4">
                   {/* Quick date ranges */}
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Range:</span>
+                    <span className="text-xs font-semibold text-ink-muted uppercase tracking-wide">Range:</span>
                     {[
                       { label: "Today",      f: () => todayStr(),       t: () => todayStr() },
                       { label: "Yesterday",  f: () => yesterdayStr(),   t: () => yesterdayStr() },
@@ -1413,14 +1413,14 @@ export default function QCCheck() {
                         fetchRecords("all", from, to, 0, 100);
                         fetchHistoryChart(from, to);
                       }}
-                        className="px-3 py-1 text-xs rounded-lg border border-gray-200 bg-white hover:bg-teal-50 hover:border-teal-300 text-gray-600 hover:text-teal-700 transition-colors duration-150">
+                        className="px-3 py-1 text-xs rounded-lg border border-stroke bg-surface-panel hover:bg-teal-500/10 hover:border-teal-300 text-ink-secondary hover:text-teal-400 transition-colors duration-150">
                         {label}
                       </button>
                     ))}
                     <select
                       value={recordsFilter}
                       onChange={(e) => { setRecordsFilter(e.target.value); setRecordsPage(0); fetchRecords(e.target.value, recordsFrom, recordsTo, 0, 100); }}
-                      className="ml-1 px-2 py-1 text-xs border border-gray-200 rounded-lg bg-white text-gray-600 focus:ring-teal-500 focus:border-teal-500"
+                      className="ml-1 px-2 py-1 text-xs border border-stroke rounded-lg bg-surface-panel text-ink-secondary focus:ring-teal-500 focus:border-teal-500"
                     >
                       <option value="all">All Status</option>
                       <option value="pending">Pending</option>
@@ -1429,21 +1429,21 @@ export default function QCCheck() {
                   </div>
 
                   {/* History chart: FQC Ready vs Shipped */}
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
+                  <div className="bg-surface-panel border border-stroke rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-semibold text-gray-700">FQC Ready vs Shipped ({historyGranularity === "month" ? "Monthly" : "Daily"})</span>
-                      {historyChartLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+                      <span className="text-sm font-semibold text-ink-secondary">FQC Ready vs Shipped ({historyGranularity === "month" ? "Monthly" : "Daily"})</span>
+                      {historyChartLoading && <Loader2 className="w-4 h-4 animate-spin text-ink-muted" />}
                     </div>
                     {historyChartData.length === 0 && !historyChartLoading ? (
-                      <p className="text-xs text-gray-400 text-center py-6">No data for selected range</p>
+                      <p className="text-xs text-ink-muted text-center py-6">No data for selected range</p>
                     ) : (
                       <div className="h-48">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={historyChartData} barGap={2}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#2e3650" />
                             <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} />
                             <YAxis allowDecimals={false} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-                            <Tooltip contentStyle={{ fontSize: 12 }} />
+                            <Tooltip contentStyle={{ fontSize: 12, background: "#262d42", border: "1px solid #2e3650" }} />
                             <Legend wrapperStyle={{ fontSize: 11 }} />
                             <Bar dataKey="fqc_ready" name="FQC Ready" fill="#0d9488" radius={[2,2,0,0]} />
                             <Bar dataKey="shipped"   name="Shipped"   fill="#0ea5e9" radius={[2,2,0,0]} />
@@ -1454,21 +1454,21 @@ export default function QCCheck() {
                   </div>
 
                   {/* Records table */}
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="border border-stroke rounded-lg overflow-hidden">
                     <div className="overflow-y-auto" style={{ maxHeight: "400px" }}>
                       <table className="w-full text-xs">
-                        <thead className="bg-gray-50 sticky top-0 z-10">
-                          <tr className="border-b border-gray-200">
-                            <th className="px-4 py-2 text-left font-semibold text-gray-500 uppercase tracking-wide">Serial Number</th>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-500 uppercase tracking-wide">FQC Ready</th>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-500 uppercase tracking-wide">Shipped</th>
-                            <th className="px-4 py-2 text-left font-semibold text-gray-500 uppercase tracking-wide">Status</th>
+                        <thead className="bg-surface-base sticky top-0 z-10">
+                          <tr className="border-b border-stroke">
+                            <th className="px-4 py-2 text-left font-semibold text-ink-muted uppercase tracking-wide">Serial Number</th>
+                            <th className="px-4 py-2 text-left font-semibold text-ink-muted uppercase tracking-wide">FQC Ready</th>
+                            <th className="px-4 py-2 text-left font-semibold text-ink-muted uppercase tracking-wide">Shipped</th>
+                            <th className="px-4 py-2 text-left font-semibold text-ink-muted uppercase tracking-wide">Status</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-stroke-subtle">
                           {recordsLoading ? (
                             <tr>
-                              <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                              <td colSpan={4} className="px-4 py-8 text-center text-ink-muted">
                                 <div className="inline-flex items-center gap-2">
                                   <Loader2 className="w-4 h-4 animate-spin" />Loading...
                                 </div>
@@ -1476,18 +1476,18 @@ export default function QCCheck() {
                             </tr>
                           ) : records.length === 0 ? (
                             <tr>
-                              <td colSpan={4} className="px-4 py-8 text-center text-gray-400">No records found</td>
+                              <td colSpan={4} className="px-4 py-8 text-center text-ink-muted">No records found</td>
                             </tr>
                           ) : records.map((r, i) => (
-                            <tr key={buildQcRowKey(r, i)} className="hover:bg-gray-50 transition-colors">
-                              <td className="px-4 py-2 font-mono font-medium text-gray-900">{r.sn}</td>
-                              <td className="px-4 py-2 text-gray-500">{r.fqc_ready_at ? new Date(r.fqc_ready_at).toLocaleString() : "—"}</td>
-                              <td className="px-4 py-2 text-gray-500">{r.shipped_at ? new Date(r.shipped_at).toLocaleString() : "—"}</td>
+                            <tr key={buildQcRowKey(r, i)} className="hover:bg-surface-base transition-colors">
+                              <td className="px-4 py-2 font-mono font-medium text-ink-primary">{r.sn}</td>
+                              <td className="px-4 py-2 text-ink-muted">{r.fqc_ready_at ? new Date(r.fqc_ready_at).toLocaleString() : "—"}</td>
+                              <td className="px-4 py-2 text-ink-muted">{r.shipped_at ? new Date(r.shipped_at).toLocaleString() : "—"}</td>
                               <td className="px-4 py-2">
                                 <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                                  r.status === "Shipped" ? "bg-cyan-100 text-cyan-800" :
-                                  r.status === "Pending" ? "bg-amber-100 text-amber-800" :
-                                  "bg-gray-100 text-gray-600"
+                                  r.status === "Shipped" ? "bg-signal-info/15 text-cyan-300" :
+                                  r.status === "Pending" ? "bg-signal-warn/15 text-amber-300" :
+                                  "bg-surface-raised text-ink-secondary"
                                 }`}>{r.status}</span>
                               </td>
                             </tr>
@@ -1498,25 +1498,25 @@ export default function QCCheck() {
                   </div>
 
                   {/* Pagination */}
-                  <div className="flex items-center justify-between text-xs text-gray-500">
+                  <div className="flex items-center justify-between text-xs text-ink-muted">
                     <span>
-                      Showing <span className="font-medium text-gray-700">{records.length}</span> of{" "}
-                      <span className="font-medium text-gray-700">{recordsTotal}</span> records
+                      Showing <span className="font-medium text-ink-secondary">{records.length}</span> of{" "}
+                      <span className="font-medium text-ink-secondary">{recordsTotal}</span> records
                       {(recordsFrom || recordsTo) && (
-                        <span className="ml-2 text-gray-400">({recordsFrom || "..."} → {recordsTo || "now"})</span>
+                        <span className="ml-2 text-ink-muted">({recordsFrom || "..."} → {recordsTo || "now"})</span>
                       )}
                     </span>
                     <div className="flex items-center gap-2">
                       <button
                         disabled={!canPrev}
                         onClick={() => { const p = recordsPage - 1; setRecordsPage(p); fetchRecords(recordsFilter, recordsFrom, recordsTo, p, 100); }}
-                        className={`px-2 py-1 rounded border transition-colors ${canPrev ? "bg-white hover:bg-gray-50 border-gray-200 text-gray-600" : "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"}`}
+                        className={`px-2 py-1 rounded border transition-colors ${canPrev ? "bg-surface-panel hover:bg-surface-base border-stroke text-ink-secondary" : "bg-surface-base text-ink-muted border-stroke-subtle cursor-not-allowed"}`}
                       >Prev</button>
                       <span>{recordsPage + 1} / {Math.max(1, Math.ceil(recordsTotal / 100))}</span>
                       <button
                         disabled={!canNext}
                         onClick={() => { const p = recordsPage + 1; setRecordsPage(p); fetchRecords(recordsFilter, recordsFrom, recordsTo, p, 100); }}
-                        className={`px-2 py-1 rounded border transition-colors ${canNext ? "bg-white hover:bg-gray-50 border-gray-200 text-gray-600" : "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"}`}
+                        className={`px-2 py-1 rounded border transition-colors ${canNext ? "bg-surface-panel hover:bg-surface-base border-stroke text-ink-secondary" : "bg-surface-base text-ink-muted border-stroke-subtle cursor-not-allowed"}`}
                       >Next</button>
                     </div>
                   </div>
@@ -1533,12 +1533,12 @@ export default function QCCheck() {
           <div className="flex items-center justify-center min-h-screen px-4">
             <div className="fixed inset-0 bg-black/50" onClick={() => setShowExport(false)} />
 
-            <div className="relative bg-white rounded-lg max-w-md w-full">
+            <div className="relative bg-surface-panel rounded-lg max-w-md w-full">
               <div className="border-b px-6 py-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold text-gray-900">Export Records</h2>
-                  <button onClick={() => setShowExport(false)} className="p-1.5 hover:bg-gray-100 rounded-md">
-                    <X className="w-5 h-5 text-gray-500" />
+                  <h2 className="text-xl font-semibold text-ink-primary">Export Records</h2>
+                  <button onClick={() => setShowExport(false)} className="p-1.5 hover:bg-surface-raised rounded-md">
+                    <X className="w-5 h-5 text-ink-muted" />
                   </button>
                 </div>
               </div>
@@ -1546,29 +1546,29 @@ export default function QCCheck() {
               <div className="p-6">
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                    <label className="block text-sm font-medium text-ink-secondary mb-1">From Date</label>
                     <input
                       type="date"
                       value={exportSettings.from}
                       onChange={(e) => setExportSettings({ ...exportSettings, from: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-black"
+                      className="w-full px-3 py-2 border border-stroke rounded-md focus:ring-teal-500 focus:border-teal-500 text-ink-primary"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                    <label className="block text-sm font-medium text-ink-secondary mb-1">To Date</label>
                     <input
                       type="date"
                       value={exportSettings.to}
                       onChange={(e) => setExportSettings({ ...exportSettings, to: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-black"
+                      className="w-full px-3 py-2 border border-stroke rounded-md focus:ring-teal-500 focus:border-teal-500 text-ink-primary"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Export Type</label>
+                    <label className="block text-sm font-medium text-ink-secondary mb-1">Export Type</label>
                     <select
                       value={exportSettings.type}
                       onChange={(e) => setExportSettings({ ...exportSettings, type: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-black"
+                      className="w-full px-3 py-2 border border-stroke rounded-md focus:ring-teal-500 focus:border-teal-500 text-ink-primary"
                     >
                       <option value="all">All Records</option>
                       <option value="fqc_only">FQC Ready Only</option>
@@ -1587,7 +1587,7 @@ export default function QCCheck() {
                   </button>
                   <button
                     onClick={() => setShowExport(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                    className="flex-1 px-4 py-2 border border-stroke rounded-md text-sm font-medium text-ink-secondary bg-surface-panel hover:bg-surface-base focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                   >
                     Cancel
                   </button>
@@ -1602,21 +1602,21 @@ export default function QCCheck() {
       {showRecords && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowRecords(false)} />
-          <div className="relative bg-white rounded-lg w-full max-w-5xl max-h-[92vh] flex flex-col shadow-xl">
+          <div className="relative bg-surface-panel rounded-lg w-full max-w-5xl max-h-[92vh] flex flex-col shadow-xl">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-200 flex-shrink-0">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-stroke flex-shrink-0">
               <div>
-                <h2 className="text-base font-semibold text-gray-900">QC Records</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Total: <span className="font-medium text-gray-600">{recordsTotal}</span> records</p>
+                <h2 className="text-base font-semibold text-ink-primary">QC Records</h2>
+                <p className="text-xs text-ink-muted mt-0.5">Total: <span className="font-medium text-ink-secondary">{recordsTotal}</span> records</p>
               </div>
-              <button onClick={() => setShowRecords(false)} className="p-1.5 hover:bg-gray-100 rounded-md">
-                <X className="w-4 h-4 text-gray-500" />
+              <button onClick={() => setShowRecords(false)} className="p-1.5 hover:bg-surface-raised rounded-md">
+                <X className="w-4 h-4 text-ink-muted" />
               </button>
             </div>
 
             {/* Filter bar */}
-            <div className="px-5 py-3 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+            <div className="px-5 py-3 border-b border-stroke-subtle bg-surface-base flex-shrink-0">
               <div className="flex flex-wrap items-center gap-2">
                 {/* Quick date chips */}
                 {[
@@ -1633,17 +1633,17 @@ export default function QCCheck() {
                       (label === "Today" && recordsFrom === todayStr() && recordsTo === todayStr()) ||
                       (label === "All" && !recordsFrom && !recordsTo)
                         ? "bg-teal-600 text-white border-teal-600"
-                        : "bg-white text-gray-600 border-gray-200 hover:border-teal-400 hover:text-teal-700"
+                        : "bg-surface-panel text-ink-secondary border-stroke hover:border-teal-400 hover:text-teal-400"
                     }`}
                   >{label}</button>
                 ))}
 
-                <span className="text-gray-200 select-none">|</span>
+                <span className="text-ink-muted select-none">|</span>
 
                 <select
                   value={recordsFilter}
                   onChange={(e) => { setRecordsFilter(e.target.value); setRecordsPage(0); fetchRecords(e.target.value,recordsFrom,recordsTo,0,recordsLimit); }}
-                  className="px-2.5 py-1 text-xs border border-gray-200 rounded-md bg-white text-gray-700 focus:ring-1 focus:ring-teal-500"
+                  className="px-2.5 py-1 text-xs border border-stroke rounded-md bg-surface-panel text-ink-secondary focus:ring-1 focus:ring-teal-500"
                 >
                   <option value="all">All Status</option>
                   <option value="pending">Pending</option>
@@ -1651,18 +1651,18 @@ export default function QCCheck() {
                 </select>
 
                 <input type="date" value={recordsFrom||""} onChange={(e)=>setRecordsFrom(e.target.value)}
-                  className="px-2 py-1 text-xs border border-gray-200 rounded-md text-gray-700 focus:ring-1 focus:ring-teal-500" />
-                <span className="text-gray-400 text-xs">—</span>
+                  className="px-2 py-1 text-xs border border-stroke rounded-md text-ink-secondary focus:ring-1 focus:ring-teal-500" />
+                <span className="text-ink-muted text-xs">—</span>
                 <input type="date" value={recordsTo||""} onChange={(e)=>setRecordsTo(e.target.value)}
-                  className="px-2 py-1 text-xs border border-gray-200 rounded-md text-gray-700 focus:ring-1 focus:ring-teal-500" />
+                  className="px-2 py-1 text-xs border border-stroke rounded-md text-ink-secondary focus:ring-1 focus:ring-teal-500" />
 
                 <button onClick={applyRecordsFilter} className="px-3 py-1 text-xs rounded-md bg-teal-600 text-white hover:bg-teal-700 font-medium transition-colors">Apply</button>
-                <button onClick={clearRecordsFilter} className="px-3 py-1 text-xs rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 transition-colors">Reset</button>
+                <button onClick={clearRecordsFilter} className="px-3 py-1 text-xs rounded-md border border-stroke bg-surface-panel text-ink-secondary hover:bg-surface-base transition-colors">Reset</button>
 
                 <select
                   value={recordsLimit}
                   onChange={(e)=>{ const n=parseInt(e.target.value,10); setRecordsLimit(n); setRecordsPage(0); fetchRecords(recordsFilter,recordsFrom,recordsTo,0,n); }}
-                  className="ml-auto px-2 py-1 text-xs border border-gray-200 rounded-md bg-white text-gray-600"
+                  className="ml-auto px-2 py-1 text-xs border border-stroke rounded-md bg-surface-panel text-ink-secondary"
                 >
                   {[50,100,200,500].map(n=><option key={n} value={n}>{n}/page</option>)}
                 </select>
@@ -1672,45 +1672,45 @@ export default function QCCheck() {
             {/* Table */}
             <div className="overflow-y-auto flex-1">
               <table className="w-full text-xs">
-                <thead className="bg-gray-50 sticky top-0 z-10">
-                  <tr className="border-b border-gray-200">
-                    <th className="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide w-8 text-center">#</th>
-                    <th className="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Serial Number</th>
-                    <th className="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">FQC Ready</th>
-                    <th className="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide hidden sm:table-cell">Shipped</th>
-                    <th className="px-4 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide">Status</th>
-                    <th className="px-4 py-2.5 text-center font-semibold text-gray-500 uppercase tracking-wide w-16">Del</th>
+                <thead className="bg-surface-base sticky top-0 z-10">
+                  <tr className="border-b border-stroke">
+                    <th className="px-4 py-2.5 text-left font-semibold text-ink-muted uppercase tracking-wide w-8 text-center">#</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-ink-muted uppercase tracking-wide">Serial Number</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-ink-muted uppercase tracking-wide hidden sm:table-cell">FQC Ready</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-ink-muted uppercase tracking-wide hidden sm:table-cell">Shipped</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-ink-muted uppercase tracking-wide">Status</th>
+                    <th className="px-4 py-2.5 text-center font-semibold text-ink-muted uppercase tracking-wide w-16">Del</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-stroke-subtle">
                   {recordsLoading ? (
-                    <tr><td colSpan={6} className="py-12 text-center text-gray-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                    <tr><td colSpan={6} className="py-12 text-center text-ink-muted"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
                   ) : records.length === 0 ? (
-                    <tr><td colSpan={6} className="py-12 text-center text-gray-400">No records found</td></tr>
+                    <tr><td colSpan={6} className="py-12 text-center text-ink-muted">No records found</td></tr>
                   ) : records.map((record, i) => (
-                    <tr key={buildQcRowKey(record, i)} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-2 text-gray-300 text-center">{recordsPage * recordsLimit + i + 1}</td>
-                      <td className="px-4 py-2 font-mono font-medium text-gray-900 text-xs">{record.sn}</td>
-                      <td className="px-4 py-2 text-gray-500 hidden sm:table-cell tabular-nums">
-                        {record.fqc_ready_at ? new Date(record.fqc_ready_at).toLocaleString() : <span className="text-gray-300">—</span>}
+                    <tr key={buildQcRowKey(record, i)} className="hover:bg-surface-base transition-colors">
+                      <td className="px-4 py-2 text-ink-muted text-center">{recordsPage * recordsLimit + i + 1}</td>
+                      <td className="px-4 py-2 font-mono font-medium text-ink-primary text-xs">{record.sn}</td>
+                      <td className="px-4 py-2 text-ink-muted hidden sm:table-cell tabular-nums">
+                        {record.fqc_ready_at ? new Date(record.fqc_ready_at).toLocaleString() : <span className="text-ink-muted">—</span>}
                       </td>
-                      <td className="px-4 py-2 text-gray-500 hidden sm:table-cell tabular-nums">
-                        {record.shipped_at ? new Date(record.shipped_at).toLocaleString() : <span className="text-gray-300">—</span>}
+                      <td className="px-4 py-2 text-ink-muted hidden sm:table-cell tabular-nums">
+                        {record.shipped_at ? new Date(record.shipped_at).toLocaleString() : <span className="text-ink-muted">—</span>}
                       </td>
                       <td className="px-4 py-2">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${
                           record.status === "Shipped"
-                            ? "bg-sky-100 text-sky-700"
+                            ? "bg-signal-info/15 text-sky-400"
                             : record.status === "Pending"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-gray-100 text-gray-600"
+                            ? "bg-signal-warn/15 text-amber-400"
+                            : "bg-surface-raised text-ink-secondary"
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${record.status === "Shipped" ? "bg-sky-500" : record.status === "Pending" ? "bg-amber-500" : "bg-gray-400"}`} />
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${record.status === "Shipped" ? "bg-signal-info" : record.status === "Pending" ? "bg-signal-warn" : "bg-gray-400"}`} />
                           {record.status}
                         </span>
                       </td>
                       <td className="px-4 py-2 text-center">
-                        <button onClick={() => deleteRecord(record.sn)} className="p-1 text-gray-300 hover:text-red-500 rounded transition-colors" title="Delete">
+                        <button onClick={() => deleteRecord(record.sn)} className="p-1 text-ink-muted hover:text-red-500 rounded transition-colors" title="Delete">
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </td>
@@ -1721,16 +1721,16 @@ export default function QCCheck() {
             </div>
 
             {/* Pagination footer */}
-            <div className="px-5 py-2.5 border-t border-gray-200 bg-white flex items-center justify-between flex-shrink-0">
-              <span className="text-xs text-gray-500">
+            <div className="px-5 py-2.5 border-t border-stroke bg-surface-panel flex items-center justify-between flex-shrink-0">
+              <span className="text-xs text-ink-muted">
                 {records.length > 0 && `${recordsPage * recordsLimit + 1}–${recordsPage * recordsLimit + records.length} of ${recordsTotal}`}
               </span>
               <div className="flex items-center gap-1.5">
                 <button disabled={!canPrev} onClick={()=>{ const p=recordsPage-1; setRecordsPage(p); fetchRecords(recordsFilter,recordsFrom,recordsTo,p,recordsLimit); }}
-                  className="px-2.5 py-1 text-xs rounded-md border border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:bg-gray-50 transition-colors">← Prev</button>
-                <span className="text-xs text-gray-500 px-2">{recordsPage+1} / {Math.max(1,Math.ceil(recordsTotal/recordsLimit))}</span>
+                  className="px-2.5 py-1 text-xs rounded-md border border-stroke disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:bg-surface-base transition-colors">← Prev</button>
+                <span className="text-xs text-ink-muted px-2">{recordsPage+1} / {Math.max(1,Math.ceil(recordsTotal/recordsLimit))}</span>
                 <button disabled={!canNext} onClick={()=>{ const p=recordsPage+1; setRecordsPage(p); fetchRecords(recordsFilter,recordsFrom,recordsTo,p,recordsLimit); }}
-                  className="px-2.5 py-1 text-xs rounded-md border border-gray-200 disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:bg-gray-50 transition-colors">Next →</button>
+                  className="px-2.5 py-1 text-xs rounded-md border border-stroke disabled:opacity-40 disabled:cursor-not-allowed hover:enabled:bg-surface-base transition-colors">Next →</button>
               </div>
             </div>
           </div>
@@ -1743,12 +1743,12 @@ export default function QCCheck() {
           <div className="flex items-center justify-center min-h-screen px-4">
             <div className="fixed inset-0 bg-black/50" onClick={() => setShowBatchShip(false)} />
 
-            <div className="relative bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
-              <div className="sticky top-0 bg-white border-b px-6 py-4 z-10">
+            <div className="relative bg-surface-panel rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              <div className="sticky top-0 bg-surface-panel border-b px-6 py-4 z-10">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold text-gray-900">Batch Shipping</h2>
-                  <button onClick={() => setShowBatchShip(false)} className="p-1.5 hover:bg-gray-100 rounded-md">
-                    <X className="w-5 h-5 text-gray-500" />
+                  <h2 className="text-xl font-semibold text-ink-primary">Batch Shipping</h2>
+                  <button onClick={() => setShowBatchShip(false)} className="p-1.5 hover:bg-surface-raised rounded-md">
+                    <X className="w-5 h-5 text-ink-muted" />
                   </button>
                 </div>
 
@@ -1757,7 +1757,7 @@ export default function QCCheck() {
                   <button
                     onClick={handleBatchExportPcba}
                     disabled={!batchInput.trim()}
-                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-emerald-600 rounded-lg text-sm font-semibold text-emerald-700 bg-white hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-emerald-600 rounded-lg text-sm font-semibold text-emerald-400 bg-surface-panel hover:bg-signal-ok/10 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     <Download className="w-4 h-4" />
                     Batch Export
@@ -1784,15 +1784,15 @@ export default function QCCheck() {
                 {!batchResults ? (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Paste Serial Numbers</label>
-                      <p className="text-sm text-gray-500 mb-2">
+                      <label className="block text-sm font-medium text-ink-secondary mb-2">Paste Serial Numbers</label>
+                      <p className="text-sm text-ink-muted mb-2">
                         Paste your serial numbers from Excel. They can be separated by newlines, spaces, commas, or tabs.
                       </p>
                       <textarea
                         value={batchInput}
                         onChange={(e) => setBatchInput(e.target.value)}
                         placeholder="Paste serial numbers here..."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-teal-500 focus:border-teal-500 text-black"
+                        className="w-full px-3 py-2 border border-stroke rounded-md focus:ring-teal-500 focus:border-teal-500 text-ink-primary"
                         rows={12}
                       />
                     </div>
@@ -1800,24 +1800,24 @@ export default function QCCheck() {
                 ) : (
                   <div className="space-y-6">
                     {/* Summary */}
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3">Batch Shipping Check Results</h3>
+                    <div className="bg-surface-base rounded-lg p-4">
+                      <h3 className="font-semibold text-ink-primary mb-3">Batch Shipping Check Results</h3>
                       <div className="grid grid-cols-4 gap-4">
                         <div>
-                          <p className="text-sm text-gray-600">Total SNs</p>
-                          <p className="text-2xl font-bold text-gray-900">{batchResults.total}</p>
+                          <p className="text-sm text-ink-secondary">Total SNs</p>
+                          <p className="text-2xl font-bold text-ink-primary">{batchResults.total}</p>
                         </div>
                         <div>
-                          <p className="text-sm text-green-600">Ready to Ship</p>
-                          <p className="text-2xl font-bold text-green-700">{batchResults.ready.length}</p>
+                          <p className="text-sm text-green-400">Ready to Ship</p>
+                          <p className="text-2xl font-bold text-green-400">{batchResults.ready.length}</p>
                         </div>
                         <div>
-                          <p className="text-sm text-red-600">Not Ready</p>
-                          <p className="text-2xl font-bold text-red-700">{batchResults.notFound.length + batchResults.notReady.length}</p>
+                          <p className="text-sm text-red-400">Not Ready</p>
+                          <p className="text-2xl font-bold text-red-400">{batchResults.notFound.length + batchResults.notReady.length}</p>
                         </div>
                         <div>
-                          <p className="text-sm text-cyan-600">Already Shipped</p>
-                          <p className="text-2xl font-bold text-cyan-700">{batchResults.alreadyShipped.length}</p>
+                          <p className="text-sm text-cyan-400">Already Shipped</p>
+                          <p className="text-2xl font-bold text-cyan-400">{batchResults.alreadyShipped.length}</p>
                         </div>
                       </div>
                     </div>
@@ -1827,33 +1827,33 @@ export default function QCCheck() {
                       <div className="space-y-3">
                           {/* Sub-group A: never entered QC system */}
                           {batchResults.notFound.length > 0 && (
-                            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <div className="bg-signal-error/10 border border-red-500/30 rounded-lg p-4">
                               <div className="flex items-start gap-2 mb-3">
-                                <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                                <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
                                 <div>
-                                  <h4 className="text-sm font-semibold text-red-800">
+                                  <h4 className="text-sm font-semibold text-red-300">
                                     {batchResults.notFound.length} SN(s) — Not Found in QC System
                                   </h4>
-                                  <p className="text-xs text-red-600 mt-0.5">
+                                  <p className="text-xs text-red-400 mt-0.5">
                                     These serial numbers have never been FQC scanned. Assembly production time shown if available.
                                   </p>
                                 </div>
                               </div>
-                              <div className="overflow-y-auto rounded border border-red-200 bg-white" style={{ maxHeight: "180px" }}>
+                              <div className="overflow-y-auto rounded border border-red-500/30 bg-surface-panel" style={{ maxHeight: "180px" }}>
                                 <table className="w-full text-xs">
-                                  <thead className="bg-red-50 sticky top-0">
+                                  <thead className="bg-signal-error/10 sticky top-0">
                                     <tr>
-                                      <th className="px-3 py-1.5 text-left font-semibold text-red-700 w-8">#</th>
-                                      <th className="px-3 py-1.5 text-left font-semibold text-red-700">Serial Number</th>
-                                      <th className="px-3 py-1.5 text-left font-semibold text-red-700">Assembly Production Time</th>
+                                      <th className="px-3 py-1.5 text-left font-semibold text-red-400 w-8">#</th>
+                                      <th className="px-3 py-1.5 text-left font-semibold text-red-400">Serial Number</th>
+                                      <th className="px-3 py-1.5 text-left font-semibold text-red-400">Assembly Production Time</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-red-100">
                                     {batchResults.notFound.map((r, i) => (
-                                      <tr key={buildQcRowKey(r, i)} className="hover:bg-red-50">
+                                      <tr key={buildQcRowKey(r, i)} className="hover:bg-signal-error/10">
                                         <td className="px-3 py-1.5 text-red-400">{i + 1}</td>
-                                        <td className="px-3 py-1.5 font-mono text-red-800">{r.sn}</td>
-                                        <td className="px-3 py-1.5 text-red-600">
+                                        <td className="px-3 py-1.5 font-mono text-red-300">{r.sn}</td>
+                                        <td className="px-3 py-1.5 text-red-400">
                                           {r.production_time
                                             ? new Date(r.production_time).toLocaleString()
                                             : <span className="italic text-red-300">Not found in assembly DB</span>}
@@ -1867,33 +1867,33 @@ export default function QCCheck() {
                           )}
                           {/* Sub-group B: in system but FQC not done */}
                           {batchResults.notReady.length > 0 && (
-                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                            <div className="bg-signal-warn/10 border border-amber-500/30 rounded-lg p-4">
                               <div className="flex items-start gap-2 mb-3">
-                                <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                                <AlertCircle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
                                 <div>
-                                  <h4 className="text-sm font-semibold text-amber-800">
+                                  <h4 className="text-sm font-semibold text-amber-300">
                                     {batchResults.notReady.length} SN(s) — FQC Not Completed
                                   </h4>
-                                  <p className="text-xs text-amber-600 mt-0.5">
+                                  <p className="text-xs text-amber-400 mt-0.5">
                                     These serial numbers are in the system but FQC scan has not been performed.
                                   </p>
                                 </div>
                               </div>
-                              <div className="overflow-y-auto rounded border border-amber-200 bg-white" style={{ maxHeight: "180px" }}>
+                              <div className="overflow-y-auto rounded border border-amber-500/30 bg-surface-panel" style={{ maxHeight: "180px" }}>
                                 <table className="w-full text-xs">
-                                  <thead className="bg-amber-50 sticky top-0">
+                                  <thead className="bg-signal-warn/10 sticky top-0">
                                     <tr>
-                                      <th className="px-3 py-1.5 text-left font-semibold text-amber-700 w-8">#</th>
-                                      <th className="px-3 py-1.5 text-left font-semibold text-amber-700">Serial Number</th>
-                                      <th className="px-3 py-1.5 text-left font-semibold text-amber-700">Entered QC System At</th>
+                                      <th className="px-3 py-1.5 text-left font-semibold text-amber-400 w-8">#</th>
+                                      <th className="px-3 py-1.5 text-left font-semibold text-amber-400">Serial Number</th>
+                                      <th className="px-3 py-1.5 text-left font-semibold text-amber-400">Entered QC System At</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-amber-100">
                                     {batchResults.notReady.map((r, i) => (
-                                      <tr key={buildQcRowKey(r, i)} className="hover:bg-amber-50">
+                                      <tr key={buildQcRowKey(r, i)} className="hover:bg-signal-warn/10">
                                         <td className="px-3 py-1.5 text-amber-400">{i + 1}</td>
-                                        <td className="px-3 py-1.5 font-mono text-amber-800">{r.sn}</td>
-                                        <td className="px-3 py-1.5 text-amber-600">
+                                        <td className="px-3 py-1.5 font-mono text-amber-300">{r.sn}</td>
+                                        <td className="px-3 py-1.5 text-amber-400">
                                           {r.production_time ? new Date(r.production_time).toLocaleString() : "—"}
                                         </td>
                                       </tr>
@@ -1908,33 +1908,33 @@ export default function QCCheck() {
 
                     {/* Already Shipped Info */}
                     {batchResults.alreadyShipped.length > 0 && (
-                      <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
+                      <div className="bg-signal-info/10 border border-cyan-500/30 rounded-lg p-4">
                         <div className="flex items-start gap-2 mb-3">
-                          <AlertCircle className="w-5 h-5 text-cyan-600 mt-0.5 flex-shrink-0" />
+                          <AlertCircle className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" />
                           <div>
-                            <h4 className="text-sm font-semibold text-cyan-800">
+                            <h4 className="text-sm font-semibold text-cyan-300">
                               {batchResults.alreadyShipped.length} SN(s) — Already Shipped
                             </h4>
-                            <p className="text-xs text-cyan-600 mt-0.5">
+                            <p className="text-xs text-cyan-400 mt-0.5">
                               These serial numbers were shipped in a previous batch.
                             </p>
                           </div>
                         </div>
-                        <div className="overflow-y-auto rounded border border-cyan-200 bg-white" style={{ maxHeight: "150px" }}>
+                        <div className="overflow-y-auto rounded border border-cyan-500/30 bg-surface-panel" style={{ maxHeight: "150px" }}>
                           <table className="w-full text-xs">
-                            <thead className="bg-cyan-50 sticky top-0">
+                            <thead className="bg-signal-info/10 sticky top-0">
                               <tr>
-                                <th className="px-3 py-1.5 text-left font-semibold text-cyan-700 w-8">#</th>
-                                <th className="px-3 py-1.5 text-left font-semibold text-cyan-700">Serial Number</th>
-                                <th className="px-3 py-1.5 text-left font-semibold text-cyan-700">Shipped At</th>
+                                <th className="px-3 py-1.5 text-left font-semibold text-cyan-400 w-8">#</th>
+                                <th className="px-3 py-1.5 text-left font-semibold text-cyan-400">Serial Number</th>
+                                <th className="px-3 py-1.5 text-left font-semibold text-cyan-400">Shipped At</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-cyan-100">
                               {batchResults.alreadyShipped.map((r, i) => (
-                                <tr key={buildQcRowKey(r, i)} className="hover:bg-cyan-50">
+                                <tr key={buildQcRowKey(r, i)} className="hover:bg-signal-info/10">
                                   <td className="px-3 py-1.5 text-cyan-400">{i + 1}</td>
-                                  <td className="px-3 py-1.5 font-mono text-cyan-800">{r.sn}</td>
-                                  <td className="px-3 py-1.5 text-cyan-600">
+                                  <td className="px-3 py-1.5 font-mono text-cyan-300">{r.sn}</td>
+                                  <td className="px-3 py-1.5 text-cyan-400">
                                     {r.shipped_at ? new Date(r.shipped_at).toLocaleString() : "—"}
                                   </td>
                                 </tr>
@@ -1947,15 +1947,15 @@ export default function QCCheck() {
 
                     {/* Ready to Ship */}
                     {batchResults.ready.length > 0 && (
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                      <div className="bg-signal-ok/10 border border-emerald-500/30 rounded-lg p-4">
                         <div className="flex items-start">
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 mr-2 flex-shrink-0" />
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400 mt-0.5 mr-2 flex-shrink-0" />
                           <div className="flex-1">
-                            <h4 className="text-sm font-semibold text-emerald-800 mb-2">
+                            <h4 className="text-sm font-semibold text-emerald-300 mb-2">
                               {batchResults.ready.length} serial numbers are ready to ship:
                             </h4>
-                            <div className="bg-white border border-emerald-200 rounded-md p-3 overflow-y-auto" style={{ maxHeight: "150px" }}>
-                              <p className="text-sm text-emerald-700 font-mono whitespace-pre-wrap">
+                            <div className="bg-surface-panel border border-emerald-500/30 rounded-md p-3 overflow-y-auto" style={{ maxHeight: "150px" }}>
+                              <p className="text-sm text-emerald-400 font-mono whitespace-pre-wrap">
                                 {batchResults.ready.map((r, i) => `${i + 1}. ${r.sn}`).join("\n")}
                               </p>
                             </div>
@@ -1965,7 +1965,7 @@ export default function QCCheck() {
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex gap-3 sticky bottom-0 bg-white pt-4 pb-2">
+                    <div className="flex gap-3 sticky bottom-0 bg-surface-panel pt-4 pb-2">
                       {batchResults.ready.length > 0 && (
                         <button
                           onClick={handleBatchShip}
@@ -1987,7 +1987,7 @@ export default function QCCheck() {
                           setBatchResults(null);
                           setBatchInput("");
                         }}
-                        className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                        className="px-4 py-2 border border-stroke rounded-md text-sm font-medium text-ink-secondary bg-surface-panel hover:bg-surface-base focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                       >
                         Back
                       </button>
@@ -2005,15 +2005,15 @@ export default function QCCheck() {
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4">
             <div className="fixed inset-0 bg-black/50" onClick={() => setShowBatchFqc(false)} />
-            <div className="relative bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
-              <div className="sticky top-0 bg-white border-b px-6 py-4 z-10">
+            <div className="relative bg-surface-panel rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+              <div className="sticky top-0 bg-surface-panel border-b px-6 py-4 z-10">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900">Batch FQC Check</h2>
-                    <p className="text-sm text-gray-500 mt-0.5">Paste serial numbers to check if they exist in assembly or QC records</p>
+                    <h2 className="text-xl font-semibold text-ink-primary">Batch FQC Check</h2>
+                    <p className="text-sm text-ink-muted mt-0.5">Paste serial numbers to check if they exist in assembly or QC records</p>
                   </div>
-                  <button onClick={() => setShowBatchFqc(false)} className="p-1.5 hover:bg-gray-100 rounded-md">
-                    <X className="w-5 h-5 text-gray-500" />
+                  <button onClick={() => setShowBatchFqc(false)} className="p-1.5 hover:bg-surface-raised rounded-md">
+                    <X className="w-5 h-5 text-ink-muted" />
                   </button>
                 </div>
                 <div className="mt-4 flex gap-3">
@@ -2028,7 +2028,7 @@ export default function QCCheck() {
                     <button
                       onClick={handleBatchFqcMark}
                       disabled={batchFqcLoading}
-                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-emerald-600 rounded-lg text-sm font-semibold text-emerald-700 bg-white hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-emerald-600 rounded-lg text-sm font-semibold text-emerald-400 bg-surface-panel hover:bg-signal-ok/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {batchFqcLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-4 h-4" />Mark {batchFqcResults.readyForFqc.length} as FQC Ready</>}
                     </button>
@@ -2039,13 +2039,13 @@ export default function QCCheck() {
               <div className="p-6 overflow-y-auto" style={{ maxHeight: "calc(90vh - 160px)" }}>
                 {!batchFqcResults ? (
                   <div className="space-y-3">
-                    <label className="block text-sm font-medium text-gray-700">Paste Serial Numbers</label>
-                    <p className="text-sm text-gray-500">Separated by newlines, spaces, commas, or tabs. The system will check if each SN exists in assembly or QC records.</p>
+                    <label className="block text-sm font-medium text-ink-secondary">Paste Serial Numbers</label>
+                    <p className="text-sm text-ink-muted">Separated by newlines, spaces, commas, or tabs. The system will check if each SN exists in assembly or QC records.</p>
                     <textarea
                       value={batchFqcInput}
                       onChange={(e) => setBatchFqcInput(e.target.value)}
                       placeholder="Paste serial numbers here..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-emerald-500 focus:border-emerald-500 text-black"
+                      className="w-full px-3 py-2 border border-stroke rounded-md focus:ring-emerald-500 focus:border-emerald-500 text-ink-primary"
                       rows={14}
                       autoFocus
                     />
@@ -2053,57 +2053,57 @@ export default function QCCheck() {
                 ) : (
                   <div className="space-y-5">
                     {/* Summary */}
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3">Check Results — {batchFqcResults.total} SNs</h3>
+                    <div className="bg-surface-base rounded-lg p-4">
+                      <h3 className="font-semibold text-ink-primary mb-3">Check Results — {batchFqcResults.total} SNs</h3>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <div className="text-center p-3 rounded-lg bg-emerald-50 border border-emerald-100">
-                          <p className="text-xs font-semibold text-emerald-700 mb-1">Ready for FQC</p>
-                          <p className="text-2xl font-bold text-emerald-800">{batchFqcResults.readyForFqc.length}</p>
-                          <p className="text-xs text-emerald-600 mt-0.5">Eligible to mark</p>
+                        <div className="text-center p-3 rounded-lg bg-signal-ok/10 border border-signal-ok/20">
+                          <p className="text-xs font-semibold text-emerald-400 mb-1">Ready for FQC</p>
+                          <p className="text-2xl font-bold text-emerald-300">{batchFqcResults.readyForFqc.length}</p>
+                          <p className="text-xs text-emerald-400 mt-0.5">Eligible to mark</p>
                         </div>
-                        <div className="text-center p-3 rounded-lg bg-red-50 border border-red-100">
-                          <p className="text-xs font-semibold text-red-700 mb-1">Not Found</p>
-                          <p className="text-2xl font-bold text-red-800">{batchFqcResults.notFound.length}</p>
-                          <p className="text-xs text-red-600 mt-0.5">Missing from production/QC</p>
+                        <div className="text-center p-3 rounded-lg bg-signal-error/10 border border-signal-error/20">
+                          <p className="text-xs font-semibold text-red-400 mb-1">Not Found</p>
+                          <p className="text-2xl font-bold text-red-300">{batchFqcResults.notFound.length}</p>
+                          <p className="text-xs text-red-400 mt-0.5">Missing from production/QC</p>
                         </div>
-                        <div className="text-center p-3 rounded-lg bg-sky-50 border border-sky-100">
-                          <p className="text-xs font-semibold text-sky-700 mb-1">Already FQC'd</p>
-                          <p className="text-2xl font-bold text-sky-800">{batchFqcResults.alreadyFqc.length}</p>
-                          <p className="text-xs text-sky-600 mt-0.5">Pending shipment</p>
+                        <div className="text-center p-3 rounded-lg bg-signal-info/10 border border-signal-info/20">
+                          <p className="text-xs font-semibold text-sky-400 mb-1">Already FQC'd</p>
+                          <p className="text-2xl font-bold text-sky-300">{batchFqcResults.alreadyFqc.length}</p>
+                          <p className="text-xs text-sky-400 mt-0.5">Pending shipment</p>
                         </div>
-                        <div className="text-center p-3 rounded-lg bg-gray-50 border border-gray-200">
-                          <p className="text-xs font-semibold text-gray-600 mb-1">Already Shipped</p>
-                          <p className="text-2xl font-bold text-gray-700">{batchFqcResults.alreadyShipped.length}</p>
-                          <p className="text-xs text-gray-500 mt-0.5">Completed</p>
+                        <div className="text-center p-3 rounded-lg bg-surface-base border border-stroke">
+                          <p className="text-xs font-semibold text-ink-secondary mb-1">Already Shipped</p>
+                          <p className="text-2xl font-bold text-ink-secondary">{batchFqcResults.alreadyShipped.length}</p>
+                          <p className="text-xs text-ink-muted mt-0.5">Completed</p>
                         </div>
                       </div>
                     </div>
 
                     {/* In Assembly - Ready for FQC */}
                     {batchFqcResults.readyForFqc.length > 0 && (
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                      <div className="bg-signal-ok/10 border border-emerald-500/30 rounded-lg p-4">
                         <div className="flex items-start gap-2 mb-3">
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600 mt-0.5 flex-shrink-0" />
+                          <CheckCircle2 className="w-5 h-5 text-emerald-400 mt-0.5 flex-shrink-0" />
                           <div>
-                            <h4 className="text-sm font-semibold text-emerald-800">{batchFqcResults.readyForFqc.length} SN(s) — Found in System, Ready for FQC</h4>
-                            <p className="text-xs text-emerald-600 mt-0.5">These SNs were found in assembly or QC records and can be marked as FQC ready.</p>
+                            <h4 className="text-sm font-semibold text-emerald-300">{batchFqcResults.readyForFqc.length} SN(s) — Found in System, Ready for FQC</h4>
+                            <p className="text-xs text-emerald-400 mt-0.5">These SNs were found in assembly or QC records and can be marked as FQC ready.</p>
                           </div>
                         </div>
-                        <div className="overflow-y-auto rounded border border-emerald-200 bg-white" style={{ maxHeight: "180px" }}>
+                        <div className="overflow-y-auto rounded border border-emerald-500/30 bg-surface-panel" style={{ maxHeight: "180px" }}>
                           <table className="w-full text-xs">
-                            <thead className="bg-emerald-50 sticky top-0">
+                            <thead className="bg-signal-ok/10 sticky top-0">
                               <tr>
-                                <th className="px-3 py-1.5 text-left font-semibold text-emerald-700 w-8">#</th>
-                                <th className="px-3 py-1.5 text-left font-semibold text-emerald-700">Serial Number</th>
-                                <th className="px-3 py-1.5 text-left font-semibold text-emerald-700">Reference Time</th>
+                                <th className="px-3 py-1.5 text-left font-semibold text-emerald-400 w-8">#</th>
+                                <th className="px-3 py-1.5 text-left font-semibold text-emerald-400">Serial Number</th>
+                                <th className="px-3 py-1.5 text-left font-semibold text-emerald-400">Reference Time</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-emerald-100">
                               {batchFqcResults.readyForFqc.map((r, i) => (
-                                <tr key={buildQcRowKey(r, i)} className="hover:bg-emerald-50">
+                                <tr key={buildQcRowKey(r, i)} className="hover:bg-signal-ok/10">
                                   <td className="px-3 py-1.5 text-emerald-400">{i + 1}</td>
-                                  <td className="px-3 py-1.5 font-mono text-emerald-900">{r.sn}</td>
-                                  <td className="px-3 py-1.5 text-emerald-700">{r.production_time ? new Date(r.production_time).toLocaleString() : "—"}</td>
+                                  <td className="px-3 py-1.5 font-mono text-emerald-300">{r.sn}</td>
+                                  <td className="px-3 py-1.5 text-emerald-400">{r.production_time ? new Date(r.production_time).toLocaleString() : "—"}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -2114,27 +2114,27 @@ export default function QCCheck() {
 
                     {/* Not in assembly DB */}
                     {batchFqcResults.notFound.length > 0 && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <div className="bg-signal-error/10 border border-red-500/30 rounded-lg p-4">
                         <div className="flex items-start gap-2 mb-3">
-                          <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                          <AlertTriangle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" />
                           <div>
-                            <h4 className="text-sm font-semibold text-red-800">{batchFqcResults.notFound.length} SN(s) — Not Found in Production or QC Records</h4>
-                            <p className="text-xs text-red-600 mt-0.5">These SNs were not found in assembly production or QC records. Verify the serial numbers.</p>
+                            <h4 className="text-sm font-semibold text-red-300">{batchFqcResults.notFound.length} SN(s) — Not Found in Production or QC Records</h4>
+                            <p className="text-xs text-red-400 mt-0.5">These SNs were not found in assembly production or QC records. Verify the serial numbers.</p>
                           </div>
                         </div>
-                        <div className="overflow-y-auto rounded border border-red-200 bg-white" style={{ maxHeight: "150px" }}>
+                        <div className="overflow-y-auto rounded border border-red-500/30 bg-surface-panel" style={{ maxHeight: "150px" }}>
                           <table className="w-full text-xs">
-                            <thead className="bg-red-50 sticky top-0">
+                            <thead className="bg-signal-error/10 sticky top-0">
                               <tr>
-                                <th className="px-3 py-1.5 text-left font-semibold text-red-700 w-8">#</th>
-                                <th className="px-3 py-1.5 text-left font-semibold text-red-700">Serial Number</th>
+                                <th className="px-3 py-1.5 text-left font-semibold text-red-400 w-8">#</th>
+                                <th className="px-3 py-1.5 text-left font-semibold text-red-400">Serial Number</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-red-100">
                               {batchFqcResults.notFound.map((r, i) => (
-                                <tr key={buildQcRowKey(r, i)} className="hover:bg-red-50">
+                                <tr key={buildQcRowKey(r, i)} className="hover:bg-signal-error/10">
                                   <td className="px-3 py-1.5 text-red-400">{i + 1}</td>
-                                  <td className="px-3 py-1.5 font-mono text-red-800">{r.sn}</td>
+                                  <td className="px-3 py-1.5 font-mono text-red-300">{r.sn}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -2145,26 +2145,26 @@ export default function QCCheck() {
 
                     {/* Already FQC'd */}
                     {batchFqcResults.alreadyFqc.length > 0 && (
-                      <div className="bg-sky-50 border border-sky-200 rounded-lg p-4">
+                      <div className="bg-signal-info/10 border border-sky-500/30 rounded-lg p-4">
                         <div className="flex items-start gap-2 mb-2">
-                          <CheckCircle2 className="w-5 h-5 text-sky-600 mt-0.5 flex-shrink-0" />
-                          <h4 className="text-sm font-semibold text-sky-800">{batchFqcResults.alreadyFqc.length} SN(s) — Already FQC Ready (Pending Shipment)</h4>
+                          <CheckCircle2 className="w-5 h-5 text-sky-400 mt-0.5 flex-shrink-0" />
+                          <h4 className="text-sm font-semibold text-sky-300">{batchFqcResults.alreadyFqc.length} SN(s) — Already FQC Ready (Pending Shipment)</h4>
                         </div>
-                        <div className="overflow-y-auto rounded border border-sky-200 bg-white" style={{ maxHeight: "120px" }}>
+                        <div className="overflow-y-auto rounded border border-sky-500/30 bg-surface-panel" style={{ maxHeight: "120px" }}>
                           <table className="w-full text-xs">
-                            <thead className="bg-sky-50 sticky top-0">
+                            <thead className="bg-signal-info/10 sticky top-0">
                               <tr>
-                                <th className="px-3 py-1.5 text-left font-semibold text-sky-700 w-8">#</th>
-                                <th className="px-3 py-1.5 text-left font-semibold text-sky-700">Serial Number</th>
-                                <th className="px-3 py-1.5 text-left font-semibold text-sky-700">FQC Ready At</th>
+                                <th className="px-3 py-1.5 text-left font-semibold text-sky-400 w-8">#</th>
+                                <th className="px-3 py-1.5 text-left font-semibold text-sky-400">Serial Number</th>
+                                <th className="px-3 py-1.5 text-left font-semibold text-sky-400">FQC Ready At</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-sky-100">
                               {batchFqcResults.alreadyFqc.map((r, i) => (
-                                <tr key={buildQcRowKey(r, i)} className="hover:bg-sky-50">
+                                <tr key={buildQcRowKey(r, i)} className="hover:bg-signal-info/10">
                                   <td className="px-3 py-1.5 text-sky-400">{i + 1}</td>
-                                  <td className="px-3 py-1.5 font-mono text-sky-900">{r.sn}</td>
-                                  <td className="px-3 py-1.5 text-sky-700">{r.fqc_ready_at ? new Date(r.fqc_ready_at).toLocaleString() : "—"}</td>
+                                  <td className="px-3 py-1.5 font-mono text-sky-300">{r.sn}</td>
+                                  <td className="px-3 py-1.5 text-sky-400">{r.fqc_ready_at ? new Date(r.fqc_ready_at).toLocaleString() : "—"}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -2174,10 +2174,10 @@ export default function QCCheck() {
                     )}
 
                     {/* Action buttons */}
-                    <div className="flex gap-3 sticky bottom-0 bg-white pt-3 pb-1">
+                    <div className="flex gap-3 sticky bottom-0 bg-surface-panel pt-3 pb-1">
                       <button
                         onClick={() => { setBatchFqcResults(null); setBatchFqcInput(""); }}
-                        className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                        className="px-4 py-2 border border-stroke rounded-md text-sm font-medium text-ink-secondary bg-surface-panel hover:bg-surface-base"
                       >
                         Back
                       </button>

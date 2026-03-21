@@ -159,19 +159,19 @@ const AdminEditModal = ({ record, onClose, onSave, onDelete, saving }) => {
 
   return (
     <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-        <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex items-center justify-between">
+      <div className="bg-surface-panel rounded-xl shadow-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
+        <div className="px-5 py-4 border-b border-stroke bg-surface-base flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-teal-100 text-teal-700">
+            <div className="p-2 rounded-lg bg-teal-500/15 text-teal-400">
               <Settings2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-stone-800">Admin Edit Record</h3>
-              <p className="text-xs text-stone-500">ID: {record?.id} | US SN: {record?.us_sn}</p>
+              <h3 className="text-lg font-semibold text-ink-primary">Admin Edit Record</h3>
+              <p className="text-xs text-ink-muted">ID: {record?.id} | US SN: {record?.us_sn}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-stone-200 rounded-lg transition-colors">
-            <X className="w-5 h-5 text-stone-500" />
+          <button onClick={onClose} className="p-2 hover:bg-surface-overlay rounded-lg transition-colors">
+            <X className="w-5 h-5 text-ink-muted" />
           </button>
         </div>
 
@@ -179,12 +179,12 @@ const AdminEditModal = ({ record, onClose, onSave, onDelete, saving }) => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {Object.entries(fieldLabels).map(([field, label]) => (
               <div key={field} className={field === "ng_reason" ? "md:col-span-2" : ""}>
-                <label className="block text-sm font-medium text-stone-600 mb-1">{label}</label>
+                <label className="block text-sm font-medium text-ink-secondary mb-1">{label}</label>
                 {field === "status" ? (
                   <select
                     value={editData[field]}
                     onChange={(e) => setEditData((p) => ({ ...p, [field]: e.target.value }))}
-                    className="w-full px-3 py-2.5 bg-white border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    className="w-full px-3 py-2.5 bg-surface-raised border border-stroke rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                   >
                     <option value="">OK</option>
                     <option value="NG">NG</option>
@@ -196,14 +196,14 @@ const AdminEditModal = ({ record, onClose, onSave, onDelete, saving }) => {
                     step="1"
                     value={editData[field]}
                     onChange={(e) => setEditData((p) => ({ ...p, [field]: e.target.value }))}
-                    className="w-full px-3 py-2.5 bg-white border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    className="w-full px-3 py-2.5 bg-surface-raised border border-stroke rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                   />
                 ) : (
                   <input
                     type="text"
                     value={editData[field]}
                     onChange={(e) => setEditData((p) => ({ ...p, [field]: e.target.value }))}
-                    className="w-full px-3 py-2.5 bg-white border border-stone-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    className="w-full px-3 py-2.5 bg-surface-raised border border-stroke rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                   />
                 )}
               </div>
@@ -211,7 +211,7 @@ const AdminEditModal = ({ record, onClose, onSave, onDelete, saving }) => {
           </div>
         </div>
 
-        <div className="px-5 py-4 border-t border-stone-200 bg-stone-50 flex items-center justify-between">
+        <div className="px-5 py-4 border-t border-stroke bg-surface-base flex items-center justify-between">
           <button
             onClick={() => onDelete(record)}
             className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors flex items-center gap-2"
@@ -222,7 +222,7 @@ const AdminEditModal = ({ record, onClose, onSave, onDelete, saving }) => {
           <div className="flex gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2.5 bg-white hover:bg-stone-100 text-stone-600 font-medium rounded-lg transition-colors border border-stone-300"
+              className="px-4 py-2.5 bg-surface-panel hover:bg-surface-raised text-ink-secondary font-medium rounded-lg transition-colors border border-stroke"
             >
               Cancel
             </button>
@@ -657,7 +657,7 @@ export default function Search() {
                 <label>
                   Serial Number
                   {instantActive && (
-                    <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-amber-600">
+                    <span className="ml-2 inline-flex items-center gap-1 text-xs font-normal text-amber-400">
                       <Zap className="w-3 h-3" />
                       searching…
                     </span>
@@ -722,8 +722,8 @@ export default function Search() {
                   key={p.key}
                   onClick={() => applyDatePreset(p.key)}
                   disabled={loading}
-                  className="px-3 py-1.5 text-xs font-semibold border border-stone-300 rounded-md
-                             hover:border-blue-400 hover:text-blue-700 hover:bg-blue-50
+                  className="px-3 py-1.5 text-xs font-semibold border border-stroke rounded-md
+                             hover:border-blue-400 hover:text-blue-400 hover:bg-signal-info/10
                              transition-colors duration-150 disabled:opacity-40"
                 >
                   {p.label}
@@ -891,14 +891,14 @@ export default function Search() {
                             {isAdmin && line === "assembly" && row.id && (
                               <>
                                 <button
-                                  className="action-btn text-teal-600 hover:text-teal-800"
+                                  className="action-btn text-teal-400 hover:text-teal-300"
                                   title="Edit record"
                                   onClick={() => setEditingRecord(row)}
                                 >
                                   <Edit3 className="w-4 h-4" />
                                 </button>
                                 <button
-                                  className="action-btn text-red-600 hover:text-red-800"
+                                  className="action-btn text-red-400 hover:text-red-300"
                                   title="Delete record"
                                   onClick={() => handleAdminDelete(row)}
                                 >

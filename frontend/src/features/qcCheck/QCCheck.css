@@ -1,12 +1,12 @@
 :root {
-  --primary-bg: linear-gradient(135deg, #dce3e9, #e8eff5);
-  --glass-bg: rgba(255, 255, 255, .15);
-  --glass-border: rgba(255, 255, 255, .3);
-  --text-dark: #2c3e50;
-  --accent-blue: #007bff;
-  --accent-green: #28a745;
-  --accent-orange: #fd7e14;
-  --danger-red: #dc3545;
+  --primary-bg: #161b2d;
+  --glass-bg: rgba(30, 36, 55, 0.95);
+  --glass-border: rgba(46, 54, 80, 0.8);
+  --text-dark: #c8cedc;
+  --accent-blue: #22d3ee;
+  --accent-green: #10b981;
+  --accent-orange: #f59e0b;
+  --danger-red: #ef4444;
 }
 
 /* ────────────── 背景與主卡片 ────────────── */
@@ -30,7 +30,7 @@
   backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid var(--glass-border);
   border-radius: 24px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, .18);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, .4);
   padding: 3rem 2.5rem 2.5rem;
 }
 
@@ -136,9 +136,10 @@
 .qc-date, .qc-select-small {
   padding: 6px 10px;
   font-size: .75rem;
-  border: 1px solid #ccc;
+  border: 1px solid #2e3650;
   border-radius: 6px;
-  background: #fff;
+  background: #262d42;
+  color: #c8cedc;
 }
 
 .qc-to {
@@ -190,8 +191,8 @@
   padding: 13px 15px;
   font-size: 1rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, .9);
-  border: 1px solid #ccc;
+  background: #262d42;
+  border: 1px solid #2e3650;
   color: var(--text-dark);
   transition: all .2s;
 }
@@ -199,8 +200,8 @@
 .qc-input:focus {
   outline: none;
   border-color: var(--accent-blue);
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, .3);
+  background: #1e2437;
+  box-shadow: 0 0 0 3px rgba(34,211,238,.2);
 }
 
 .qc-submit {
@@ -302,7 +303,8 @@
 
 /* ────────────── Dashboard Modal ────────────── */
 .qc-dashboard-modal {
-  background: white;
+  background: #1e2437;
+  border: 1px solid #2e3650;
   border-radius: 20px;
   padding: 2rem;
   max-width: 900px;
@@ -319,14 +321,14 @@
   background: none;
   border: none;
   font-size: 1.5rem;
-  color: #666;
+  color: #8d93a5;
   cursor: pointer;
   padding: .5rem;
   line-height: 1;
 }
 
 .qc-close-btn:hover {
-  color: #000;
+  color: #c8cedc;
 }
 
 .qc-modal-title {
@@ -344,29 +346,29 @@
 }
 
 .qc-dash-card {
-  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+  background: linear-gradient(135deg, #262d42, #1e2437);
   border-radius: 16px;
   padding: 1.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, .08);
 }
 
 .qc-dash-card.today {
-  background: linear-gradient(135deg, #d4edda, #c3e6cb);
+  background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.08));
 }
 
 .qc-dash-card.week {
-  background: linear-gradient(135deg, #cce5ff, #b8daff);
+  background: linear-gradient(135deg, rgba(34,211,238,0.15), rgba(34,211,238,0.08));
 }
 
 .qc-dash-card.month {
-  background: linear-gradient(135deg, #e2d5f1, #d4c5f9);
+  background: linear-gradient(135deg, rgba(34,211,238,0.10), rgba(16,185,129,0.08));
 }
 
 .qc-dash-card h3 {
   font-size: 1.1rem;
   font-weight: 600;
   margin-bottom: 1rem;
-  color: #333;
+  color: var(--text-dark);
 }
 
 .dash-stats {
@@ -383,12 +385,12 @@
 .stat-number {
   font-size: 1.8rem;
   font-weight: 700;
-  color: #2c3e50;
+  color: var(--text-dark);
 }
 
 /* ────────────── Performance Section ────────────── */
 .qc-performance {
-  background: #f8f9fa;
+  background: #262d42;
   border-radius: 16px;
   padding: 1.5rem;
 }
@@ -408,7 +410,7 @@
 .perf-label {
   display: block;
   font-size: .85rem;
-  color: #666;
+  color: #8d93a5;
   margin-bottom: .25rem;
 }
 
@@ -429,7 +431,8 @@
   width: min(96vw, 1000px);
   max-height: 80vh;
   overflow: auto;
-  background: #fff;
+  background: #1e2437;
+  border: 1px solid #2e3650;
   border-radius: 16px;
   padding: 20px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, .2);
@@ -451,12 +454,12 @@
 .qc-table-modal th,
 .qc-table-modal td {
   padding: 8px 12px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid #2e3650;
   text-align: left;
 }
 
 .qc-table-modal th {
-  background: #f5f5f5;
+  background: #262d42;
   font-weight: 600;
   position: sticky;
   top: 0;
@@ -490,7 +493,7 @@
 }
 
 .qc-close-top:hover {
-  color: #000;
+  color: #c8cedc;
 }
 
 /* Status Badge */

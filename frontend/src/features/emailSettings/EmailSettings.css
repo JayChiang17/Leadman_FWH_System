@@ -18,7 +18,7 @@
 .swiss-toggle-track {
   position: absolute;
   inset: 0;
-  background: #e2e8f0;
+  background: #2e3650;
   border-radius: 12px;
   transition: background 150ms ease;
 }
@@ -34,10 +34,10 @@
   width: 18px;
   left: 3px;
   top: 3px;
-  background: #fff;
+  background: #1e2437;
   border-radius: 50%;
   transition: transform 150ms ease;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.35);
 }
 
 .swiss-toggle input:checked + .swiss-toggle-track::before {

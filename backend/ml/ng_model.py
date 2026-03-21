@@ -86,6 +86,11 @@ class _IsoCalibratedClassifier:
     def feature_importances_(self):
         return self._base.feature_importances_
 
+    def shap_explainer(self):
+        """Return a TreeExplainer backed by the raw XGBoost model."""
+        import shap
+        return shap.TreeExplainer(self._base)
+
 
 # ── Model I/O ─────────────────────────────────────────────────────────────────
 
@@ -575,16 +580,43 @@ def predict_assembling() -> List[Dict]:
     X = np.array(X_rows, dtype=np.float32)
     probs = _current_model.predict_proba(X)[:, 1]
 
+    # ── SHAP values ───────────────────────────────────────────────────────────
+    shap_matrix = None
+    shap_base = 0.0
+    try:
+        explainer = _current_model.shap_explainer()
+        sv = explainer.shap_values(X)
+        # TreeExplainer on XGBoost binary returns shape (n, features)
+        # or a list [neg, pos] depending on version — normalise to pos class
+        if isinstance(sv, list):
+            sv = sv[1]
+        shap_matrix = sv                            # (n, 15) float64
+        shap_base = float(explainer.expected_value)
+        if isinstance(shap_base, (list, np.ndarray)):
+            shap_base = float(shap_base[-1])        # take positive-class value
+        logger.info("[ML] SHAP computed for %d units", len(us_sns))
+    except Exception as e:
+        logger.warning("[ML] SHAP skipped: %s", e)
+
     results = []
-    for us_sn, score in zip(us_sns, probs):
+    for i, (us_sn, score) in enumerate(zip(us_sns, probs)):
         score = float(score)
         level = "high" if score > 0.4 else "medium" if score > 0.15 else "low"
-        results.append({
+        entry: Dict = {
             "us_sn":       us_sn,
             "risk_score":  round(score, 4),
             "risk_level":  level,
             "model_ver":   _model_ver or "unknown",
-        })
+        }
+        if shap_matrix is not None:
+            entry["shap"] = {
+                "base_value": round(shap_base, 6),
+                "values": {
+                    f: round(float(shap_matrix[i, j]), 6)
+                    for j, f in enumerate(FEATURES)
+                },
+            }
+        results.append(entry)
 
     logger.info("[ML] Prediction complete: %d units", len(results))
     return results
@@ -595,22 +627,26 @@ def predict_assembling() -> List[Dict]:
 def upsert_predictions(predictions: List[Dict]):
     if not predictions:
         return
+    import json as _json
     try:
         with get_conn("ml") as conn:
             cur = conn.cursor()
             for p in predictions:
+                shap_json = _json.dumps(p["shap"]) if p.get("shap") else None
                 cur.execute(
                     """
                     INSERT INTO ml.predictions
-                      (us_sn, risk_score, risk_level, predicted_at, model_ver)
-                    VALUES (%s, %s, %s, NOW(), %s)
+                      (us_sn, risk_score, risk_level, predicted_at, model_ver, shap_values)
+                    VALUES (%s, %s, %s, NOW(), %s, %s::jsonb)
                     ON CONFLICT (us_sn) DO UPDATE
                       SET risk_score   = EXCLUDED.risk_score,
                           risk_level   = EXCLUDED.risk_level,
                           predicted_at = EXCLUDED.predicted_at,
-                          model_ver    = EXCLUDED.model_ver
+                          model_ver    = EXCLUDED.model_ver,
+                          shap_values  = EXCLUDED.shap_values
                     """,
-                    (p["us_sn"], p["risk_score"], p["risk_level"], p["model_ver"]),
+                    (p["us_sn"], p["risk_score"], p["risk_level"],
+                     p["model_ver"], shap_json),
                 )
             cur.close()
         logger.info("[ML] UPSERT ml.predictions: %d rows", len(predictions))

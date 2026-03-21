@@ -19,10 +19,10 @@ import Plot3D, { buildHourDowMatrix } from "../../components/Plot3D";
 const TICK_FS = 11;
 const LEGEND_FS = 11;
 const LABEL_FS = 10;
-const CHART_H = 380;
-const GRID_COLOR = "#f1f5f9";
-const CARD_SURFACE = "bg-white border border-slate-200/80 rounded-xl";
-const CHART_CARD = `${CARD_SURFACE} p-5 md:p-6`;
+const CHART_H = 300;
+const GRID_COLOR = "#2e3650";
+const CARD_SURFACE = "bg-surface-panel border border-stroke rounded-xl";
+const CHART_CARD = `${CARD_SURFACE} p-4 md:p-5`;
 
 /* ─────────────────── Animations (subtle) ─────────────────── */
 const pageTransition = {
@@ -224,13 +224,13 @@ const CustomTooltip = ({ active, payload, label }) => {
   if (!clean.length) return null;
 
   return (
-    <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-lg">
-      <p className="text-xs font-semibold text-slate-900 mb-1.5">{label}</p>
+    <div className="bg-surface-panel p-3 rounded-lg border border-stroke shadow-lg">
+      <p className="text-xs font-semibold text-ink-primary mb-1.5">{label}</p>
       {clean.map((entry, idx) => {
         const { name, value } = entry;
         const swatch = entry.color || entry.fill || entry.payload?.fill;
         return (
-          <div key={idx} className="flex items-center gap-2 text-xs text-slate-700">
+          <div key={idx} className="flex items-center gap-2 text-xs text-ink-secondary">
             <span className="inline-block w-2 h-2 rounded-sm" style={{ backgroundColor: swatch }} />
             <span className="font-medium">{name}</span>
             <span className="tabular-nums ml-auto font-semibold">{(value ?? 0).toLocaleString()}</span>
@@ -396,23 +396,23 @@ export default function ProductionCharts() {
   /* Mini metric card (for Bento side slots) */
   const MiniMetric = ({ label, value, sub, trend, accent = "teal", children }) => {
     const colors = {
-      teal: "text-teal-600",
-      cyan: "text-cyan-600",
-      red: "text-red-600",
-      amber: "text-amber-600",
+      teal: "text-teal-400",
+      cyan: "text-cyan-400",
+      red: "text-red-400",
+      amber: "text-amber-400",
     };
     return (
-      <div className={`${CARD_SURFACE} p-4 flex flex-col justify-between h-full`}>
-        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{label}</p>
+      <div className={`${CARD_SURFACE} p-3 flex flex-col justify-between h-full`}>
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-ink-muted">{label}</p>
         <div className="mt-auto">
           {children || (
-            <p className={`text-3xl md:text-4xl font-extrabold tabular-nums tracking-tight ${colors[accent] || "text-slate-900"}`}>
+            <p className={`text-3xl md:text-4xl font-extrabold tabular-nums tracking-tight ${colors[accent] || "text-ink-primary"}`}>
               {typeof value === "number" ? value.toLocaleString() : value}
             </p>
           )}
-          {sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
+          {sub && <p className="text-xs text-ink-muted mt-0.5">{sub}</p>}
           {trend != null && (
-            <div className={`inline-flex items-center gap-0.5 mt-1 text-xs font-semibold ${trend >= 0 ? "text-teal-600" : "text-red-600"}`}>
+            <div className={`inline-flex items-center gap-0.5 mt-1 text-xs font-semibold ${trend >= 0 ? "text-teal-400" : "text-red-400"}`}>
               {trend >= 0 ? <ArrowUpRight size={11}/> : <ArrowDownRight size={11}/>}
               <span>{Math.abs(trend)}%</span>
             </div>
@@ -486,9 +486,9 @@ const renderModuleCharts = () => {
     const ng = Number(row.ng_count ?? row.ng ?? 0);
 
     return (
-      <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-lg">
-        <p className="text-xs font-semibold text-slate-900 mb-1.5">{dateLabel}</p>
-        <div className="space-y-1 text-xs text-slate-700">
+      <div className="bg-surface-panel p-3 rounded-lg border border-stroke shadow-lg">
+        <p className="text-xs font-semibold text-ink-primary mb-1.5">{dateLabel}</p>
+        <div className="space-y-1 text-xs text-ink-secondary">
           <div className="flex items-center gap-2">
             <span className="inline-block w-2 h-2 rounded-sm" style={{ background: "#cbd5e1" }} />
             <span className="font-medium">Plan</span>
@@ -528,26 +528,26 @@ const renderModuleCharts = () => {
 
   return (
     <AnimatePresence mode="wait">
-      <motion.div key="module" {...pageTransition} className="space-y-5">
+      <motion.div key="module" {...pageTransition} className="space-y-3">
         {/* ─── Bento Row 1: Hero + Mini Metrics ─── */}
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-3">
           {/* Hero: Production Trend */}
           <motion.div {...cardTransition} className="xl:col-span-3">
             <div className={`${CHART_CARD} h-full`}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-slate-800">Production Trend</h3>
-                <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">Production Trend</h3>
+                <span className="text-[11px] font-medium text-ink-muted uppercase tracking-wider">
                   {period === "daily" ? "Hourly" : period}
                 </span>
               </div>
               <ResponsiveContainer width="100%" height={CHART_H}>
                 {period === "daily" ? (
-                  <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+                  <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
-                    <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
-                    <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} domain={[0, () => yMaxModuleDaily]} />
-                    <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="circle" iconSize={8}
-                            formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
+                    <XAxis dataKey="date" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, () => yMaxModuleDaily]} />
+                    <Legend wrapperStyle={{ paddingTop: "4px", color: '#8d93a5' }} iconType="circle" iconSize={8}
+                            formatter={(v) => <span style={{ color: "#8d93a5", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
                     <Tooltip content={<CustomTooltip />} />
                     <Line type="monotone" dataKey="count_a" name="Type A" stroke="#0d9488" strokeWidth={2}
                           dot={{ r: 3, fill: "#0d9488", strokeWidth: 0 }}
@@ -560,23 +560,23 @@ const renderModuleCharts = () => {
                           activeDot={{ r: 4, stroke: "#94a3b8", strokeWidth: 2, fill: "#fff" }} />
                   </LineChart>
                 ) : (
-                  <BarChart data={chartDataStacked} barGap={4} margin={{ top: 20, right: 20, left: 10, bottom: 10 }}
+                  <BarChart data={chartDataStacked} barGap={4} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}
                            onClick={(e) => { if (e?.activePayload?.[0]?.payload?.fullDate) handleDrillDown(e.activePayload[0].payload.fullDate); }}
                            style={{ cursor: "pointer" }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
-                    <XAxis dataKey={(d) => d.dateLabel || d.date} stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
-                    <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} domain={[0, () => yMaxModuleMixed]} />
-                    <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="rect" iconSize={10}
-                            formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
+                    <XAxis dataKey={(d) => d.dateLabel || d.date} stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, () => yMaxModuleMixed]} />
+                    <Legend wrapperStyle={{ paddingTop: "4px", color: '#8d93a5' }} iconType="rect" iconSize={10}
+                            formatter={(v) => <span style={{ color: "#8d93a5", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
                     <Tooltip content={<ModuleAggTooltip />} />
 
                     {hasPlanA && hasPlanB ? (
                       <>
-                        <Bar dataKey="plan_a" name="Plan A" fill="#e2e8f0" stackId="planned" radius={[0, 0, 0, 0]} />
-                        <Bar dataKey="plan_b" name="Plan B" fill="#e2e8f0" stackId="planned" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="plan_a" name="Plan A" fill="#3d4867" stackId="planned" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="plan_b" name="Plan B" fill="#3d4867" stackId="planned" radius={[4, 4, 0, 0]} />
                       </>
                     ) : (
-                      <Bar dataKey={(d) => Number(d._planTotal ?? 0)} name="Plan" fill="#e2e8f0" radius={[4, 4, 0, 0]} stackId="planned" />
+                      <Bar dataKey={(d) => Number(d._planTotal ?? 0)} name="Plan" fill="#3d4867" radius={[4, 4, 0, 0]} stackId="planned" />
                     )}
 
                     <Bar dataKey="count_a" name="A" fill="#0d9488" stackId="actual" />
@@ -589,7 +589,7 @@ const renderModuleCharts = () => {
                     <Bar dataKey="stack_total" name="" fill="transparent" isAnimationActive={false} legendType="none">
                       <LabelList dataKey="stack_total" position="top"
                         formatter={(v) => (v ? v.toLocaleString() : "")}
-                        style={{ fill: "#1e293b", fontWeight: 600, fontSize: LABEL_FS }} />
+                        style={{ fill: "#c8cedc", fontWeight: 600, fontSize: LABEL_FS }} />
                     </Bar>
                   </BarChart>
                 )}
@@ -598,22 +598,22 @@ const renderModuleCharts = () => {
           </motion.div>
 
           {/* Right side: 2x2 Mini Metrics */}
-          <div className="xl:col-span-2 grid grid-cols-2 gap-4">
+          <div className="xl:col-span-2 grid grid-cols-2 gap-3">
             <MiniMetric label="Total Output" value={summary.total} trend={summary.trend} accent="teal" />
             <MiniMetric label="Yield" accent="cyan">
-              <p className="text-2xl font-bold tabular-nums text-cyan-600">{summary.yield_rate || 100}%</p>
-              <div className="mt-1.5 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-cyan-500" style={{ width: `${summary.yield_rate || 100}%` }} />
+              <p className="text-2xl font-bold tabular-nums text-cyan-400">{summary.yield_rate || 100}%</p>
+              <div className="mt-1.5 h-1.5 bg-surface-raised rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-signal-info" style={{ width: `${summary.yield_rate || 100}%` }} />
               </div>
             </MiniMetric>
             <MiniMetric label="NG Count" value={ngCount} accent="red" sub={ngCount > 0 ? `${((ngCount / (summary.total || 1)) * 100).toFixed(1)}% rate` : "No defects"} />
             <MiniMetric label="A / B Split" accent="teal">
               <div className="flex items-baseline gap-2">
-                <span className="text-lg font-bold text-teal-600 tabular-nums">{totalA.toLocaleString()}</span>
-                <span className="text-slate-300">/</span>
+                <span className="text-lg font-bold text-teal-400 tabular-nums">{totalA.toLocaleString()}</span>
+                <span className="text-ink-muted">/</span>
                 <span className="text-lg font-bold text-orange-500 tabular-nums">{totalB.toLocaleString()}</span>
               </div>
-              <div className="mt-1.5 flex h-1.5 rounded-full overflow-hidden bg-slate-100">
+              <div className="mt-1.5 flex h-1.5 rounded-full overflow-hidden bg-surface-raised">
                 <div className="h-full bg-teal-500" style={{ width: `${(totalA / abTotal) * 100}%` }} />
                 <div className="h-full bg-orange-400" style={{ width: `${(totalB / abTotal) * 100}%` }} />
               </div>
@@ -622,14 +622,14 @@ const renderModuleCharts = () => {
         </div>
 
         {/* ─── Bento Row 2: NG Analysis + Yield/NG Detail ─── */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
           {/* NG Reasons - Horizontal Bar */}
           {moduleNgCategories.length > 0 && (
             <motion.div {...cardTransition}>
               <div className={`${CHART_CARD} h-full`}>
-                <div className="mb-4">
-                  <h3 className="text-sm font-semibold text-slate-800">NG Reasons</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Normalized percentage share</p>
+                <div className="mb-2">
+                  <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">NG Reasons</h3>
+                  <p className="text-xs text-ink-muted mt-0.5">Normalized percentage share</p>
                 </div>
                 <div className="space-y-2.5">
                   {moduleNgCategories.slice(0, 6).map((item, idx) => {
@@ -638,10 +638,10 @@ const renderModuleCharts = () => {
                     return (
                       <div key={item.name}>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-medium text-slate-700 truncate max-w-[70%]">{item.name}</span>
-                          <span className="text-xs font-semibold text-slate-900 tabular-nums">{value}%</span>
+                          <span className="text-xs font-medium text-ink-secondary truncate max-w-[70%]">{item.name}</span>
+                          <span className="text-xs font-semibold text-ink-primary tabular-nums">{value}%</span>
                         </div>
-                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-2 bg-surface-raised rounded-full overflow-hidden">
                           <div className="h-full rounded-full transition-all duration-300" style={{ width: `${Math.min(value, 100)}%`, backgroundColor: color }} />
                         </div>
                       </div>
@@ -657,9 +657,9 @@ const renderModuleCharts = () => {
             <div className={`${CHART_CARD} h-full`}>
               {period !== "daily" && moduleYieldData.length > 0 ? (
                 <>
-                  <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-slate-800">Yield Trend</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Quality over time</p>
+                  <div className="mb-2">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">Yield Trend</h3>
+                    <p className="text-xs text-ink-muted mt-0.5">Quality over time</p>
                   </div>
                   <ResponsiveContainer width="100%" height={260}>
                     <AreaChart data={moduleYieldData}>
@@ -670,8 +670,8 @@ const renderModuleCharts = () => {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
-                      <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
-                      <YAxis stroke="#94a3b8" unit="%" domain={[Math.max(70, minModuleYield - 5), 100]} tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                      <XAxis dataKey="date" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis stroke="#565e74" unit="%" domain={[Math.max(70, minModuleYield - 5), 100]} tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
                       <Tooltip content={<CustomTooltip />} />
                       <Area type="monotone" dataKey="yield" stroke="#0d9488" strokeWidth={2} fill="url(#modYieldGrad)" name="Yield %"
                             dot={{ r: 3, fill: "#0d9488", strokeWidth: 0 }}
@@ -682,15 +682,15 @@ const renderModuleCharts = () => {
                 </>
               ) : (
                 <>
-                  <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-slate-800">NG Distribution</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">NG units by time</p>
+                  <div className="mb-2">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">NG Distribution</h3>
+                    <p className="text-xs text-ink-muted mt-0.5">NG units by time</p>
                   </div>
                   <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={chartDataStacked}>
                       <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
-                      <XAxis dataKey={(d) => d.dateLabel || d.date} stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
-                      <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} domain={[0, (m) => Math.max(10, Math.ceil(m * 1.2))]} />
+                      <XAxis dataKey={(d) => d.dateLabel || d.date} stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, (m) => Math.max(10, Math.ceil(m * 1.2))]} />
                       <Tooltip content={<CustomTooltip />} />
                       <Bar dataKey="ng_count" name="NG" fill="#ef4444" radius={[4, 4, 0, 0]}>
                         <LabelList dataKey="ng_count" position="top" style={{ fill: "#ef4444", fontWeight: 600, fontSize: LABEL_FS }} />
@@ -753,26 +753,26 @@ const renderAssemblyCharts = () => {
 
   return (
     <AnimatePresence mode="wait">
-      <motion.div key="assembly" {...pageTransition} className="space-y-5">
+      <motion.div key="assembly" {...pageTransition} className="space-y-3">
         {/* ─── Bento Row 1: Hero + Mini Metrics ─── */}
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-3">
           {/* Hero: Production Trend */}
           <motion.div {...cardTransition} className="xl:col-span-3">
             <div className={`${CHART_CARD} h-full`}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-slate-800">Production Trend</h3>
-                <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">Production Trend</h3>
+                <span className="text-[11px] font-medium text-ink-muted uppercase tracking-wider">
                   {period === "daily" ? "Hourly" : period}
                 </span>
               </div>
               <ResponsiveContainer width="100%" height={CHART_H}>
                 {period === "daily" ? (
-                  <LineChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+                  <LineChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
-                    <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
-                    <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} domain={[0, () => yMaxAssyDaily]} />
-                    <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="circle" iconSize={8}
-                            formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
+                    <XAxis dataKey="date" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, () => yMaxAssyDaily]} />
+                    <Legend wrapperStyle={{ paddingTop: "4px", color: '#8d93a5' }} iconType="circle" iconSize={8}
+                            formatter={(v) => <span style={{ color: "#8d93a5", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
                     <Tooltip content={<CustomTooltip />} />
                     <Line type="monotone" dataKey="ok_count" name="OK" stroke="#0d9488" strokeWidth={2}
                           dot={{ r: 3, fill: "#0d9488", strokeWidth: 0 }}
@@ -785,20 +785,20 @@ const renderAssemblyCharts = () => {
                           activeDot={{ r: 4, stroke: "#94a3b8", strokeWidth: 2, fill: "#fff" }} />
                   </LineChart>
                 ) : (
-                  <BarChart data={chartData} barGap={4} margin={{ top: 20, right: 20, left: 10, bottom: 10 }}
+                  <BarChart data={chartData} barGap={4} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}
                            onClick={(e) => { if (e?.activePayload?.[0]?.payload?.fullDate) handleDrillDown(e.activePayload[0].payload.fullDate); }}
                            style={{ cursor: "pointer" }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
-                    <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
-                    <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} domain={[0, () => yMaxAssyMixed]} />
-                    <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="rect" iconSize={10}
-                            formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
+                    <XAxis dataKey="date" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, () => yMaxAssyMixed]} />
+                    <Legend wrapperStyle={{ paddingTop: "4px", color: '#8d93a5' }} iconType="rect" iconSize={10}
+                            formatter={(v) => <span style={{ color: "#8d93a5", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
                     <Tooltip content={<CustomTooltip />} />
 
-                    <Bar dataKey="planned" name="Planned" fill="#e2e8f0" radius={[4, 4, 0, 0]}>
+                    <Bar dataKey="planned" name="Planned" fill="#3d4867" radius={[4, 4, 0, 0]}>
                       <LabelList dataKey="planned" position="top"
                                 formatter={(v) => (v ? v.toLocaleString() : "")}
-                                style={{ fill: "#64748b", fontWeight: 600, fontSize: LABEL_FS }} />
+                                style={{ fill: "#8d93a5", fontWeight: 600, fontSize: LABEL_FS }} />
                     </Bar>
 
                     <Bar dataKey="actual" name="Actual" fill="#0891b2" radius={[4, 4, 0, 0]}>
@@ -807,7 +807,7 @@ const renderAssemblyCharts = () => {
                       ))}
                       <LabelList dataKey="actual" position="top"
                                 formatter={(v) => (v ? v.toLocaleString() : "")}
-                                style={{ fill: "#1e293b", fontWeight: 600, fontSize: LABEL_FS }} />
+                                style={{ fill: "#c8cedc", fontWeight: 600, fontSize: LABEL_FS }} />
                     </Bar>
 
                     <Bar dataKey="anchorMax" name="" fill="transparent" legendType="none" isAnimationActive={false}>
@@ -830,18 +830,18 @@ const renderAssemblyCharts = () => {
           </motion.div>
 
           {/* Right side: 2x2 Mini Metrics */}
-          <div className="xl:col-span-2 grid grid-cols-2 gap-4">
+          <div className="xl:col-span-2 grid grid-cols-2 gap-3">
             <MiniMetric label="Total Output" value={summary.total} trend={summary.trend} accent="teal" />
             <MiniMetric label="Yield" accent="cyan">
-              <p className="text-2xl font-bold tabular-nums text-cyan-600">{summary.yield_rate}%</p>
-              <div className="mt-1.5 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-cyan-500" style={{ width: `${summary.yield_rate}%` }} />
+              <p className="text-2xl font-bold tabular-nums text-cyan-400">{summary.yield_rate}%</p>
+              <div className="mt-1.5 h-1.5 bg-surface-raised rounded-full overflow-hidden">
+                <div className="h-full rounded-full bg-signal-info" style={{ width: `${summary.yield_rate}%` }} />
               </div>
             </MiniMetric>
             <MiniMetric label="NG Units" accent="red">
-              <p className="text-2xl font-bold tabular-nums text-red-600">{summary.ng_count}</p>
+              <p className="text-2xl font-bold tabular-nums text-red-400">{summary.ng_count}</p>
               {summary.fixed_count > 0 && (
-                <p className="text-xs text-emerald-600 font-medium mt-0.5">{summary.fixed_count} Fixed</p>
+                <p className="text-xs text-emerald-400 font-medium mt-0.5">{summary.fixed_count} Fixed</p>
               )}
             </MiniMetric>
             <MiniMetric label="OK Units" value={summary.ok_count} accent="teal" sub={`${((summary.ok_count / (summary.total || 1)) * 100).toFixed(1)}% pass`} />
@@ -849,14 +849,14 @@ const renderAssemblyCharts = () => {
         </div>
 
         {/* ─── Bento Row 2: NG Analysis + Yield/NG Detail ─── */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
           {/* NG Reasons - Horizontal Bar */}
           {ngCategories.length > 0 && (
             <motion.div {...cardTransition}>
               <div className={`${CHART_CARD} h-full`}>
-                <div className="mb-4">
-                  <h3 className="text-sm font-semibold text-slate-800">NG Reasons</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Normalized percentage share</p>
+                <div className="mb-2">
+                  <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">NG Reasons</h3>
+                  <p className="text-xs text-ink-muted mt-0.5">Normalized percentage share</p>
                 </div>
                 <div className="space-y-2.5">
                   {ngCategories.slice(0, 6).map((item, idx) => {
@@ -865,10 +865,10 @@ const renderAssemblyCharts = () => {
                     return (
                       <div key={item.name}>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-medium text-slate-700 truncate max-w-[70%]">{item.name}</span>
-                          <span className="text-xs font-semibold text-slate-900 tabular-nums">{value}%</span>
+                          <span className="text-xs font-medium text-ink-secondary truncate max-w-[70%]">{item.name}</span>
+                          <span className="text-xs font-semibold text-ink-primary tabular-nums">{value}%</span>
                         </div>
-                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="h-2 bg-surface-raised rounded-full overflow-hidden">
                           <div className="h-full rounded-full transition-all duration-300" style={{ width: `${Math.min(value, 100)}%`, backgroundColor: color }} />
                         </div>
                       </div>
@@ -884,9 +884,9 @@ const renderAssemblyCharts = () => {
             <div className={`${CHART_CARD} h-full`}>
               {period !== "daily" && assyYieldData.length > 0 ? (
                 <>
-                  <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-slate-800">Yield Trend</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Quality over time</p>
+                  <div className="mb-2">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">Yield Trend</h3>
+                    <p className="text-xs text-ink-muted mt-0.5">Quality over time</p>
                   </div>
                   <ResponsiveContainer width="100%" height={260}>
                     <AreaChart data={assyYieldData}>
@@ -897,8 +897,8 @@ const renderAssemblyCharts = () => {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
-                      <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
-                      <YAxis stroke="#94a3b8" unit="%" domain={[80, 100]} tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                      <XAxis dataKey="date" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis stroke="#565e74" unit="%" domain={[80, 100]} tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
                       <Tooltip content={<CustomTooltip />} />
                       <Area type="monotone" dataKey="yield" stroke="#0d9488" strokeWidth={2} fill="url(#assyYieldGrad)" name="Yield %"
                             dot={{ r: 3, fill: "#0d9488", strokeWidth: 0 }}
@@ -909,15 +909,15 @@ const renderAssemblyCharts = () => {
                 </>
               ) : (
                 <>
-                  <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-slate-800">NG Distribution</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">NG units by time</p>
+                  <div className="mb-2">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">NG Distribution</h3>
+                    <p className="text-xs text-ink-muted mt-0.5">NG units by time</p>
                   </div>
                   <ResponsiveContainer width="100%" height={260}>
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
-                      <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
-                      <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} domain={[0, (m) => Math.max(10, Math.ceil(m * 1.2))]} />
+                      <XAxis dataKey="date" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
+                      <YAxis stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, (m) => Math.max(10, Math.ceil(m * 1.2))]} />
                       <Tooltip content={<CustomTooltip />} />
                       <Bar dataKey="ng_count" name="NG" fill="#ef4444" radius={[4, 4, 0, 0]}>
                         <LabelList dataKey="ng_count" position="top" style={{ fill: "#ef4444", fontWeight: 600, fontSize: LABEL_FS }} />
@@ -958,21 +958,21 @@ const renderTrendAnalysis = () => {
 
     return (
       <motion.div {...cardTransition} className={CHART_CARD}>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-sm font-semibold text-slate-800">Production Trend (Last 30 Days)</h3>
-            <p className="text-sm text-slate-500 mt-1">Long-term performance + 5-day forecast</p>
+            <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">Production Trend (Last 30 Days)</h3>
+            <p className="text-[11px] text-ink-muted mt-0.5">Long-term performance + 5-day forecast</p>
           </div>
           {prediction?.length > 0 && (
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-cyan-50 border border-cyan-200 rounded-lg">
-              <TrendingUp size={12} className="text-cyan-600" />
-              <span className="text-[11px] font-medium text-cyan-700">Forecast: {prediction[prediction.length - 1]?.predicted_total}</span>
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-signal-info/10 border border-cyan-500/30 rounded-lg">
+              <TrendingUp size={12} className="text-cyan-400" />
+              <span className="text-[11px] font-medium text-cyan-400">Forecast: {prediction[prediction.length - 1]?.predicted_total}</span>
             </div>
           )}
         </div>
 
         <ResponsiveContainer width="100%" height={CHART_H + 40}>
-          <ComposedChart data={chartDataWithPrediction} margin={{ top: 10, right: 20, left: 10, bottom: 40 }}>
+          <ComposedChart data={chartDataWithPrediction} margin={{ top: 4, right: 16, left: 0, bottom: 20 }}>
             <defs>
               <linearGradient id="trendAreaGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#0891b2" stopOpacity={0.12}/>
@@ -980,11 +980,11 @@ const renderTrendAnalysis = () => {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false}/>
-            <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
-            <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} tickFormatter={(v) => v.toLocaleString()} />
+            <XAxis dataKey="date" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={(v) => v.toLocaleString()} />
             <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="line" iconSize={14}
-                    formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
+            <Legend wrapperStyle={{ paddingTop: "4px", color: '#8d93a5' }} iconType="line" iconSize={14}
+                    formatter={(v) => <span style={{ color: "#8d93a5", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
 
             <Area type="monotone" dataKey="total" name="Daily Output" stroke="#0891b2" fill="url(#trendAreaGrad)" strokeWidth={2} dot={false} connectNulls={false} />
             {filtered.some(d => d.moving_avg) && <Line type="monotone" dataKey="moving_avg" name="7-Day Average" stroke="#f59e0b" strokeWidth={2} dot={false} opacity={0.9} />}
@@ -1007,31 +1007,31 @@ const renderTrendAnalysis = () => {
 
     return (
       <motion.div {...cardTransition} className={CHART_CARD}>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="text-sm font-semibold text-slate-800">Hourly Production Pattern</h3>
-            <p className="text-sm text-slate-500 mt-1">24-hour distribution</p>
+            <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">Hourly Production Pattern</h3>
+            <p className="text-[11px] text-ink-muted mt-0.5">24-hour distribution</p>
           </div>
           {summary && (
             <div className="flex items-center gap-3">
-              <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="text-xs text-slate-400 block">Peak</span>
-                <span className="text-sm font-semibold text-slate-900">{summary.peak_hour}</span>
+              <div className="px-3 py-1.5 bg-surface-base border border-stroke rounded-lg">
+                <span className="text-xs text-ink-muted block">Peak</span>
+                <span className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">{summary.peak_hour}</span>
               </div>
-              <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="text-xs text-slate-400 block">Total</span>
-                <span className="text-sm font-semibold text-slate-900">{summary.total_production?.toLocaleString()}</span>
+              <div className="px-3 py-1.5 bg-surface-base border border-stroke rounded-lg">
+                <span className="text-xs text-ink-muted block">Total</span>
+                <span className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">{summary.total_production?.toLocaleString()}</span>
               </div>
             </div>
           )}
         </div>
 
-        <ResponsiveContainer width="100%" height={360}>
-          <BarChart data={distribution_data} margin={{ top: 10, right: 20, left: 10, bottom: 40 }}>
+        <ResponsiveContainer width="100%" height={280}>
+          <BarChart data={distribution_data} margin={{ top: 4, right: 16, left: 0, bottom: 20 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
-            <XAxis dataKey="hour" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false}
+            <XAxis dataKey="hour" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false}
                    label={{ value: "Hour", position: "insideBottom", offset: -25, style: { fill: "#94a3b8", fontSize: 11, fontWeight: 500 } }} />
-            <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false}
+            <YAxis stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false}
                    tickFormatter={(v) => v.toLocaleString()} />
             <Tooltip content={<CustomTooltip />} />
 
@@ -1043,12 +1043,12 @@ const renderTrendAnalysis = () => {
                 const isMax = entry.average === maxValue;
                 const isLow = entry.average < avgValue * 0.5;
                 return (
-                  <Cell key={idx} fill={isMax ? "#0d9488" : isLow ? "#e2e8f0" : entry.average > 0 ? "#0891b2" : "#f1f5f9"} />
+                  <Cell key={idx} fill={isMax ? "#22d3ee" : isLow ? "#2e3650" : entry.average > 0 ? "#0d9488" : "#1e2437"} />
                 );
               })}
               <LabelList dataKey="average" position="top"
                          formatter={(v) => (v >= avgValue ? v.toLocaleString() : "")}
-                         style={{ fill: "#334155", fontSize: LABEL_FS, fontWeight: 600 }} />
+                         style={{ fill: "#c8cedc", fontSize: LABEL_FS, fontWeight: 600 }} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>
@@ -1068,48 +1068,48 @@ const renderTrendAnalysis = () => {
 
     // P2-3: Semantic correlation indicator
     const corr = stats.correlation;
-    const corrColor = corr > 0.7 ? "text-emerald-600" : corr > 0.3 ? "text-amber-600" : "text-red-600";
+    const corrColor = corr > 0.7 ? "text-emerald-400" : corr > 0.3 ? "text-amber-400" : "text-red-400";
     const corrLabel = corr > 0.7 ? "Strong" : corr > 0.3 ? "Moderate" : "Weak";
-    const corrBg = corr > 0.7 ? "bg-emerald-50 border-emerald-200" : corr > 0.3 ? "bg-amber-50 border-amber-200" : "bg-red-50 border-red-200";
+    const corrBg = corr > 0.7 ? "bg-signal-ok/10 border-emerald-500/30" : corr > 0.3 ? "bg-signal-warn/10 border-amber-500/30" : "bg-signal-error/10 border-red-500/30";
 
     return (
-      <div className="space-y-5">
+      <div className="space-y-3">
         <motion.div {...cardTransition} className={CHART_CARD}>
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-3">
             <div>
-              <h3 className="text-sm font-semibold text-slate-800">Module vs Assembly</h3>
-              <p className="text-sm text-slate-500 mt-1">Line synchronization</p>
+              <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">Module vs Assembly</h3>
+              <p className="text-[11px] text-ink-muted mt-0.5">Line synchronization</p>
             </div>
             <div className="flex items-center gap-3">
               {/* Semantic correlation badge */}
               <div className={`px-3 py-1.5 border rounded-lg ${corrBg}`}>
-                <span className="text-xs text-slate-400 block">Correlation</span>
+                <span className="text-xs text-ink-muted block">Correlation</span>
                 <div className="flex items-center gap-1.5">
                   <span className={`text-sm font-bold tabular-nums ${corrColor}`}>{corr.toFixed(3)}</span>
                   <span className={`text-[10px] font-semibold uppercase tracking-wide ${corrColor}`}>{corrLabel}</span>
                 </div>
               </div>
-              <div className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg">
-                <span className="text-xs text-slate-400 block">Avg Efficiency</span>
-                <span className="text-sm font-semibold text-slate-900">{stats.avg_efficiency}%</span>
+              <div className="px-3 py-1.5 bg-surface-base border border-stroke rounded-lg">
+                <span className="text-xs text-ink-muted block">Avg Efficiency</span>
+                <span className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">{stats.avg_efficiency}%</span>
               </div>
             </div>
           </div>
 
           <ResponsiveContainer width="100%" height={CHART_H - 40}>
-            <ComposedChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+            <ComposedChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false}/>
-              <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false}
+              <XAxis dataKey="date" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis yAxisId="left" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false}
                      tickFormatter={(v) => v.toLocaleString()} />
-              <YAxis yAxisId="right" orientation="right" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false}
+              <YAxis yAxisId="right" orientation="right" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false}
                      domain={[Math.min(80, minEfficiency - 5), Math.max(100, maxEfficiency + 5)]} />
               <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="rect" iconSize={10}
-                      formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
+              <Legend wrapperStyle={{ paddingTop: "4px", color: '#8d93a5' }} iconType="rect" iconSize={10}
+                      formatter={(v) => <span style={{ color: "#8d93a5", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
 
               <ReferenceLine x={targetLabel} stroke="#64748b" strokeDasharray="4 4"
-                label={{ value: "Today", position: "top", style: { fill: "#64748b", fontWeight: 500, fontSize: LABEL_FS } }} />
+                label={{ value: "Today", position: "top", style: { fill: "#8d93a5", fontWeight: 500, fontSize: LABEL_FS } }} />
               <ReferenceLine yAxisId="right" y={95} stroke="#ef4444" strokeDasharray="6 4" strokeWidth={1.5}
                 label={{ value: "95%", position: "right", style: { fill: "#ef4444", fontWeight: 500, fontSize: LABEL_FS } }} />
 
@@ -1124,36 +1124,36 @@ const renderTrendAnalysis = () => {
 
         {/* P1-3: Paired Bar Chart — compact alongside summary */}
         {data.length > 1 && (
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 mt-4">
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-3 mt-2">
             {/* Bar chart: 3 cols */}
             <motion.div {...cardTransition} className={`${CHART_CARD} xl:col-span-3`}>
               <div className="mb-3">
-                <h3 className="text-sm font-semibold text-slate-800">Pairs vs Assembly</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Daily comparison &middot; label = conversion %</p>
+                <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">Pairs vs Assembly</h3>
+                <p className="text-xs text-ink-muted mt-0.5">Daily comparison &middot; label = conversion %</p>
               </div>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={data} margin={{ top: 20, right: 16, left: 0, bottom: 4 }} barCategoryGap="20%">
                   <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
-                  <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
-                  <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="date" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
                   <Tooltip
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
                       const d = payload[0]?.payload;
                       return (
-                        <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-lg text-xs">
-                          <p className="font-semibold text-slate-900 mb-1">{d?.date}</p>
+                        <div className="bg-surface-panel p-3 rounded-lg border border-stroke shadow-lg text-xs">
+                          <p className="font-semibold text-ink-primary mb-1">{d?.date}</p>
                           <div className="space-y-0.5">
-                            <p className="text-slate-600">Pairs: <span className="font-bold tabular-nums">{d?.module_pairs}</span></p>
-                            <p className="text-slate-600">Assembly: <span className="font-bold tabular-nums">{d?.assembly}</span></p>
-                            <p className="text-slate-600">Efficiency: <span className="font-bold tabular-nums">{d?.efficiency}%</span></p>
+                            <p className="text-ink-secondary">Pairs: <span className="font-bold tabular-nums">{d?.module_pairs}</span></p>
+                            <p className="text-ink-secondary">Assembly: <span className="font-bold tabular-nums">{d?.assembly}</span></p>
+                            <p className="text-ink-secondary">Efficiency: <span className="font-bold tabular-nums">{d?.efficiency}%</span></p>
                           </div>
                         </div>
                       );
                     }}
                   />
-                  <Legend wrapperStyle={{ paddingTop: "8px" }} iconType="rect" iconSize={10}
-                    formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
+                  <Legend wrapperStyle={{ paddingTop: "8px", color: '#8d93a5' }} iconType="rect" iconSize={10}
+                    formatter={(v) => <span style={{ color: "#8d93a5", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
                   <Bar dataKey="module_pairs" name="Pairs" fill="#0d9488" barSize={16} radius={[4, 4, 0, 0]} />
                   <Bar dataKey="assembly" name="Assembly" fill="#f59e0b" barSize={16} radius={[4, 4, 0, 0]}>
                     <LabelList content={({ x, y, width, index }) => {
@@ -1174,20 +1174,20 @@ const renderTrendAnalysis = () => {
             {/* Right side: quick stats */}
             <div className="xl:col-span-2 grid grid-cols-2 gap-3">
               <div className={`${CARD_SURFACE} p-4`}>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Total Pairs</p>
-                <p className="text-2xl font-bold tabular-nums text-teal-600 mt-1">{stats.total_module_pairs?.toLocaleString()}</p>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">Total Pairs</p>
+                <p className="text-2xl font-bold tabular-nums text-teal-400 mt-1">{stats.total_module_pairs?.toLocaleString()}</p>
               </div>
               <div className={`${CARD_SURFACE} p-4`}>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Total Assembly</p>
-                <p className="text-2xl font-bold tabular-nums text-cyan-600 mt-1">{stats.total_assembly?.toLocaleString()}</p>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">Total Assembly</p>
+                <p className="text-2xl font-bold tabular-nums text-cyan-400 mt-1">{stats.total_assembly?.toLocaleString()}</p>
               </div>
               <div className={`${CARD_SURFACE} p-4`}>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Total Module</p>
-                <p className="text-2xl font-bold tabular-nums text-slate-700 mt-1">{stats.total_module?.toLocaleString()}</p>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">Total Module</p>
+                <p className="text-2xl font-bold tabular-nums text-ink-secondary mt-1">{stats.total_module?.toLocaleString()}</p>
               </div>
               <div className={`${CARD_SURFACE} p-4`}>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">Avg Efficiency</p>
-                <p className={`text-2xl font-bold tabular-nums mt-1 ${stats.avg_efficiency >= 95 ? "text-emerald-600" : stats.avg_efficiency >= 80 ? "text-amber-600" : "text-red-600"}`}>
+                <p className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">Avg Efficiency</p>
+                <p className={`text-2xl font-bold tabular-nums mt-1 ${stats.avg_efficiency >= 95 ? "text-emerald-400" : stats.avg_efficiency >= 80 ? "text-amber-400" : "text-red-400"}`}>
                   {stats.avg_efficiency}%
                 </p>
               </div>
@@ -1209,18 +1209,18 @@ const renderTrendAnalysis = () => {
 
     return (
       <motion.div {...cardTransition} className={CHART_CARD}>
-        <div className="mb-4">
-          <h3 className="text-sm font-semibold text-slate-800">NG Reason Timeline (30 Days)</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Top 5 reasons over time — stacked area</p>
+        <div className="mb-2">
+          <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">NG Reason Timeline (30 Days)</h3>
+          <p className="text-xs text-ink-muted mt-0.5">Top 5 reasons over time — stacked area</p>
         </div>
         <ResponsiveContainer width="100%" height={340}>
-          <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+          <AreaChart data={chartData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
-            <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
-            <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="date" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
             <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ paddingTop: "12px" }} iconType="rect" iconSize={10}
-                    formatter={(v) => <span style={{ color: "#475569", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
+            <Legend wrapperStyle={{ paddingTop: "4px", color: '#8d93a5' }} iconType="rect" iconSize={10}
+                    formatter={(v) => <span style={{ color: "#8d93a5", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
             {top_reasons.map((reason, idx) => (
               <Area key={reason} type="monotone" dataKey={reason} name={reason}
                     stackId="ng" fill={COLORS.pieColors[idx % COLORS.pieColors.length]}
@@ -1247,23 +1247,23 @@ const renderTrendAnalysis = () => {
     }
 
     const intensityColor = (intensity) => {
-      if (intensity <= 0) return "bg-slate-50";
-      if (intensity < 0.2) return "bg-teal-50";
-      if (intensity < 0.4) return "bg-teal-100";
-      if (intensity < 0.6) return "bg-teal-200";
-      if (intensity < 0.8) return "bg-teal-300";
+      if (intensity <= 0) return "bg-surface-base";
+      if (intensity < 0.2) return "bg-teal-500/10";
+      if (intensity < 0.4) return "bg-teal-500/20";
+      if (intensity < 0.6) return "bg-teal-500/40";
+      if (intensity < 0.8) return "bg-teal-500/65";
       return "bg-teal-500";
     };
     const intensityText = (intensity) => {
       if (intensity >= 0.6) return "text-white";
-      return "text-slate-600";
+      return "text-ink-secondary";
     };
 
     return (
       <motion.div {...cardTransition} className={CHART_CARD}>
-        <div className="mb-4">
-          <h3 className="text-sm font-semibold text-slate-800">Production Heatmap</h3>
-          <p className="text-xs text-slate-400 mt-0.5">Hour x Weekday — {heatmapData.line_type} (last {heatmapData.days} days)</p>
+        <div className="mb-2">
+          <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">Production Heatmap</h3>
+          <p className="text-xs text-ink-muted mt-0.5">Hour x Weekday — {heatmapData.line_type} (last {heatmapData.days} days)</p>
         </div>
         <div className="overflow-x-auto">
           <div className="min-w-[700px]">
@@ -1271,7 +1271,7 @@ const renderTrendAnalysis = () => {
             <div className="grid gap-[2px]" style={{ gridTemplateColumns: "56px repeat(24, 1fr)" }}>
               <div />
               {Array.from({ length: 24 }, (_, h) => (
-                <div key={h} className="text-center text-[10px] font-medium text-slate-400 py-1">
+                <div key={h} className="text-center text-[10px] font-medium text-ink-muted py-1">
                   {h.toString().padStart(2, "0")}
                 </div>
               ))}
@@ -1279,7 +1279,7 @@ const renderTrendAnalysis = () => {
             {/* Rows */}
             {[1, 2, 3, 4, 5, 6, 0].map(wd => (
               <div key={wd} className="grid gap-[2px]" style={{ gridTemplateColumns: "56px repeat(24, 1fr)" }}>
-                <div className="flex items-center text-[11px] font-medium text-slate-500 pr-2 justify-end">
+                <div className="flex items-center text-[11px] font-medium text-ink-muted pr-2 justify-end">
                   {WEEKDAY_LABELS[wd]}
                 </div>
                 {Array.from({ length: 24 }, (_, h) => {
@@ -1299,12 +1299,12 @@ const renderTrendAnalysis = () => {
             ))}
             {/* Legend */}
             <div className="flex items-center gap-2 mt-3 justify-end">
-              <span className="text-[10px] text-slate-400">Less</span>
-              {["bg-slate-50", "bg-teal-50", "bg-teal-100", "bg-teal-200", "bg-teal-300", "bg-teal-500"].map((c, i) => (
+              <span className="text-[10px] text-ink-muted">Less</span>
+              {["bg-surface-base", "bg-teal-500/10", "bg-teal-500/20", "bg-teal-500/40", "bg-teal-500/65", "bg-teal-500"].map((c, i) => (
                 <div key={i} className={`w-3 h-3 rounded-sm ${c}`} />
               ))}
-              <span className="text-[10px] text-slate-400">More</span>
-              {max_count > 0 && <span className="text-[10px] text-slate-400 ml-1">(max: {max_count})</span>}
+              <span className="text-[10px] text-ink-muted">More</span>
+              {max_count > 0 && <span className="text-[10px] text-ink-muted ml-1">(max: {max_count})</span>}
             </div>
           </div>
         </div>
@@ -1347,26 +1347,26 @@ const renderTrendAnalysis = () => {
         >
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-sm font-semibold text-slate-800">
+              <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">
                 Hourly Detail — {drillDownDate}
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">Click the same date bar again to close</p>
+              <p className="text-xs text-ink-muted mt-0.5">Click the same date bar again to close</p>
             </div>
             <button onClick={() => { setDrillDownDate(null); setDrillDownData(null); }}
-                    className="text-xs text-slate-400 hover:text-slate-600 px-2 py-1 rounded-md hover:bg-slate-100 transition-colors">
+                    className="text-xs text-ink-muted hover:text-ink-secondary px-2 py-1 rounded-md hover:bg-surface-raised transition-colors">
               Close
             </button>
           </div>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={distribution_data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
-              <XAxis dataKey="hour" stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
-              <YAxis stroke="#94a3b8" tick={{ fontSize: TICK_FS }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="hour" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
               <Tooltip content={<CustomTooltip />} />
               <Bar dataKey="total" name="Output" fill={COLORS.info} radius={[4, 4, 0, 0]}>
                 <LabelList dataKey="total" position="top"
                            formatter={(v) => (v > 0 ? v.toLocaleString() : "")}
-                           style={{ fill: "#334155", fontSize: LABEL_FS, fontWeight: 600 }} />
+                           style={{ fill: "#c8cedc", fontSize: LABEL_FS, fontWeight: 600 }} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
@@ -1380,14 +1380,38 @@ const renderTrendAnalysis = () => {
     <div
       ref={containerRef}
       onDoubleClick={toggleFullscreen}
-      className="min-h-screen bg-slate-50/80 p-4 md:p-6"
+      className="min-h-screen bg-surface-base"
       style={{ overflowY: "auto", fontFamily: "'Inter', system-ui, -apple-system, sans-serif" }}
     >
+      {/* ─── Splunk Page Header ─── */}
+      <div className="bg-surface-panel border-b border-stroke px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 flex-shrink-0">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.28em] text-teal-400 mb-0.5">Analytics</p>
+          <h1 className="text-ink-primary font-semibold text-xl leading-tight">Production Charts</h1>
+          <p className="text-ink-muted text-xs mt-0.5">Module &amp; Assembly line performance · double-click to fullscreen</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {loading ? (
+            <span className="flex items-center gap-1.5 text-xs text-ink-muted">
+              <div className="w-2.5 h-2.5 border-2 border-stroke border-t-teal-500 rounded-full animate-spin" />
+              Loading...
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-signal-ok/10 border border-emerald-500/30 text-xs font-semibold text-emerald-400">
+              <Activity size={11} />
+              Live
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="p-3 md:p-4">
+
       {/* Controls Bar */}
-      <div className={`${CARD_SURFACE} p-4 mb-5`}>
-        <div className="flex flex-col md:flex-row md:items-center gap-4">
+      <div className={`${CARD_SURFACE} p-2.5 mb-3`}>
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
           {/* Line Selector */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+          <div className="flex items-center gap-1 p-1 bg-surface-raised rounded-lg">
             {[
               { key: "module", label: "Module", icon: Factory },
               { key: "assembly", label: "Assembly", icon: Package },
@@ -1398,7 +1422,7 @@ const renderTrendAnalysis = () => {
                 <button
                   key={item.key}
                   onClick={() => setActiveLine(item.key)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${active ? "bg-white text-slate-900 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${active ? "bg-surface-overlay text-signal-info shadow-sm border border-stroke-strong" : "text-ink-muted hover:text-ink-primary hover:bg-surface-raised"}`}
                 >
                   <Icon size={14} />
                   <span>{item.label}</span>
@@ -1408,10 +1432,10 @@ const renderTrendAnalysis = () => {
           </div>
 
           {/* Period Selector */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+          <div className="flex items-center gap-1 p-1 bg-surface-raised rounded-lg">
             {["daily", "weekly", "monthly"].map((p) => (
               <button key={p}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${period === p ? "bg-white text-slate-900 shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${period === p ? "bg-surface-overlay text-signal-info shadow-sm border border-stroke-strong" : "text-ink-muted hover:text-ink-primary hover:bg-surface-raised"}`}
                 onClick={() => setPeriod(p)}>
                 {p === "daily" ? "Daily" : p === "weekly" ? "Weekly" : "Monthly"}
               </button>
@@ -1420,18 +1444,18 @@ const renderTrendAnalysis = () => {
 
           {/* Date Picker */}
           <div className="flex items-center gap-2 ml-auto">
-            <Calendar size={14} className="text-slate-400" />
+            <Calendar size={14} className="text-ink-muted" />
             <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-colors"
+              className="px-3 py-2 bg-surface-raised border border-stroke rounded-lg text-sm text-ink-primary font-medium focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-colors"
               max={todayInTZ("America/Los_Angeles")}
             />
           </div>
 
           {/* Status */}
-          <div className="flex items-center gap-2 text-xs text-slate-400">
+          <div className="flex items-center gap-2 text-xs text-ink-muted">
             {loading ? (
               <>
-                <div className="w-3 h-3 border-2 border-slate-200 border-t-teal-600 rounded-full animate-spin" />
+                <div className="w-3 h-3 border-2 border-stroke border-t-teal-600 rounded-full animate-spin" />
                 <span>Loading...</span>
               </>
             ) : (
@@ -1445,34 +1469,44 @@ const renderTrendAnalysis = () => {
       </div>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-5 flex items-center gap-3">
+        <div className="bg-signal-error/10 border border-red-500/30 rounded-xl p-3 mb-3 flex items-center gap-3">
           <AlertCircle className="text-red-500" size={18} />
-          <p className="text-sm text-red-700 font-medium">{error}</p>
+          <p className="text-sm text-red-400 font-medium">{error}</p>
         </div>
       )}
 
       {/* Content */}
       {!loading && !error && (
-        <div className="space-y-5">
+        <div className="space-y-3">
           {activeLine === "module" ? renderModuleCharts() : renderAssemblyCharts()}
           {/* Drill-down detail (appears when user clicks a date bar) */}
           {renderDrillDown()}
+          {/* ─── Trend Analysis section ─── */}
+          <div className="flex items-center gap-3 mb-1"><span className="text-[10px] uppercase tracking-[0.24em] font-semibold text-ink-muted">Trend Analysis</span><div className="flex-1 h-px bg-stroke" /></div>
           {/* ─── Bento Row 3: Trend + Hourly side by side ─── */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
             {renderTrendAnalysis()}
             {renderHourlyDistribution()}
           </div>
+          {/* ─── Pattern Analysis section ─── */}
+          <div className="flex items-center gap-3 mb-1"><span className="text-[10px] uppercase tracking-[0.24em] font-semibold text-ink-muted">Pattern Analysis</span><div className="flex-1 h-px bg-stroke" /></div>
           {/* ─── Bento Row 4: Heatmap + NG Timeline ─── */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
             {renderHeatmap()}
             {renderNgTimeline()}
           </div>
+          {/* ─── Line Comparison section ─── */}
+          <div className="flex items-center gap-3 mb-1"><span className="text-[10px] uppercase tracking-[0.24em] font-semibold text-ink-muted">Line Comparison</span><div className="flex-1 h-px bg-stroke" /></div>
           {/* ─── Bento Row 5: Comparison full width ─── */}
           {renderComparisonAnalysis()}
+          {/* ─── 3D Pattern section ─── */}
+          <div className="flex items-center gap-3 mb-1"><span className="text-[10px] uppercase tracking-[0.24em] font-semibold text-ink-muted">3D Pattern</span><div className="flex-1 h-px bg-stroke" /></div>
           {/* ─── Bento Row 6: 3D Assembly Pattern ─── */}
           <Uph3DCard />
         </div>
       )}
+
+      </div> {/* closes padding wrapper p-4 md:p-5 */}
     </div>
   );
 }
@@ -1494,7 +1528,7 @@ function Uph3DCard() {
   const renderChart = () => {
     if (!data3d || data3d.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center text-slate-400" style={{ height: 460 }}>
+        <div className="flex flex-col items-center justify-center text-ink-muted" style={{ height: 460 }}>
           <Activity size={36} className="mb-3 opacity-40" />
           <p className="font-semibold text-sm">No scan data in the past 30 days</p>
         </div>
@@ -1527,35 +1561,37 @@ function Uph3DCard() {
           scene: {
             camera: { eye: { x: 1.5, y: 1.5, z: 1.2 } },
             yaxis: {
-              backgroundcolor: "#f9fafb", gridcolor: "#e5e7eb", title: "Day of Week",
+              backgroundcolor: "#1e2437", gridcolor: "#2e3650", title: "Day of Week",
+              tickfont: { color: "#8d93a5" }, titlefont: { color: "#8d93a5" },
               tickmode: "array", tickvals: [0,1,2,3,4,5,6], ticktext: DOW_FULL,
             },
-            xaxis: { backgroundcolor: "#f9fafb", gridcolor: "#e5e7eb", title: "Hour of Day" },
-            zaxis: { backgroundcolor: "#f0fdf4", gridcolor: "#bbf7d0", title: "Scan Count" },
+            xaxis: { backgroundcolor: "#1e2437", gridcolor: "#2e3650", title: "Hour of Day", tickfont: { color: "#8d93a5" }, titlefont: { color: "#8d93a5" } },
+            zaxis: { backgroundcolor: "#1e2437", gridcolor: "#2e3650", title: "Scan Count", tickfont: { color: "#8d93a5" }, titlefont: { color: "#8d93a5" } },
           },
           margin: { l: 0, r: 0, t: 10, b: 0 },
-          paper_bgcolor: "white",
+          paper_bgcolor: "#1e2437",
+          font: { color: "#c8cedc" },
         }}
       />
     );
   };
 
   return (
-    <div className={`${CARD_SURFACE} p-5 md:p-6`}>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 bg-teal-50 rounded-lg">
+    <div className={`${CARD_SURFACE} p-4 md:p-5`}>
+      <div className="flex items-center gap-3 mb-2">
+        <div className="p-2 bg-teal-500/10 rounded-lg">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
           </svg>
         </div>
         <div>
-          <h3 className="font-bold text-slate-800 text-sm">3D Production Pattern</h3>
-          <p className="text-xs text-slate-400">Assembly scans: Hour × Day-of-Week — past 30 days · drag to rotate</p>
+          <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">3D Production Pattern</h3>
+          <p className="text-xs text-ink-muted">Assembly scans: Hour × Day-of-Week — past 30 days · drag to rotate</p>
         </div>
       </div>
       {loading ? (
-        <div className="flex items-center justify-center bg-slate-50 rounded-lg border border-slate-200 animate-pulse" style={{ height: 460 }}>
-          <p className="text-sm text-slate-400">Building 3D surface…</p>
+        <div className="flex items-center justify-center bg-surface-base rounded-lg border border-stroke animate-pulse" style={{ height: 460 }}>
+          <p className="text-sm text-ink-muted">Building 3D surface…</p>
         </div>
       ) : renderChart()}
     </div>

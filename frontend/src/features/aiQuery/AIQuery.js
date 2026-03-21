@@ -30,39 +30,39 @@ const API = process.env.REACT_APP_API_BASE || 'http://localhost:8000';
 
 /* ------------------------- Markdown Renderer ------------------------- */
 const MarkdownRenderer = ({ content }) => (
-  <div className="prose prose-sm max-w-none text-black">
+  <div className="prose prose-sm max-w-none text-ink-primary">
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
         h1: ({ children, ...props }) => (
-          <h1 {...props} className="text-xl font-bold mb-3 text-black">
+          <h1 {...props} className="text-xl font-bold mb-3 text-ink-primary">
             {children}
           </h1>
         ),
         h2: ({ children, ...props }) => (
-          <h2 {...props} className="text-lg font-semibold mb-2 mt-4 text-black">
+          <h2 {...props} className="text-lg font-semibold mb-2 mt-4 text-ink-primary">
             {children}
           </h2>
         ),
         h3: ({ children, ...props }) => (
-          <h3 {...props} className="text-md font-semibold mb-2 mt-3 text-black">
+          <h3 {...props} className="text-md font-semibold mb-2 mt-3 text-ink-primary">
             {children}
           </h3>
         ),
-        p:  (p) => <p  {...p} className="mb-2 text-black leading-relaxed" />,
-        ul: (p) => <ul {...p} className="list-disc list-inside mb-2 space-y-1 text-black" />,
-        ol: (p) => <ol {...p} className="list-decimal list-inside mb-2 space-y-1 text-black" />,
-        li: (p) => <li {...p} className="text-black" />,
-        strong: (p) => <strong {...p} className="font-semibold text-black" />,
-        em: (p)   => <em   {...p} className="italic text-black" />,
+        p:  (p) => <p  {...p} className="mb-2 text-ink-primary leading-relaxed" />,
+        ul: (p) => <ul {...p} className="list-disc list-inside mb-2 space-y-1 text-ink-primary" />,
+        ol: (p) => <ol {...p} className="list-decimal list-inside mb-2 space-y-1 text-ink-primary" />,
+        li: (p) => <li {...p} className="text-ink-primary" />,
+        strong: (p) => <strong {...p} className="font-semibold text-ink-primary" />,
+        em: (p)   => <em   {...p} className="italic text-ink-primary" />,
         code: ({ inline, ...rest }) =>
           inline ? (
-            <code {...rest} className="bg-gray-100 px-1 py-0.5 rounded text-sm text-black" />
+            <code {...rest} className="bg-surface-raised px-1 py-0.5 rounded text-sm text-ink-primary" />
           ) : (
-            <code {...rest} className="block bg-gray-100 p-3 rounded-lg text-sm overflow-x-auto text-black" />
+            <code {...rest} className="block bg-surface-raised p-3 rounded-lg text-sm overflow-x-auto text-ink-primary" />
           ),
         blockquote: (p) => (
-          <blockquote {...p} className="border-l-4 border-blue-400 pl-4 italic text-black my-2" />
+          <blockquote {...p} className="border-l-4 border-blue-400 pl-4 italic text-ink-primary my-2" />
         ),
       }}
     >
@@ -74,13 +74,13 @@ const MarkdownRenderer = ({ content }) => (
 /* 小元件：旗標 Chip */
 const Chip = ({ children, tone = 'gray' }) => {
   const tones = {
-    gray: 'bg-gray-100 text-gray-700 border border-gray-200',
-    blue: 'bg-blue-100 text-blue-700 border border-blue-200',
-    green: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-    red: 'bg-rose-100 text-rose-700 border border-rose-200',
-    amber: 'bg-amber-100 text-amber-700 border border-amber-200',
-    indigo: 'bg-indigo-100 text-indigo-700 border border-indigo-200',
-    violet: 'bg-violet-100 text-violet-700 border border-violet-200',
+    gray:   'bg-surface-raised text-ink-secondary border border-stroke',
+    blue:   'bg-signal-info/15 text-signal-info border border-signal-info/30',
+    green:  'bg-signal-ok/15 text-signal-ok border border-signal-ok/30',
+    red:    'bg-signal-error/15 text-signal-error border border-signal-error/30',
+    amber:  'bg-signal-warn/15 text-signal-warn border border-signal-warn/30',
+    indigo: 'bg-signal-info/15 text-signal-info border border-signal-info/30',
+    violet: 'bg-signal-info/15 text-signal-info border border-signal-info/30',
   };
   return (
     <span className={`px-2 py-0.5 rounded text-xs font-medium ${tones[tone] || tones.gray}`}>
@@ -449,14 +449,14 @@ function AIQuery() {
   const UploadModal = () =>
     showUploadModal && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto text-black">
+        <div className="bg-surface-panel rounded-xl shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto text-ink-primary">
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold flex items-center space-x-2">
-                <FileUp className="w-5 h-5 text-indigo-600" />
+                <FileUp className="w-5 h-5 text-signal-info" />
                 <span>Upload Document</span>
               </h2>
-              <button onClick={() => setShowUploadModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setShowUploadModal(false)} className="p-2 hover:bg-surface-raised rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -464,7 +464,7 @@ function AIQuery() {
             {/* File */}
             <div className="mb-6">
               <label className="block text-sm font-medium mb-2">Select File</label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-indigo-400">
+              <div className="border-2 border-dashed border-stroke rounded-lg p-6 text-center hover:border-signal-info">
                 <input
                   id="file-upload"
                   type="file"
@@ -475,13 +475,13 @@ function AIQuery() {
                 <label htmlFor="file-upload" className="cursor-pointer">
                   {uploadFile ? (
                     <div className="space-y-2">
-                      <File className="w-12 h-12 text-indigo-600 mx-auto" />
+                      <File className="w-12 h-12 text-signal-info mx-auto" />
                       <p className="text-sm font-medium">{uploadFile.name}</p>
                       <p className="text-xs">{(uploadFile.size / 1024 / 1024).toFixed(2)} MB</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <Upload className="w-12 h-12 text-gray-400 mx-auto" />
+                      <Upload className="w-12 h-12 text-ink-muted mx-auto" />
                       <p className="text-sm">Click to select or drag file (max 50 MB)</p>
                     </div>
                   )}
@@ -527,14 +527,14 @@ function AIQuery() {
 
             {/* Actions */}
             <div className="flex justify-end space-x-3">
-              <button onClick={() => setShowUploadModal(false)} className="px-6 py-2 bg-gray-200 rounded-lg">
+              <button onClick={() => setShowUploadModal(false)} className="px-6 py-2 bg-surface-raised rounded-lg">
                 Cancel
               </button>
               <button
                 onClick={handleUploadDocument}
                 disabled={!uploadFile || uploading}
                 className={`px-6 py-2 rounded-lg text-white flex items-center space-x-2 ${
-                  !uploadFile || uploading ? 'bg-gray-300' : 'bg-indigo-600 hover:bg-indigo-700'
+                  !uploadFile || uploading ? 'bg-gray-300' : 'bg-teal-600 hover:bg-teal-700'
                 }`}
               >
                 {uploading ? (
@@ -559,14 +559,14 @@ function AIQuery() {
   const AISettingsModal = () =>
     showAISettings && (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full text-black">
+        <div className="bg-surface-panel rounded-xl shadow-lg max-w-md w-full text-ink-primary">
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold flex items-center space-x-2">
-                <Settings className="w-5 h-5 text-indigo-600" />
+                <Settings className="w-5 h-5 text-signal-info" />
                 <span>AI Settings</span>
               </h2>
-              <button onClick={() => setShowAISettings(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => setShowAISettings(false)} className="p-2 hover:bg-surface-raised rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -574,17 +574,17 @@ function AIQuery() {
             {/* Provider */}
             <div className="mb-6 space-y-3">
               <label className="block text-sm font-medium">AI Provider</label>
-              <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+              <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-surface-base">
                 <input type="radio" name="provider" checked={!useOpenAI} onChange={() => setUseOpenAI(false)} />
                 <div className="flex-1">
                   <span className="font-medium">Ollama (Local)</span>
-                  <p className="text-xs text-black/60">Free, private</p>
+                  <p className="text-xs text-ink-muted">Free, private</p>
                 </div>
                 <Chip tone="blue">Free</Chip>
               </label>
 
               <label
-                className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 ${
+                className={`flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-surface-base ${
                   !systemStatus.openai_available && 'opacity-50 cursor-not-allowed'
                 }`}
               >
@@ -597,7 +597,7 @@ function AIQuery() {
                 />
                 <div className="flex-1">
                   <span className="font-medium">OpenAI (Cloud)</span>
-                  <p className="text-xs text-black/60">Advanced AI</p>
+                  <p className="text-xs text-ink-muted">Advanced AI</p>
                 </div>
                 <Chip tone={systemStatus.openai_available ? 'green' : 'red'}>
                   {systemStatus.openai_available ? 'Available' : 'Need API Key'}
@@ -624,7 +624,7 @@ function AIQuery() {
               <div className="flex items-center space-x-3 mb-6">
                 <button
                   onClick={() => testAIProvider('ollama')}
-                  className="flex items-center px-4 py-2 bg-blue-100 text-blue-700 rounded-lg"
+                  className="flex items-center px-4 py-2 bg-signal-info/15 text-blue-400 rounded-lg"
                 >
                   <Zap className="w-4 h-4 mr-1" />
                   Test Ollama
@@ -632,7 +632,7 @@ function AIQuery() {
                 {systemStatus.openai_available && (
                   <button
                     onClick={() => testAIProvider('openai')}
-                    className="flex items-center px-4 py-2 bg-green-100 text-green-700 rounded-lg"
+                    className="flex items-center px-4 py-2 bg-signal-ok/15 text-green-400 rounded-lg"
                   >
                     <Zap className="w-4 h-4 mr-1" />
                     Test OpenAI
@@ -642,7 +642,7 @@ function AIQuery() {
             )}
 
             <div className="flex justify-end">
-              <button onClick={() => setShowAISettings(false)} className="px-6 py-2 bg-indigo-600 text-white rounded-lg">
+              <button onClick={() => setShowAISettings(false)} className="px-6 py-2 bg-teal-600 text-white rounded-lg">
                 Done
               </button>
             </div>
@@ -664,31 +664,31 @@ function AIQuery() {
 
   /* ----------------------------- 渲染 ----------------------------- */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-sky-50 to-emerald-50 p-4 lg:p-6 text-black">
+    <div className="min-h-screen bg-gradient-to-br from-signal-info/10 via-signal-info/10 to-signal-ok/10 p-4 lg:p-6 text-ink-primary">
       <div className="max-w-7xl mx-auto h-full flex flex-col">
         {/* ---------------------- Header ---------------------- */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border border-blue-100">
+        <div className="bg-surface-panel rounded-xl shadow-lg p-6 mb-6 border border-signal-info/20">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+              <div className="w-12 h-12 bg-gradient-to-r from-signal-info/100 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Bot className="w-7 h-7 text-white" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold">Document AI Assistant 📚</h1>
-                <p className="text-black/70 text-sm">SOP guidance, form assistance, process improvement</p>
+                <p className="text-ink-secondary text-sm">SOP guidance, form assistance, process improvement</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
               <div
                 className={`flex items-center space-x-2 px-3 py-2 rounded-full text-sm font-medium ${
                   systemStatus.vector_store_ready
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                    ? 'bg-signal-ok/10 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-signal-warn/10 text-amber-400 border border-amber-500/30'
                 }`}
               >
                 <div
                   className={`w-2 h-2 rounded-full ${
-                    systemStatus.vector_store_ready ? 'bg-emerald-500' : 'bg-amber-500'
+                    systemStatus.vector_store_ready ? 'bg-signal-ok' : 'bg-signal-warn'
                   }`}
                 />
                 <span>{systemStatus.total_documents} Docs</span>
@@ -704,7 +704,7 @@ function AIQuery() {
 
               <button
                 onClick={() => setShowAISettings(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                className="flex items-center space-x-2 px-4 py-2 bg-surface-raised hover:bg-surface-overlay rounded-lg"
               >
                 <Settings className="w-4 h-4" />
                 <span>AI</span>
@@ -714,18 +714,18 @@ function AIQuery() {
                 <>
                   <button
                     onClick={() => setShowUploadModal(true)}
-                    className="flex items-center space-x-2 px-4 py-2 text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-lg shadow-lg"
+                    className="flex items-center space-x-2 px-4 py-2 text-white bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 rounded-lg shadow-lg"
                   >
                     <Upload className="w-4 h-4" />
                     <span>Upload</span>
                   </button>
                   <button
                     onClick={handleReindexAll}
-                    className="flex items-center space-x-2 px-4 py-2 bg-white border border-indigo-300 hover:bg-indigo-50 rounded-lg"
+                    className="flex items-center space-x-2 px-4 py-2 bg-surface-panel border border-stroke hover:bg-signal-info/10 rounded-lg"
                     title="Rebuild vector store"
                   >
-                    {docLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4 text-indigo-600" />}
-                    <span className="text-indigo-700">Reindex</span>
+                    {docLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4 text-signal-info" />}
+                    <span className="text-signal-info">Reindex</span>
                   </button>
                 </>
               )}
@@ -734,7 +734,7 @@ function AIQuery() {
         </div>
 
         {/* ------------------ Current AI Provider ------------------ */}
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6 border border-blue-100">
+        <div className="bg-surface-panel rounded-xl shadow-sm p-4 mb-6 border border-signal-info/20">
           <div className="flex flex-wrap items-center gap-2">
             <span>Active AI:</span>
             <span className="font-medium">
@@ -749,15 +749,15 @@ function AIQuery() {
 
         {/* ------------------ Document Library (Admin) ------------------ */}
         {isAdmin && (
-          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border border-blue-100">
+          <div className="bg-surface-panel rounded-xl shadow-lg p-6 mb-6 border border-signal-info/20">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold flex items-center space-x-2">
-                <FileText className="w-5 h-5 text-indigo-600" />
+                <FileText className="w-5 h-5 text-signal-info" />
                 <span>Document Library</span>
               </h3>
 
               <div className="flex items-center gap-3 text-sm">
-                <label className="text-black/70">Per page</label>
+                <label className="text-ink-secondary">Per page</label>
                 <select
                   value={docsLimit}
                   onChange={(e) => { setDocsLimit(Number(e.target.value)); setDocsSkip(0); }}
@@ -777,8 +777,8 @@ function AIQuery() {
                 onClick={() => setSelectedCategory('all')}
                 className={`px-3 py-2 rounded-lg text-sm font-medium ${
                   selectedCategory === 'all'
-                    ? 'bg-indigo-100 text-indigo-700 border border-indigo-300'
-                    : 'bg-gray-100 hover:bg-gray-200'
+                    ? 'bg-signal-info/15 text-signal-info border border-stroke'
+                    : 'bg-surface-raised hover:bg-surface-overlay'
                 }`}
               >
                 All ({Math.min(docsTotal, 9999)})
@@ -789,8 +789,8 @@ function AIQuery() {
                   onClick={() => setSelectedCategory(k)}
                   className={`px-3 py-2 rounded-lg text-sm font-medium ${
                     selectedCategory === k
-                      ? 'bg-indigo-100 text-indigo-700 border border-indigo-300'
-                      : 'bg-gray-100 hover:bg-gray-200'
+                      ? 'bg-signal-info/15 text-signal-info border border-stroke'
+                      : 'bg-surface-raised hover:bg-surface-overlay'
                   }`}
                 >
                   {v}
@@ -801,70 +801,70 @@ function AIQuery() {
             {/* Documents Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {docLoading && [1,2,3,4,5,6].map((i)=>(
-                <div key={i} className="border border-gray-200 rounded-lg p-4 animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-2/3 mb-2" />
-                  <div className="h-3 bg-gray-100 rounded w-1/2 mb-4" />
-                  <div className="h-16 bg-gray-50 rounded mb-3" />
+                <div key={i} className="border border-stroke rounded-lg p-4 animate-pulse">
+                  <div className="h-4 bg-surface-raised rounded w-2/3 mb-2" />
+                  <div className="h-3 bg-surface-raised rounded w-1/2 mb-4" />
+                  <div className="h-16 bg-surface-base rounded mb-3" />
                   <div className="flex justify-between">
-                    <div className="h-3 bg-gray-100 rounded w-1/3" />
-                    <div className="h-6 bg-gray-100 rounded w-16" />
+                    <div className="h-3 bg-surface-raised rounded w-1/3" />
+                    <div className="h-6 bg-surface-raised rounded w-16" />
                   </div>
                 </div>
               ))}
               {!docLoading && filteredDocuments.map((d) => (
                 <div
                   key={d.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:border-indigo-300 hover:shadow-md"
+                  className="border border-stroke rounded-lg p-4 hover:border-stroke hover:shadow-md"
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 truncate">
                       <h4 className="font-medium text-sm truncate">{d.original_name}</h4>
-                      <p className="text-xs text-black/60">{DOCUMENT_CATEGORIES[d.category] || d.category}</p>
+                      <p className="text-xs text-ink-muted">{DOCUMENT_CATEGORIES[d.category] || d.category}</p>
                     </div>
                     <span
                       className={`px-2 py-1 text-xs rounded ${
                         d.file_type === '.pdf'
-                          ? 'bg-red-100 text-red-700'
+                          ? 'bg-signal-error/15 text-red-400'
                           : /doc/.test(d.file_type)
-                          ? 'bg-blue-100 text-blue-700'
+                          ? 'bg-signal-info/15 text-blue-400'
                           : /xls|csv/.test(d.file_type)
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-black'
+                          ? 'bg-signal-ok/15 text-green-400'
+                          : 'bg-surface-raised text-ink-primary'
                       }`}
                     >
                       {String(d.file_type || '').toUpperCase()}
                     </span>
                   </div>
-                  <p className="text-xs text-black/60 mb-3 line-clamp-2">{d.content_preview}</p>
+                  <p className="text-xs text-ink-muted mb-3 line-clamp-2">{d.content_preview}</p>
                   {d.tags && (
                     <div className="flex flex-wrap gap-1 mb-3">
                       {d.tags.split(',').filter(Boolean).map((t, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-gray-100 text-black rounded text-xs">
+                        <span key={i} className="px-2 py-0.5 bg-surface-raised text-ink-primary rounded text-xs">
                           {t.trim()}
                         </span>
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center justify-between text-xs text-black/60">
+                  <div className="flex items-center justify-between text-xs text-ink-muted">
                     <span>{new Date(d.upload_date).toLocaleDateString()}</span>
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => handleReindexOne(d.id)}
-                        className="text-indigo-600 hover:text-indigo-700 p-1"
+                        className="text-signal-info hover:text-signal-info p-1"
                         title="Reindex this doc"
                       >
                         <RefreshCw className="w-3 h-3" />
                       </button>
                       <button
                         onClick={() => handleDownload(d.id)}
-                        className="text-blue-600 hover:text-blue-700 p-1"
+                        className="text-blue-400 hover:text-blue-400 p-1"
                         title="Download"
                       >
                         <Download className="w-3 h-3" />
                       </button>
                       <button
                         onClick={() => handleDeleteDocument(d.id, d.original_name)}
-                        className="text-red-600 hover:text-red-700 p-1"
+                        className="text-red-400 hover:text-red-400 p-1"
                         title="Delete"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -878,7 +878,7 @@ function AIQuery() {
             {/* Pagination */}
             {docsTotal > docsLimit && (
               <div className="flex items-center justify-between mt-6">
-                <span className="text-sm text-black/60">
+                <span className="text-sm text-ink-muted">
                   Showing <span className="font-medium">{docsSkip + 1}</span>–
                   <span className="font-medium">{Math.min(docsSkip + filteredDocuments.length, docsTotal)}</span> of{' '}
                   <span className="font-medium">{docsTotal}</span>
@@ -888,7 +888,7 @@ function AIQuery() {
                     onClick={prevPage}
                     disabled={currentPage <= 1 || docLoading}
                     className={`px-3 py-2 rounded-lg border ${
-                      currentPage <= 1 || docLoading ? 'bg-gray-50 text-black/40' : 'bg-white hover:bg-gray-50'
+                      currentPage <= 1 || docLoading ? 'bg-surface-base text-ink-muted' : 'bg-surface-panel hover:bg-surface-base'
                     }`}
                   >
                     Prev
@@ -900,7 +900,7 @@ function AIQuery() {
                     onClick={nextPage}
                     disabled={currentPage >= totalPages || docLoading}
                     className={`px-3 py-2 rounded-lg border ${
-                      currentPage >= totalPages || docLoading ? 'bg-gray-50 text-black/40' : 'bg-white hover:bg-gray-50'
+                      currentPage >= totalPages || docLoading ? 'bg-surface-base text-ink-muted' : 'bg-surface-panel hover:bg-surface-base'
                     }`}
                   >
                     Next
@@ -913,13 +913,13 @@ function AIQuery() {
 
         {/* ------------------ Common Queries ------------------ */}
         {showCommonQueries && (
-          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border border-blue-100">
+          <div className="bg-surface-panel rounded-xl shadow-lg p-6 mb-6 border border-signal-info/20">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold flex items-center space-x-2">
-                <Lightbulb className="w-5 h-5 text-indigo-600" />
+                <Lightbulb className="w-5 h-5 text-signal-info" />
                 <span>Common Queries</span>
               </h3>
-              <button className="text-black/40 hover:text-black/60" onClick={() => setShowCommonQueries(false)}>
+              <button className="text-ink-muted hover:text-ink-muted" onClick={() => setShowCommonQueries(false)}>
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -934,7 +934,7 @@ function AIQuery() {
                   {cat.queries.map((q, idx) => (
                     <button
                       key={idx}
-                      className="w-full text-left p-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-sm"
+                      className="w-full text-left p-3 rounded-lg border border-stroke hover:border-stroke hover:bg-signal-info/10 text-sm"
                       onClick={() => handleQuickQuery(q)}
                     >
                       {q}
@@ -947,16 +947,16 @@ function AIQuery() {
         )}
 
         {/* ------------------ Chat Container ------------------ */}
-        <div className="flex-1 bg-white rounded-2xl shadow-lg border border-blue-100 flex flex-col overflow-hidden">
+        <div className="flex-1 bg-surface-panel rounded-xl shadow-lg border border-signal-info/20 flex flex-col overflow-hidden">
           {/* Messages Area */}
-          <div className="flex-1 p-6 overflow-y-auto bg-gradient-to-b from-blue-50/30 to-indigo-50/30 space-y-4">
+          <div className="flex-1 p-6 overflow-y-auto bg-gradient-to-b from-signal-info/10/30 to-signal-info/10 space-y-4">
             {messages.length === 0 && (
               <div className="text-center py-12">
-                <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full mx-auto mb-4 flex items-center justify-center shadow-xl">
+                <div className="w-20 h-20 bg-gradient-to-r from-signal-info/100 to-teal-600 rounded-full mx-auto mb-4 flex items-center justify-center shadow-xl">
                   <Bot className="w-10 h-10 text-white" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">Welcome to Document AI Assistant!</h3>
-                <p className="max-w-md mx-auto text-black/60">
+                <p className="max-w-md mx-auto text-ink-muted">
                   Ask questions about SOPs, forms, policies, or request process improvements.
                 </p>
               </div>
@@ -968,10 +968,10 @@ function AIQuery() {
                   <div className="flex justify-end mb-4">
                     <div className="max-w-2xl">
                       <div className="flex items-center justify-end space-x-2 mb-1">
-                        <span className="text-xs text-black/60">{m.timestamp}</span>
-                        <span className="text-sm font-medium text-indigo-600">You</span>
+                        <span className="text-xs text-ink-muted">{m.timestamp}</span>
+                        <span className="text-sm font-medium text-signal-info">You</span>
                       </div>
-                      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-2xl rounded-tr-md shadow-lg">
+                      <div className="bg-gradient-to-r from-blue-600 to-teal-600 text-white p-4 rounded-xl rounded-tr-md shadow-lg">
                         <p className="whitespace-pre-wrap">{m.content}</p>
                       </div>
                     </div>
@@ -982,35 +982,35 @@ function AIQuery() {
                   <div className="flex justify-start mb-4">
                     <div className="max-w-4xl">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-emerald-600">AI Assistant</span>
-                        <span className="text-xs text-black/60">{m.timestamp}</span>
+                        <span className="text-sm font-medium text-emerald-400">AI Assistant</span>
+                        <span className="text-xs text-ink-muted">{m.timestamp}</span>
                         {/* 這次回答的實際執行配置（由 /query 標頭提供） */}
                         {m.meta?.provider && <Chip tone="gray">{m.meta.provider}</Chip>}
                         {m.meta?.rag_mode && <Chip tone="indigo">RAG: {m.meta.rag_mode}</Chip>}
                         {m.meta?.hyde && <Chip tone="blue">HyDE</Chip>}
                         {m.meta?.compression && <Chip tone="green">Compression</Chip>}
                       </div>
-                      <div className="bg-white border border-blue-200 p-4 rounded-2xl rounded-tl-md shadow-lg">
+                      <div className="bg-surface-panel border border-blue-500/30 p-4 rounded-xl rounded-tl-md shadow-lg">
                         <MarkdownRenderer content={m.content} />
                         {m.sources?.length > 0 && (
-                          <details className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <details className="mt-4 p-3 bg-signal-info/10 rounded-lg border border-blue-500/30">
                             <summary className="cursor-pointer flex items-center space-x-2 font-medium">
                               <FileText className="w-4 h-4" />
                               <span>Source Documents</span>
-                              <span className="bg-blue-200 text-blue-700 text-xs px-2 py-1 rounded-full">
+                              <span className="bg-blue-200 text-blue-400 text-xs px-2 py-1 rounded-full">
                                 {m.sources.length}
                               </span>
                             </summary>
                             <div className="mt-3 space-y-2">
                               {m.sources.map((s, i) => (
-                                <div key={i} className="bg-white p-3 rounded border border-blue-200">
+                                <div key={i} className="bg-surface-panel p-3 rounded border border-blue-500/30">
                                   <div className="flex items-center justify-between mb-2">
                                     <span className="font-medium text-sm">{s.filename}</span>
-                                    <span className="text-xs bg-gray-100 text-black px-2 py-1 rounded">
+                                    <span className="text-xs bg-surface-raised text-ink-primary px-2 py-1 rounded">
                                       {s.category}
                                     </span>
                                   </div>
-                                  <p className="text-xs text-black/60">{s.content_preview}</p>
+                                  <p className="text-xs text-ink-muted">{s.content_preview}</p>
                                 </div>
                               ))}
                             </div>
@@ -1026,8 +1026,8 @@ function AIQuery() {
                     <div
                       className={`px-4 py-2 rounded-full flex items-center space-x-2 ${
                         m.type === 'system'
-                          ? 'bg-blue-50 border border-blue-200 text-blue-800'
-                          : 'bg-red-50 border border-red-200 text-red-800'
+                          ? 'bg-signal-info/10 border border-blue-500/30 text-blue-300'
+                          : 'bg-signal-error/10 border border-red-500/30 text-red-300'
                       }`}
                     >
                       {m.type === 'system' ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
@@ -1043,21 +1043,21 @@ function AIQuery() {
               <div className="flex justify-start mb-4 animate-fadeInUp">
                 <div className="max-w-2xl">
                   <div className="flex items-center space-x-2 mb-1">
-                    <span className="text-sm font-medium text-emerald-600">AI Assistant</span>
-                    <span className="text-xs text-black/60">Processing...</span>
+                    <span className="text-sm font-medium text-emerald-400">AI Assistant</span>
+                    <span className="text-xs text-ink-muted">Processing...</span>
                   </div>
-                  <div className="bg-white border border-blue-200 p-4 rounded-2xl rounded-tl-md shadow-lg">
+                  <div className="bg-surface-panel border border-blue-500/30 p-4 rounded-xl rounded-tl-md shadow-lg">
                     <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" />
+                      <div className="w-2 h-2 bg-signal-info rounded-full animate-bounce" />
                       <div
-                        className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
+                        className="w-2 h-2 bg-signal-info rounded-full animate-bounce"
                         style={{ animationDelay: '0.1s' }}
                       />
                       <div
-                        className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
+                        className="w-2 h-2 bg-signal-info rounded-full animate-bounce"
                         style={{ animationDelay: '0.2s' }}
                       />
-                      <span className="text-blue-600 text-sm">Analyzing...</span>
+                      <span className="text-blue-400 text-sm">Analyzing...</span>
                     </div>
                   </div>
                 </div>
@@ -1066,7 +1066,7 @@ function AIQuery() {
           </div>
 
           {/* Input */}
-          <div className="bg-white border-t border-blue-200 p-6">
+          <div className="bg-surface-panel border-t border-blue-500/30 p-6">
             <div className="space-y-4">
               <textarea
                 value={question}
@@ -1083,13 +1083,13 @@ function AIQuery() {
                   loading ||
                   !systemStatus.vector_store_ready ||
                   (useOpenAI && !systemStatus.openai_available)
-                    ? 'bg-gray-50 border-gray-200 text-black/40'
-                    : 'bg-white border-blue-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200'
+                    ? 'bg-surface-base border-stroke text-ink-muted'
+                    : 'bg-surface-panel border-blue-300 focus:border-signal-info focus:ring-2 focus:ring-signal-info'
                 }`}
               />
 
               <div className="flex justify-between items-center">
-                <span className="text-xs text-black/60">
+                <span className="text-xs text-ink-muted">
                   {question.length} chars • {useOpenAI ? `OpenAI ${openaiModel}` : `Ollama ${systemStatus.ollama_model || ''}`}
                 </span>
                 <div className="flex space-x-3">
@@ -1098,8 +1098,8 @@ function AIQuery() {
                     disabled={!messages.length}
                     className={`flex items-center space-x-2 px-4 py-2 rounded-lg ${
                       !messages.length
-                        ? 'bg-gray-100 text-black/40 cursor-not-allowed'
-                        : 'bg-gray-500 hover:bg-gray-600 text-white'
+                        ? 'bg-surface-raised text-ink-muted cursor-not-allowed'
+                        : 'bg-surface-base0 hover:bg-gray-600 text-white'
                     }`}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -1120,8 +1120,8 @@ function AIQuery() {
                       !question.trim() ||
                       !systemStatus.vector_store_ready ||
                       (useOpenAI && !systemStatus.openai_available)
-                        ? 'bg-gray-100 text-black/40 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white'
+                        ? 'bg-surface-raised text-ink-muted cursor-not-allowed'
+                        : 'bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 text-white'
                     }`}
                   >
                     <Send className="w-4 h-4" />

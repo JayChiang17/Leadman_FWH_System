@@ -19,15 +19,15 @@ const PCBAModernBoardCard = React.memo(function PCBAModernBoardCard({
 
   // NG 狀態：紅底紅框；非 NG：白底灰框（滑過藍框）
   const ngClasses = ng
-    ? "bg-gradient-to-br from-rose-50 to-rose-100/50 border-rose-300 hover:border-rose-400 shadow-md shadow-rose-500/10"
-    : "bg-white border-gray-200 hover:border-indigo-400 hover:shadow-xl";
+    ? "bg-gradient-to-br from-signal-error/10 to-signal-error/15/50 border-rose-300 hover:border-rose-400 shadow-md shadow-rose-500/10"
+    : "bg-surface-panel border-stroke hover:border-signal-info hover:shadow-xl";
 
   return (
     <div className="relative group">
       <div
         onClick={onViewDetails}
         className={`${ngClasses} rounded-xl p-5 border-2 transition-all duration-300 cursor-pointer hover:scale-[1.01] ${
-          isBlink ? "animate-pulse ring-4 ring-indigo-400 ring-opacity-50 scale-105" : ""
+          isBlink ? "animate-pulse ring-4 ring-signal-info ring-opacity-50 scale-105" : ""
         }`}
       >
         <div className="flex items-start justify-between">
@@ -43,7 +43,7 @@ const PCBAModernBoardCard = React.memo(function PCBAModernBoardCard({
               <div className="min-w-0">
                 <h4
                   className={`font-semibold text-sm md:text-base truncate ${
-                    ng ? "text-rose-800" : "text-gray-900"
+                    ng ? "text-rose-300" : "text-ink-primary"
                   }`}
                 >
                   {board.serialNumber}
@@ -54,8 +54,8 @@ const PCBAModernBoardCard = React.memo(function PCBAModernBoardCard({
                   <span
                     className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       board.model === "AU8"
-                        ? "bg-indigo-100 text-indigo-700"
-                        : "bg-cyan-100 text-cyan-700"
+                        ? "bg-signal-info/15 text-signal-info"
+                        : "bg-signal-info/15 text-cyan-400"
                     }`}
                   >
                     {board.model}
@@ -63,17 +63,17 @@ const PCBAModernBoardCard = React.memo(function PCBAModernBoardCard({
 
                   {/* Version Badge - V2 显示为新版本高亮 */}
                   {board.version === "V2" ? (
-                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md shadow-emerald-500/30 animate-pulse">
+                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-gradient-to-r from-signal-ok/100 to-teal-500/100 text-white shadow-md shadow-emerald-500/30 animate-pulse">
                       ✨ V2 NEW
                     </span>
                   ) : board.version === "V1" ? (
-                    <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-gray-200 text-gray-700">
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-surface-raised text-ink-secondary">
                       V1
                     </span>
                   ) : null}
 
                   {board.slipNumber ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r from-amber-100 to-amber-50 text-amber-800 border border-amber-300 break-all">
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r from-signal-warn/15 to-signal-warn/10 text-amber-300 border border-amber-300 break-all">
                       📋 {board.slipNumber}
                     </span>
                   ) : null}
@@ -85,7 +85,7 @@ const PCBAModernBoardCard = React.memo(function PCBAModernBoardCard({
                   ) : null}
 
                   {board.ngReason ? (
-                    <span className="px-2 py-0.5 rounded-md text-xs bg-rose-100 text-rose-700 truncate max-w-[160px]">
+                    <span className="px-2 py-0.5 rounded-md text-xs bg-signal-error/15 text-rose-400 truncate max-w-[160px]">
                       {board.ngReason}
                     </span>
                   ) : null}
@@ -97,7 +97,7 @@ const PCBAModernBoardCard = React.memo(function PCBAModernBoardCard({
             <div className="flex items-center justify-between mt-3">
               <div
                 className={`flex items-center gap-4 text-xs ${
-                  ng ? "text-rose-700" : "text-gray-500"
+                  ng ? "text-rose-400" : "text-ink-muted"
                 }`}
               >
                 <span className="flex items-center gap-1">
@@ -112,8 +112,8 @@ const PCBAModernBoardCard = React.memo(function PCBAModernBoardCard({
               </div>
               <ChevronRight
                 className={`${
-                  ng ? "text-rose-400" : "text-gray-400"
-                } group-hover:text-indigo-600 transition-colors`}
+                  ng ? "text-rose-400" : "text-ink-muted"
+                } group-hover:text-signal-info transition-colors`}
                 size={18}
               />
             </div>
@@ -131,7 +131,7 @@ const PCBAModernBoardCard = React.memo(function PCBAModernBoardCard({
           className={`p-1.5 rounded ${
             board.ngFlag
               ? "bg-rose-600 hover:bg-rose-700 text-white"
-              : "bg-rose-100 hover:bg-rose-200 text-rose-700"
+              : "bg-signal-error/15 hover:bg-rose-200 text-rose-400"
           }`}
           title={board.ngFlag ? "Clear NG" : "Mark NG"}
         >
@@ -145,7 +145,7 @@ const PCBAModernBoardCard = React.memo(function PCBAModernBoardCard({
                 e.stopPropagation();
                 onEdit(board);
               }}
-              className="p-1.5 rounded bg-blue-500 text-white hover:bg-blue-600 transition"
+              className="p-1.5 rounded bg-signal-info text-white hover:bg-blue-600 transition"
               title="Edit"
             >
               <Edit size={12} />
@@ -156,7 +156,7 @@ const PCBAModernBoardCard = React.memo(function PCBAModernBoardCard({
                 e.stopPropagation();
                 onDelete(board);
               }}
-              className="p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition"
+              className="p-1.5 rounded bg-signal-error text-white hover:bg-red-600 transition"
               title="Delete"
             >
               <Trash2 size={12} />

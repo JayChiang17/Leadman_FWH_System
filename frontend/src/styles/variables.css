@@ -2,33 +2,33 @@
    Design Tokens / CSS Custom Properties
    -------------------------------------------------- */
 
-/* Light (預設) */
+/* Dark base (Splunk-inspired) */
 :root,
 [data-theme="light"] {
   /* brand / accents */
-  --clr-primary:  #1e293b;
-  --clr-primary-50: #273549;
-  --clr-accent:   #38bdf8;
-  --clr-accent-hover: #0ea5e9;
-  --clr-danger:   #dc2626;
-  --clr-danger-50:#b91c1c;
+  --clr-primary:  #c8cedc;
+  --clr-primary-50: #8d93a5;
+  --clr-accent:   #22d3ee;
+  --clr-accent-hover: #06b6d4;
+  --clr-danger:   #ef4444;
+  --clr-danger-50:#dc2626;
   --clr-success:  #10b981;
 
   /* surfaces */
-  --bg-main:   #f8fafc;   /* 頁面背景 */
-  --surface-1: #ffffff;   /* 卡片/面板 */
-  --surface-2: #f1f5f9;   /* 次層背景 */
-  --border:    #e5e7eb;
+  --bg-main:   #161b2d;   /* 頁面背景 */
+  --surface-1: #1e2437;   /* 卡片/面板 */
+  --surface-2: #262d42;   /* 次層背景 */
+  --border:    #2e3650;
 
   /* text */
-  --text-1: #0f172a;   /* 主要文字（黑） */
-  --text-2: #334155;   /* 次要 */
-  --text-3: #64748b;   /* 提示 */
+  --text-1: #c8cedc;   /* 主要文字 */
+  --text-2: #8d93a5;   /* 次要 */
+  --text-3: #565e74;   /* 提示 */
 
   /* shadows */
-  --shadow-sm: 0 2px 4px rgba(0,0,0,.06);
-  --shadow-md: 0 4px 12px rgba(0,0,0,.10);
-  --shadow-lg: 0 8px 24px rgba(0,0,0,.15);
+  --shadow-sm: 0 2px 4px rgba(0,0,0,.25);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.35);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,.45);
 
   /* spacing & type */
   --space-xs: .25rem; --space-s: .5rem; --space-m: 1rem;

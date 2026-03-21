@@ -44,29 +44,29 @@ const PAGE_SECTIONS = ["Production", "Tools"];
 // ── Role config (flat solid colors only) ─────────────────────────────────────
 const ROLE_MAP = {
   admin: {
-    bg: "bg-teal-50",    text: "text-teal-700",    border: "border-teal-200",
+    bg: "bg-teal-500/10",    text: "text-teal-400",    border: "border-teal-500/30",
     solidBg: "bg-teal-600",   solidText: "text-white",
     headerBg: "bg-teal-700",
     Icon: Shield,
     detail: "All features + user management",
   },
   operator: {
-    bg: "bg-cyan-50",    text: "text-cyan-700",    border: "border-cyan-200",
+    bg: "bg-signal-info/10",    text: "text-cyan-400",    border: "border-cyan-500/30",
     solidBg: "bg-cyan-600",   solidText: "text-white",
     headerBg: "bg-cyan-700",
     Icon: UserCheck,
     detail: "Scan, edit production records",
   },
   qc: {
-    bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200",
+    bg: "bg-signal-ok/10", text: "text-emerald-400", border: "border-emerald-500/30",
     solidBg: "bg-emerald-600", solidText: "text-white",
     headerBg: "bg-emerald-700",
     Icon: Eye,
     detail: "QC checks, issue reporting",
   },
   viewer: {
-    bg: "bg-stone-100",  text: "text-stone-600",   border: "border-stone-200",
-    solidBg: "bg-stone-500",  solidText: "text-white",
+    bg: "bg-surface-raised",  text: "text-ink-secondary",   border: "border-stroke",
+    solidBg: "bg-surface-base0",  solidText: "text-white",
     headerBg: "bg-stone-600",
     Icon: Users,
     detail: "View dashboards and reports",
@@ -76,13 +76,13 @@ const ROLE_MAP = {
 // ── Metric card config (flat solid accent bars) ───────────────────────────────
 const METRIC_CFG = [
   { key: "total",    label: "Total Users",  Icon: Users,
-    accentBg: "bg-teal-500",   iconBg: "bg-teal-50",   iconColor: "text-teal-600",  numColor: "text-teal-600"  },
+    accentBg: "bg-teal-500",   iconBg: "bg-teal-500/10",   iconColor: "text-teal-400",  numColor: "text-teal-400"  },
   { key: "admin",    label: "Admin",        Icon: Shield,
-    accentBg: "bg-cyan-500",   iconBg: "bg-cyan-50",   iconColor: "text-cyan-600",  numColor: "text-cyan-600"  },
+    accentBg: "bg-signal-info",   iconBg: "bg-signal-info/10",   iconColor: "text-cyan-400",  numColor: "text-cyan-400"  },
   { key: "operator", label: "Operator",     Icon: UserCheck,
-    accentBg: "bg-amber-500",  iconBg: "bg-amber-50",  iconColor: "text-amber-600", numColor: "text-amber-600" },
+    accentBg: "bg-signal-warn",  iconBg: "bg-signal-warn/10",  iconColor: "text-amber-400", numColor: "text-amber-400" },
   { key: "other",    label: "QC + Viewer",  Icon: Eye,
-    accentBg: "bg-stone-400",  iconBg: "bg-stone-100", iconColor: "text-stone-500", numColor: "text-stone-600" },
+    accentBg: "bg-stone-400",  iconBg: "bg-surface-raised", iconColor: "text-ink-muted", numColor: "text-ink-secondary" },
 ];
 
 
@@ -175,20 +175,20 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* modal card */}
-      <div className="relative w-full max-w-lg bg-white rounded-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div className="relative w-full max-w-lg bg-surface-panel rounded-xl shadow-lg overflow-hidden max-h-[90vh] flex flex-col">
 
         {/* ── Role-aware solid header ── */}
         <div className={`${origRc.headerBg} px-6 pt-6 pb-8 flex-shrink-0`}>
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 rounded-lg bg-white/20 hover:bg-white/30 text-white transition-colors"
+            className="absolute top-4 right-4 p-1.5 rounded-lg bg-surface-panel/20 hover:bg-surface-panel/30 text-white transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
 
           <div className="flex items-center gap-4">
             {/* avatar */}
-            <div className="w-14 h-14 rounded-xl bg-white/20 border-2 border-white/40 flex items-center justify-center text-white font-bold text-2xl flex-shrink-0">
+            <div className="w-14 h-14 rounded-xl bg-surface-panel/20 border-2 border-white/40 flex items-center justify-center text-white font-bold text-2xl flex-shrink-0">
               {user.username.charAt(0).toUpperCase()}
             </div>
             <div>
@@ -199,7 +199,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
                 {user.username}
               </h2>
               <div className="flex items-center gap-1.5 mt-1">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white/20 text-white/90 text-xs font-semibold">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-surface-panel/20 text-white/90 text-xs font-semibold">
                   <origRc.Icon className="w-3 h-3" />
                   {user.role}
                 </span>
@@ -210,11 +210,11 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
         </div>
 
         {/* ── Form body ── */}
-        <div className="-mt-4 mx-4 bg-white rounded-xl border border-stone-200 shadow-sm p-5 space-y-4 mb-1 overflow-y-auto flex-1">
+        <div className="-mt-4 mx-4 bg-surface-panel rounded-xl border border-stroke shadow-sm p-5 space-y-4 mb-1 overflow-y-auto flex-1">
           {error && (
-            <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-red-50 border border-red-200 rounded-lg">
-              <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
-              <span className="text-xs text-red-700">{error}</span>
+            <div className="flex items-center gap-2.5 px-3.5 py-2.5 bg-signal-error/10 border border-red-500/30 rounded-lg">
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <span className="text-xs text-red-400">{error}</span>
             </div>
           )}
 
@@ -228,7 +228,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white text-stone-800 border-2 border-stone-200 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm"
+              className="w-full px-3.5 py-2.5 bg-surface-panel text-ink-primary border-2 border-stroke rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm"
             />
           </div>
 
@@ -249,12 +249,12 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="New password (optional)"
-                className="w-full pl-10 pr-10 py-2.5 bg-white text-stone-800 border-2 border-stone-200 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm placeholder:text-stone-300"
+                className="w-full pl-10 pr-10 py-2.5 bg-surface-panel text-ink-primary border-2 border-stroke rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm placeholder:text-stone-300"
               />
               <button
                 type="button"
                 onClick={() => setShowPw(!showPw)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-ink-secondary transition-colors"
               >
                 {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -270,7 +270,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="w-full appearance-none px-3.5 py-2.5 bg-white text-stone-800 border-2 border-stone-200 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm pr-9"
+                className="w-full appearance-none px-3.5 py-2.5 bg-surface-panel text-ink-primary border-2 border-stroke rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm pr-9"
               >
                 <option value="viewer">Viewer — Read only</option>
                 <option value="qc">QC — Quality control</option>
@@ -290,7 +290,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
                 <span className="text-[10px] text-stone-400 ml-2">{rc.detail}</span>
               </div>
               {role !== user.role && (
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-600 flex-shrink-0">
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-signal-warn/15 text-amber-400 flex-shrink-0">
                   changed
                 </span>
               )}
@@ -312,7 +312,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
                   className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-colors duration-150 ${
                     pageMode === "all"
                       ? "bg-teal-600 text-white border-teal-600"
-                      : "bg-white text-stone-500 border-stone-200 hover:border-teal-400"
+                      : "bg-surface-panel text-ink-muted border-stroke hover:border-teal-400"
                   }`}
                 >
                   All Pages
@@ -322,8 +322,8 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
                   onClick={() => togglePageMode("restricted")}
                   className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-colors duration-150 ${
                     pageMode === "restricted"
-                      ? "bg-amber-500 text-white border-amber-500"
-                      : "bg-white text-stone-500 border-stone-200 hover:border-amber-400"
+                      ? "bg-signal-warn text-white border-amber-500"
+                      : "bg-surface-panel text-ink-muted border-stroke hover:border-amber-400"
                   }`}
                 >
                   Restricted
@@ -335,7 +335,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
                   User can access all pages (no restriction).
                 </p>
               ) : (
-                <div className="border border-stone-200 rounded-lg overflow-hidden">
+                <div className="border border-stroke rounded-lg overflow-hidden">
                   {PAGE_SECTIONS.map((section) => {
                     const sectionPages = ALL_PAGES.filter(p => p.section === section);
                     const allChecked = sectionPages.every(p => selectedPages.includes(p.key));
@@ -343,7 +343,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
                     return (
                       <div key={section}>
                         {/* Section header with select-all */}
-                        <div className="flex items-center gap-2 px-3 py-2 bg-stone-50 border-b border-stone-100">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-surface-base border-b border-stroke-subtle">
                           <input
                             type="checkbox"
                             checked={allChecked}
@@ -351,7 +351,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
                             onChange={e => selectSection(section, e.target.checked)}
                             className="w-3.5 h-3.5 rounded accent-teal-600 cursor-pointer"
                           />
-                          <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                          <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wider">
                             {section}
                           </span>
                           <span className="ml-auto text-[10px] text-stone-400">
@@ -366,7 +366,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
                               <label
                                 key={page.key}
                                 className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors duration-100 ${
-                                  checked ? "bg-teal-50/60" : "hover:bg-stone-50"
+                                  checked ? "bg-teal-500/10" : "hover:bg-surface-base"
                                 }`}
                               >
                                 <input
@@ -375,7 +375,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
                                   onChange={() => togglePage(page.key)}
                                   className="w-3.5 h-3.5 rounded accent-teal-600 cursor-pointer flex-shrink-0"
                                 />
-                                <span className={`text-xs font-medium truncate ${checked ? "text-teal-700" : "text-stone-500"}`}>
+                                <span className={`text-xs font-medium truncate ${checked ? "text-teal-400" : "text-ink-muted"}`}>
                                   {page.label}
                                 </span>
                               </label>
@@ -386,7 +386,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
                     );
                   })}
                   {selectedPages.length === 0 && (
-                    <p className="px-3 py-2 text-[11px] text-amber-600 bg-amber-50 border-t border-amber-100">
+                    <p className="px-3 py-2 text-[11px] text-amber-400 bg-signal-warn/10 border-t border-signal-warn/20">
                       No pages selected — user will see nothing after login.
                     </p>
                   )}
@@ -397,12 +397,12 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
         </div>
 
         {/* ── Footer ── */}
-        <div className="px-4 py-4 flex items-center gap-2 border-t border-stone-100 flex-shrink-0">
+        <div className="px-4 py-4 flex items-center gap-2 border-t border-stroke-subtle flex-shrink-0">
           {/* Delete */}
           {!isSelf && (
             confirmDelete ? (
               <div className="flex items-center gap-2 flex-1">
-                <span className="text-xs text-red-600 font-semibold">Sure?</span>
+                <span className="text-xs text-red-400 font-semibold">Sure?</span>
                 <button
                   onClick={handleDelete}
                   disabled={busy}
@@ -412,7 +412,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
                 </button>
                 <button
                   onClick={() => setConfirmDelete(false)}
-                  className="px-3 py-1.5 bg-stone-100 hover:bg-stone-200 text-stone-600 text-xs font-semibold rounded-lg transition-colors"
+                  className="px-3 py-1.5 bg-surface-raised hover:bg-surface-overlay text-ink-secondary text-xs font-semibold rounded-lg transition-colors"
                 >
                   Cancel
                 </button>
@@ -420,7 +420,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
             ) : (
               <button
                 onClick={() => setConfirmDelete(true)}
-                className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                className="p-2 text-stone-400 hover:text-red-400 hover:bg-signal-error/10 rounded-lg transition-colors"
                 title="Delete user"
               >
                 <Trash2 className="w-4 h-4" />
@@ -431,7 +431,7 @@ function EditUserModal({ user, isSelf, onClose, onSave, onDelete }) {
           <div className="flex items-center gap-2 ml-auto">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-stone-600 font-semibold text-sm bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors"
+              className="px-4 py-2 text-ink-secondary font-semibold text-sm bg-surface-raised hover:bg-surface-overlay rounded-lg transition-colors"
             >
               Cancel
             </button>
@@ -530,11 +530,11 @@ export default function UserPerm() {
   const SelIcon = selRc.Icon;
 
   return (
-    <div className="min-h-screen bg-stone-50" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div className="min-h-screen bg-surface-base" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-5">
 
         {/* ── Page Header ─────────────────────────────────────────────────── */}
-        <div className="rounded-xl bg-white border border-stone-200 shadow-sm overflow-hidden">
+        <div className="rounded-xl bg-surface-panel border border-stroke shadow-sm overflow-hidden">
           <div className="h-1 bg-teal-600" />
           <div className="px-6 py-5 flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -542,13 +542,13 @@ export default function UserPerm() {
                 <Users className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-stone-900 tracking-tight">User Management</h1>
-                <p className="text-sm text-stone-500 mt-0.5">Manage system accounts, roles and access permissions</p>
+                <h1 className="text-xl font-bold text-ink-primary tracking-tight">User Management</h1>
+                <p className="text-sm text-ink-muted mt-0.5">Manage system accounts, roles and access permissions</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0 px-3 py-1.5 rounded-lg bg-stone-100 border border-stone-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs font-semibold text-stone-600 tabular-nums">
+            <div className="flex items-center gap-2 flex-shrink-0 px-3 py-1.5 rounded-lg bg-surface-raised border border-stroke">
+              <span className="w-2 h-2 rounded-full bg-signal-ok animate-pulse" />
+              <span className="text-xs font-semibold text-ink-secondary tabular-nums">
                 {users.length} user{users.length !== 1 ? "s" : ""}
               </span>
             </div>
@@ -563,7 +563,7 @@ export default function UserPerm() {
             const pct   = users.length > 0 && m.key !== "total"
               ? Math.round((val / users.length) * 100) : 0;
             return (
-              <div key={m.key} className="rounded-xl bg-white border border-stone-200 shadow-sm overflow-hidden">
+              <div key={m.key} className="rounded-xl bg-surface-panel border border-stroke shadow-sm overflow-hidden">
                 <div className={`h-0.5 ${m.accentBg}`} />
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
@@ -574,7 +574,7 @@ export default function UserPerm() {
                   </div>
                   <p className={`text-3xl font-bold tabular-nums tracking-tight ${m.numColor}`}>{val}</p>
                   {m.key !== "total" && users.length > 0 && (
-                    <div className="mt-3 h-1 rounded-full bg-stone-100 overflow-hidden">
+                    <div className="mt-3 h-1 rounded-full bg-surface-raised overflow-hidden">
                       <div
                         className={`h-full rounded-full ${m.accentBg} transition-all duration-700`}
                         style={{ width: `${pct}%` }}
@@ -589,18 +589,18 @@ export default function UserPerm() {
 
         {/* ── Alerts ──────────────────────────────────────────────────────── */}
         {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
-            <span className="text-sm text-red-800 flex-1">{error}</span>
-            <button onClick={() => setError("")} className="p-1 text-red-400 hover:text-red-600 hover:bg-red-100 rounded-lg transition-colors">
+          <div className="p-4 bg-signal-error/10 border border-red-500/30 rounded-xl flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+            <span className="text-sm text-red-300 flex-1">{error}</span>
+            <button onClick={() => setError("")} className="p-1 text-red-400 hover:text-red-400 hover:bg-signal-error/15 rounded-lg transition-colors">
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
         {successMsg.text && (
-          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />
-            <span className="text-sm text-emerald-800">{successMsg.text}</span>
+          <div className="p-4 bg-signal-ok/10 border border-emerald-500/30 rounded-xl flex items-center gap-3">
+            <CheckCircle className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+            <span className="text-sm text-emerald-300">{successMsg.text}</span>
           </div>
         )}
 
@@ -609,12 +609,12 @@ export default function UserPerm() {
 
           {/* ── Users table ── */}
           <div className="xl:col-span-2">
-            <div className="rounded-xl bg-white border border-stone-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-3">
-                <h2 className="text-sm font-semibold text-stone-700 uppercase tracking-wider flex-1">
+            <div className="rounded-xl bg-surface-panel border border-stroke shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-stroke-subtle flex items-center gap-3">
+                <h2 className="text-sm font-semibold text-ink-secondary uppercase tracking-wider flex-1">
                   Current Users
                 </h2>
-                <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-stone-100 text-stone-500 tabular-nums">
+                <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-surface-raised text-ink-muted tabular-nums">
                   {users.length}
                 </span>
               </div>
@@ -622,7 +622,7 @@ export default function UserPerm() {
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-stone-50/80">
+                    <tr className="bg-surface-base/80">
                       <th className="px-5 py-3 text-left text-[11px] font-semibold text-stone-400 uppercase tracking-wider">User</th>
                       <th className="px-4 py-3 text-left text-[11px] font-semibold text-stone-400 uppercase tracking-wider">Role</th>
                       <th className="px-4 py-3 text-left text-[11px] font-semibold text-stone-400 uppercase tracking-wider hidden md:table-cell">Status</th>
@@ -640,9 +640,9 @@ export default function UserPerm() {
                         <tr
                           key={u.id}
                           className={`transition-colors duration-150 ${
-                            isEditing  ? "bg-teal-50/60 ring-1 ring-inset ring-teal-200"
-                            : isSelf   ? "bg-teal-50/30"
-                            : "hover:bg-stone-50/70"
+                            isEditing  ? "bg-teal-500/10 ring-1 ring-inset ring-teal-200"
+                            : isSelf   ? "bg-teal-500/10"
+                            : "hover:bg-surface-base/70"
                           }`}
                         >
                           {/* User */}
@@ -653,14 +653,14 @@ export default function UserPerm() {
                               </div>
                               <div>
                                 <div className="flex items-center gap-1.5 flex-wrap">
-                                  <p className="text-sm font-semibold text-stone-800">{u.username}</p>
+                                  <p className="text-sm font-semibold text-ink-primary">{u.username}</p>
                                   {isSelf && (
-                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-teal-100 text-teal-700 uppercase tracking-wide leading-none">
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-teal-500/15 text-teal-400 uppercase tracking-wide leading-none">
                                       You
                                     </span>
                                   )}
                                   {isEditing && (
-                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 uppercase tracking-wide leading-none">
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-signal-warn/15 text-amber-400 uppercase tracking-wide leading-none">
                                       Editing
                                     </span>
                                   )}
@@ -681,8 +681,8 @@ export default function UserPerm() {
                           {/* Status */}
                           <td className="px-4 py-3.5 hidden md:table-cell">
                             <div className="flex items-center gap-1.5">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                              <span className="text-xs font-medium text-stone-500">Active</span>
+                              <span className="w-1.5 h-1.5 rounded-full bg-signal-ok" />
+                              <span className="text-xs font-medium text-ink-muted">Active</span>
                             </div>
                           </td>
 
@@ -694,8 +694,8 @@ export default function UserPerm() {
                                 title="Edit user"
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors duration-150 ${
                                   isEditing
-                                    ? "bg-teal-100 text-teal-700 border-teal-200"
-                                    : "text-stone-500 border-stone-200 hover:text-teal-600 hover:bg-teal-50 hover:border-teal-200"
+                                    ? "bg-teal-500/15 text-teal-400 border-teal-500/30"
+                                    : "text-ink-muted border-stroke hover:text-teal-400 hover:bg-teal-500/10 hover:border-teal-500/30"
                                 }`}
                               >
                                 <Edit3 className="w-3.5 h-3.5" />
@@ -711,7 +711,7 @@ export default function UserPerm() {
 
                 {users.length === 0 && (
                   <div className="py-16 text-center">
-                    <div className="w-14 h-14 rounded-2xl bg-stone-100 flex items-center justify-center mx-auto mb-4">
+                    <div className="w-14 h-14 rounded-xl bg-surface-raised flex items-center justify-center mx-auto mb-4">
                       <Users className="w-7 h-7 text-stone-300" />
                     </div>
                     <p className="text-sm font-semibold text-stone-400">No users yet</p>
@@ -725,12 +725,12 @@ export default function UserPerm() {
           {/* ── Add form + legend ── */}
           <div className="xl:col-span-1 space-y-4">
 
-            <div className="rounded-xl bg-white shadow-sm border border-stone-200 overflow-hidden border-l-4 border-l-teal-500">
-              <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center">
-                  <UserPlus className="w-4 h-4 text-teal-600" />
+            <div className="rounded-xl bg-surface-panel shadow-sm border border-stroke overflow-hidden border-l-4 border-l-teal-500">
+              <div className="px-5 py-4 border-b border-stroke-subtle flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                  <UserPlus className="w-4 h-4 text-teal-400" />
                 </div>
-                <h2 className="text-sm font-semibold text-stone-700 uppercase tracking-wider">
+                <h2 className="text-sm font-semibold text-ink-secondary uppercase tracking-wider">
                   Add New User
                 </h2>
               </div>
@@ -746,7 +746,7 @@ export default function UserPerm() {
                       value={addForm.username}
                       onChange={(e) => setAddForm({ ...addForm, username: e.target.value })}
                       placeholder="e.g. john_doe"
-                      className="w-full px-3.5 py-2.5 bg-white text-stone-800 border-2 border-stone-200 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm placeholder:text-stone-300"
+                      className="w-full px-3.5 py-2.5 bg-surface-panel text-ink-primary border-2 border-stroke rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm placeholder:text-stone-300"
                     />
                   </div>
 
@@ -763,12 +763,12 @@ export default function UserPerm() {
                         value={addForm.password}
                         onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
                         placeholder="Enter password"
-                        className="w-full pl-10 pr-10 py-2.5 bg-white text-stone-800 border-2 border-stone-200 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm placeholder:text-stone-300"
+                        className="w-full pl-10 pr-10 py-2.5 bg-surface-panel text-ink-primary border-2 border-stroke rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm placeholder:text-stone-300"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPw(!showPw)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-ink-secondary transition-colors"
                       >
                         {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -783,7 +783,7 @@ export default function UserPerm() {
                       <select
                         value={addForm.role}
                         onChange={(e) => setAddForm({ ...addForm, role: e.target.value })}
-                        className="w-full appearance-none px-3.5 py-2.5 bg-white text-stone-800 border-2 border-stone-200 rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm pr-9"
+                        className="w-full appearance-none px-3.5 py-2.5 bg-surface-panel text-ink-primary border-2 border-stroke rounded-lg focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all duration-150 text-sm pr-9"
                       >
                         <option value="viewer">Viewer — Read only</option>
                         <option value="qc">QC — Quality control</option>
@@ -830,8 +830,8 @@ export default function UserPerm() {
             </div>
 
             {/* Role legend */}
-            <div className="rounded-xl bg-white border border-stone-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-3.5 border-b border-stone-100">
+            <div className="rounded-xl bg-surface-panel border border-stroke shadow-sm overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-stroke-subtle">
                 <h3 className="text-[11px] font-semibold text-stone-400 uppercase tracking-wider">
                   Role Permissions
                 </h3>
@@ -847,7 +847,7 @@ export default function UserPerm() {
                       </div>
                       <div>
                         <p className={`text-xs font-bold ${rc.text} capitalize`}>{role}</p>
-                        <p className="text-[10px] text-stone-500 mt-0.5 leading-relaxed">{rc.detail}</p>
+                        <p className="text-[10px] text-ink-muted mt-0.5 leading-relaxed">{rc.detail}</p>
                       </div>
                     </div>
                   );

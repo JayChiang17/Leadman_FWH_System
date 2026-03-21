@@ -83,6 +83,10 @@ def _ensure_ml_schema():
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_ml_predictions_us_sn ON ml.predictions(us_sn)"
         )
+        # Add shap_values column (idempotent)
+        cur.execute(
+            "ALTER TABLE ml.predictions ADD COLUMN IF NOT EXISTS shap_values JSONB"
+        )
         cur.close()
     logger.info("[ml] Schema ensured")
 
@@ -343,3 +347,158 @@ async def ng_3d(days: int = 30, user=Depends(get_current_user)):
     cluster_names = [c["representative"][:28] for c in clusters if c.get("member_sns")]
 
     return {"data": result, "clusters": cluster_names, "dates": sorted_dates}
+
+
+# ── /api/ml/shap/summary ──────────────────────────────────────────────────────
+
+@router.get("/shap/summary", summary="Global SHAP feature importance (mean |SHAP| across all predictions)")
+async def shap_summary(user=Depends(get_current_user)):
+    """
+    Returns mean absolute SHAP value per feature, aggregated across all stored
+    predictions. Use this for the global feature-importance bar chart.
+    """
+    try:
+        with get_cursor("ml") as cur:
+            cur.execute(
+                """
+                SELECT shap_values
+                FROM ml.predictions
+                WHERE shap_values IS NOT NULL
+                ORDER BY predicted_at DESC
+                LIMIT 2000
+                """
+            )
+            rows = cur.fetchall()
+    except Exception as e:
+        logger.error("[ml.shap.summary] DB error: %s", e)
+        raise HTTPException(500, f"DB error: {e}")
+
+    if not rows:
+        return {"features": [], "sample_count": 0}
+
+    from ml.ng_model import FEATURES
+    import json as _json
+
+    # Accumulate sum of |shap| per feature
+    sums: Dict[str, float] = {f: 0.0 for f in FEATURES}
+    count = 0
+    for row in rows:
+        sv = row["shap_values"]
+        if not sv:
+            continue
+        # psycopg2 returns JSONB as dict already
+        vals = sv.get("values") if isinstance(sv, dict) else _json.loads(sv).get("values", {})
+        for f in FEATURES:
+            sums[f] += abs(vals.get(f, 0.0))
+        count += 1
+
+    if count == 0:
+        return {"features": [], "sample_count": 0}
+
+    # Human-readable labels
+    labels = {
+        "hour_sin":              "Hour (sin)",
+        "hour_cos":              "Hour (cos)",
+        "day_of_week":           "Day of Week",
+        "am7_batch_ng_rate":     "AM7 Batch NG Rate",
+        "au8_batch_ng_rate":     "AU8 Batch NG Rate",
+        "am7_board_ng":          "AM7 Board NG Flag",
+        "au8_board_ng":          "AU8 Board NG Flag",
+        "am7_board_age_days":    "AM7 Board Age (days)",
+        "au8_board_age_days":    "AU8 Board Age (days)",
+        "product_line_freq":     "Product Line Freq",
+        "product_line_ng_rate":  "Product Line NG Rate",
+        "production_seconds":    "Production Time (s)",
+        "assembly_duration_sec": "Assembly Duration (s)",
+        "daily_seq":             "Daily Sequence No.",
+        "daily_ng_count_before": "NGs Before (today)",
+    }
+
+    features = sorted(
+        [
+            {
+                "name":          f,
+                "label":         labels.get(f, f),
+                "mean_abs_shap": round(sums[f] / count, 6),
+            }
+            for f in FEATURES
+        ],
+        key=lambda x: -x["mean_abs_shap"],
+    )
+    return {"features": features, "sample_count": count}
+
+
+# ── /api/ml/predictions/{us_sn}/shap ─────────────────────────────────────────
+
+@router.get("/predictions/{us_sn}/shap", summary="SHAP explanation for a single assembly unit")
+async def prediction_shap(us_sn: str, user=Depends(get_current_user)):
+    """
+    Returns the per-feature SHAP values for one unit.
+    Positive values push toward NG; negative values push toward OK.
+    """
+    try:
+        with get_cursor("ml") as cur:
+            cur.execute(
+                """
+                SELECT us_sn, risk_score, risk_level, predicted_at, shap_values
+                FROM ml.predictions
+                WHERE us_sn = %s
+                """,
+                (us_sn,),
+            )
+            row = cur.fetchone()
+    except Exception as e:
+        raise HTTPException(500, f"DB error: {e}")
+
+    if not row:
+        raise HTTPException(404, "No prediction found for this unit")
+
+    sv = row["shap_values"]
+    if not sv:
+        raise HTTPException(404, "SHAP data not yet computed for this unit — re-run predictions")
+
+    import json as _json
+    from ml.ng_model import FEATURES
+
+    data = sv if isinstance(sv, dict) else _json.loads(sv)
+    vals = data.get("values", {})
+    base_value = data.get("base_value", 0.0)
+
+    labels = {
+        "hour_sin":              "Hour (sin)",
+        "hour_cos":              "Hour (cos)",
+        "day_of_week":           "Day of Week",
+        "am7_batch_ng_rate":     "AM7 Batch NG Rate",
+        "au8_batch_ng_rate":     "AU8 Batch NG Rate",
+        "am7_board_ng":          "AM7 Board NG Flag",
+        "au8_board_ng":          "AU8 Board NG Flag",
+        "am7_board_age_days":    "AM7 Board Age (days)",
+        "au8_board_age_days":    "AU8 Board Age (days)",
+        "product_line_freq":     "Product Line Freq",
+        "product_line_ng_rate":  "Product Line NG Rate",
+        "production_seconds":    "Production Time (s)",
+        "assembly_duration_sec": "Assembly Duration (s)",
+        "daily_seq":             "Daily Sequence No.",
+        "daily_ng_count_before": "NGs Before (today)",
+    }
+
+    features = sorted(
+        [
+            {
+                "name":       f,
+                "label":      labels.get(f, f),
+                "shap_value": round(vals.get(f, 0.0), 6),
+            }
+            for f in FEATURES
+        ],
+        key=lambda x: -abs(x["shap_value"]),   # sort by impact magnitude
+    )
+
+    return {
+        "us_sn":        row["us_sn"],
+        "risk_score":   row["risk_score"],
+        "risk_level":   row["risk_level"],
+        "predicted_at": row["predicted_at"].isoformat() if row["predicted_at"] else None,
+        "base_value":   round(base_value, 6),
+        "features":     features,
+    }

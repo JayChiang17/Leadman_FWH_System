@@ -1,236 +1,198 @@
-// src/app/Sidebar.js – 流動科幻風 Sidebar
-// ---------------------------------------------------------------------------
-// 特色：
-// • 透明水滴漸層背景動畫
-// • Hover 流體擴散 + 光暈陰影
-// • 用戶名放大顯示，移除頭像
-// • 動態粒子 + 光條掃描 + 連續 shimmer
-// • 已加入 PCBA Tracking 導覽
-// ---------------------------------------------------------------------------
-
+// src/app/Sidebar.js
 import React, { useContext, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AuthCtx } from "../auth/AuthContext";
 import {
-  BarChart2,
-  BatteryMedium,
-  Package,
-  ClipboardList,
-  Search,
-  Users,
-  CheckCircle,
-  LogOut,
-  TrendingUp,
-  Cpu,
-  Activity,//  ← PCBA Tracking
-  AlertTriangle,//  ← NG Dashboard
-  Mail,//  ← Email Settings
-  Monitor,//  ← System Monitor
-  Layers,//  ← WIP Tracking
-  PieChart,//  ← NG Analysis
+  BarChart2, BatteryMedium, Package, ClipboardList,
+  Search, Users, CheckCircle, LogOut, TrendingUp,
+  Cpu, Activity, AlertTriangle, Mail, Monitor,
+  Layers, PieChart,
 } from "lucide-react";
-
-/* ------------------------------------------------------------------ */
 
 export default function Sidebar() {
   const { role, logout, name, allowedPages } = useContext(AuthCtx);
   const { pathname } = useLocation();
 
-  // Returns true if this user can see the given page key.
-  // Admin always sees everything. null allowedPages = unrestricted.
   const canSee = useCallback((pageKey) => {
     if (role === "admin") return true;
     if (allowedPages === null || allowedPages === undefined) return true;
     return allowedPages.includes(pageKey);
   }, [role, allowedPages]);
 
-  const navItemClass = useCallback((path) => `
-    group relative flex items-center gap-3 px-4 py-3 rounded-xl
-    font-medium text-base transition-all duration-500 overflow-hidden
-    ${
-      pathname.startsWith(path)
-        ? "bg-gradient-to-r from-teal-600/30 to-cyan-500/20 text-cyan-300 border border-teal-400/30 shadow-xl shadow-teal-500/20 backdrop-blur-sm"
-        : "text-gray-300 hover:text-cyan-300 hover:bg-gradient-to-r hover:from-teal-600/10 hover:to-cyan-500/5 hover:border-teal-400/20 hover:shadow-lg hover:shadow-teal-500/10 hover:backdrop-blur-sm border border-transparent"
-    }
-  `, [pathname]);
+  const isActive = useCallback((path) => pathname.startsWith(path), [pathname]);
 
   return (
-    <nav className="w-72 h-screen bg-gradient-to-br from-gray-900 via-teal-900/20 to-gray-950 text-white flex flex-col shadow-2xl shadow-black/50 relative overflow-hidden">
-      {/* -------- 背景粒子 / 水滴 -------- */}
-      <div className="absolute inset-0 opacity-40 pointer-events-none">
-        <div className="absolute -top-20 -right-20 w-80 h-80 bg-gradient-radial from-blue-400/20 via-cyan-300/10 to-transparent rounded-full blur-2xl animate-float-slow" />
-        <div className="absolute top-1/3 -left-16 w-60 h-60 bg-gradient-radial from-cyan-400/15 via-blue-300/8 to-transparent rounded-full blur-xl animate-float-reverse" />
-        <div className="absolute bottom-1/4 right-10 w-40 h-40 bg-gradient-radial from-blue-300/20 via-cyan-400/10 to-transparent rounded-full blur-lg animate-pulse-slow" />
-        <div className="absolute top-1/4 left-1/4 w-8 h-8 bg-cyan-400/20 rounded-full blur-sm animate-bounce-gentle" />
-        <div className="absolute top-3/4 right-1/3 w-6 h-6 bg-blue-400/25 rounded-full blur-sm animate-float-micro" />
-        <div className="absolute top-1/2 left-3/4 w-4 h-4 bg-cyan-300/30 rounded-full blur-sm animate-drift" />
-      </div>
+    <nav className="w-72 h-screen flex flex-col relative overflow-hidden"
+         style={{ background: "linear-gradient(180deg, #111827 0%, #0f1e1e 50%, #0d1117 100%)" }}>
 
-      {/* -------- Shimmer 光線 -------- */}
-      <div className="absolute inset-0 opacity-20 pointer-events-none">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent animate-shimmer" />
-        <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-400/50 to-transparent animate-shimmer-reverse" />
-      </div>
+      {/* 頂部 teal 光邊 */}
+      <div className="absolute top-0 left-0 right-0 h-px"
+           style={{ background: "linear-gradient(90deg, transparent, rgba(34,211,238,0.4), transparent)" }} />
 
-      {/* -------- User 區塊 -------- */}
-      <div className="flex-shrink-0 p-6 relative z-10">
-        <div className="relative p-6 bg-gradient-to-br from-teal-500/10 via-cyan-500/5 to-transparent border border-teal-400/20 rounded-xl backdrop-blur-md shadow-lg shadow-teal-500/10 overflow-hidden group">
-          {/* 背景點綴 */}
-          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
-            <div className="absolute -top-2 -right-2 w-16 h-16 bg-gradient-radial from-cyan-400/30 to-transparent rounded-full blur-md animate-pulse-gentle" />
-            <div className="absolute -bottom-2 -left-2 w-12 h-12 bg-gradient-radial from-blue-400/25 to-transparent rounded-full blur-sm animate-float-micro" />
+      {/* 右側邊線 */}
+      <div className="absolute top-0 right-0 bottom-0 w-px"
+           style={{ background: "linear-gradient(180deg, rgba(34,211,238,0.15), rgba(34,211,238,0.05) 50%, transparent)" }} />
+
+      {/* ── Logo 區域 ── */}
+      <div className="flex-shrink-0 px-5 pt-5 pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg overflow-hidden border flex-shrink-0"
+               style={{ borderColor: "rgba(34,211,238,0.2)", background: "rgba(34,211,238,0.06)" }}>
+            <img src="/leadman_logo_icon.ico" alt="Leadman"
+                 className="w-full h-full object-contain p-1" draggable={false} />
           </div>
+          <div>
+            <p className="text-sm font-bold tracking-wide" style={{ color: "#c8cedc" }}>Leadman FWH</p>
+            <p className="text-xs" style={{ color: "#565e74" }}>Production System</p>
+          </div>
+        </div>
+      </div>
 
-          <div className="relative z-10">
-            <p className="text-3xl font-bold text-white mb-2 tracking-wide">Hi, {name}</p>
-            <div className="flex items-center gap-2 text-cyan-300">
-              <span className="w-2 h-2 bg-gradient-to-r from-green-400 to-cyan-400 rounded-full animate-pulse-soft shadow-sm shadow-green-400/50" />
-              <span className="text-sm capitalize font-medium">{role}</span>
+      {/* ── 分隔線 ── */}
+      <div className="mx-5 mb-4 h-px" style={{ background: "#2e3650" }} />
+
+      {/* ── User 區塊 ── */}
+      <div className="flex-shrink-0 px-4 pb-4">
+        <div className="px-3 py-3 rounded-xl"
+             style={{ background: "rgba(34,211,238,0.06)", border: "1px solid rgba(34,211,238,0.12)" }}>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                 style={{ background: "rgba(34,211,238,0.12)" }}>
+              <span className="text-sm font-bold" style={{ color: "#22d3ee" }}>
+                {name?.charAt(0)?.toUpperCase() || "U"}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold truncate" style={{ color: "#c8cedc" }}>
+                {name || "User"}
+              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                      style={{ background: "#10b981", boxShadow: "0 0 6px rgba(16,185,129,0.5)" }} />
+                <span className="text-xs capitalize" style={{ color: "#8d93a5" }}>{role}</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* -------- Nav 區域 -------- */}
-      <div className="flex-1 overflow-y-auto px-6 relative z-10 custom-scrollbar">
-        <div className="space-y-8 pb-6">
-          {/* -------- Production -------- */}
+      {/* ── Nav 區域 ── */}
+      <div className="flex-1 overflow-y-auto px-3 sidebar-scroll">
+        <div className="space-y-6 pb-4">
+
+          {/* Production */}
           <section>
-            <h4 className="nav-label">Production</h4>
-            <div className="space-y-2">
-              {canSee("dashboard")           && <SidebarLink to="/dashboard"           icon={BarChart2}     text="Dashboard"           navItemClass={navItemClass} />}
-              {canSee("production-charts")   && <SidebarLink to="/production-charts"   icon={TrendingUp}    text="Production Charts"   navItemClass={navItemClass} />}
-              {canSee("ng-dashboard")        && <SidebarLink to="/ng-dashboard"        icon={AlertTriangle} text="NG Dashboard"        navItemClass={navItemClass} />}
-              {canSee("pcba-tracking")       && <SidebarLink to="/pcba-tracking"       icon={Cpu}           text="PCBA Tracking"       navItemClass={navItemClass} />}
-              {canSee("module_production")   && <SidebarLink to="/module_production"   icon={BatteryMedium} text="Module Production"   navItemClass={navItemClass} />}
-              {canSee("assembly_production") && <SidebarLink to="/assembly_production" icon={Package}       text="Assembly Production" navItemClass={navItemClass} />}
-              {canSee("downtime")            && <SidebarLink to="/downtime"            icon={ClipboardList} text="Downtime"            navItemClass={navItemClass} />}
-              {canSee("wip-tracking")        && <SidebarLink to="/wip-tracking"        icon={Layers}        text="WIP Tracking"        navItemClass={navItemClass} />}
-              {canSee("ng-analysis")         && <SidebarLink to="/ng-analysis"         icon={PieChart}      text="ATE NG Analysis"     navItemClass={navItemClass} />}
+            <NavLabel text="Production" />
+            <div className="space-y-0.5">
+              {canSee("dashboard")           && <NavItem to="/dashboard"           icon={BarChart2}     text="Dashboard"           active={isActive("/dashboard")} />}
+              {canSee("production-charts")   && <NavItem to="/production-charts"   icon={TrendingUp}    text="Production Charts"   active={isActive("/production-charts")} />}
+              {canSee("ng-dashboard")        && <NavItem to="/ng-dashboard"        icon={AlertTriangle} text="NG Dashboard"        active={isActive("/ng-dashboard")} />}
+              {canSee("pcba-tracking")       && <NavItem to="/pcba-tracking"       icon={Cpu}           text="PCBA Tracking"       active={isActive("/pcba-tracking")} />}
+              {canSee("module_production")   && <NavItem to="/module_production"   icon={BatteryMedium} text="Module Production"   active={isActive("/module_production")} />}
+              {canSee("assembly_production") && <NavItem to="/assembly_production" icon={Package}       text="Assembly Production" active={isActive("/assembly_production")} />}
+              {canSee("downtime")            && <NavItem to="/downtime"            icon={ClipboardList} text="Downtime"            active={isActive("/downtime")} />}
+              {canSee("wip-tracking")        && <NavItem to="/wip-tracking"        icon={Layers}        text="WIP Tracking"        active={isActive("/wip-tracking")} />}
+              {canSee("ng-analysis")         && <NavItem to="/ng-analysis"         icon={PieChart}      text="ATE NG Analysis"     active={isActive("/ng-analysis")} />}
             </div>
           </section>
 
-          {/* -------- Tools -------- */}
+          {/* Tools */}
           <section>
-            <h4 className="nav-label">Tools & Analytics</h4>
-            <div className="space-y-2">
-              {canSee("search")      && <SidebarLink to="/search"      icon={Search}       text="Data Search"      navItemClass={navItemClass} />}
-              {canSee("qc-check")    && <SidebarLink to="/qc-check"    icon={CheckCircle}  text="Quality Control"  navItemClass={navItemClass} />}
-              {canSee("ate-testing") && <SidebarLink to="/ate-testing" icon={Activity}     text="ATE Testing"      navItemClass={navItemClass} />}
-              {role === "admin" && (
-                <>
-                  <SidebarLink to="/user-perm" icon={Users} text="User Management" navItemClass={navItemClass} />
-                  <SidebarLink to="/email-settings" icon={Mail} text="Email Settings" navItemClass={navItemClass} />
-                  <SidebarLink to="/system-monitor" icon={Monitor} text="System Monitor" navItemClass={navItemClass} />
-                </>
-              )}
+            <NavLabel text="Tools & Analytics" />
+            <div className="space-y-0.5">
+              {canSee("search")      && <NavItem to="/search"      icon={Search}      text="Data Search"      active={isActive("/search")} />}
+              {canSee("qc-check")    && <NavItem to="/qc-check"    icon={CheckCircle} text="Quality Control"  active={isActive("/qc-check")} />}
+              {canSee("ate-testing") && <NavItem to="/ate-testing" icon={Activity}    text="ATE Testing"      active={isActive("/ate-testing")} />}
+              {role === "admin" && <>
+                <NavItem to="/user-perm"      icon={Users}   text="User Management" active={isActive("/user-perm")} />
+                <NavItem to="/email-settings" icon={Mail}    text="Email Settings"  active={isActive("/email-settings")} />
+                <NavItem to="/system-monitor" icon={Monitor} text="System Monitor"  active={isActive("/system-monitor")} />
+              </>}
             </div>
           </section>
         </div>
       </div>
 
-      {/* -------- Logout -------- */}
-      <div className="flex-shrink-0 p-6 relative z-10">
+      {/* ── Logout ── */}
+      <div className="flex-shrink-0 p-4">
+        <div className="h-px mb-4" style={{ background: "#2e3650" }} />
         <button
           onClick={logout}
-          className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-red-600/80 via-red-500/90 to-red-600/80 hover:from-red-500 hover:via-red-400 hover:to-red-500 text-white font-medium text-sm rounded-xl shadow-xl shadow-red-900/40 transition-all duration-500 relative overflow-hidden group border border-red-400/30 hover:border-red-300/50 hover:shadow-2xl hover:shadow-red-500/30"
+          className="logout-btn w-full flex items-center gap-3 px-4 py-2.5 rounded-xl
+                     text-sm font-medium transition-colors duration-150"
         >
-          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-            <div className="absolute top-1 right-2 w-3 h-3 bg-gradient-radial from-white/40 to-transparent rounded-full blur-sm animate-drift" />
-            <div className="absolute bottom-1 left-3 w-2 h-2 bg-gradient-radial from-red-200/50 to-transparent rounded-full blur-sm animate-bounce-gentle" />
-          </div>
-          <LogOut size={18} className="relative z-10" />
-          <span className="relative z-10">Logout</span>
+          <LogOut size={17} />
+          <span>Logout</span>
         </button>
       </div>
 
-      {/* -------- 自定義 CSS -------- */}
       <style>{`
-        .nav-label {
-          font-size: 0.75rem;
-          font-weight: 600;
-          color: rgb(34 211 238 / 0.8);
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          padding-left: 1rem;
-          padding-right: 1rem;
-          margin-bottom: 1rem;
-          position: relative;
+        .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+        .sidebar-scroll::-webkit-scrollbar-thumb {
+          background: rgba(34,211,238,0.15);
+          border-radius: 2px;
         }
-        .nav-label::after {
-          content: "";
-          position: absolute;
-          left: 0;
-          bottom: 0;
-          width: 2rem;
-          height: 1px;
-          background: linear-gradient(to right, rgba(34, 211, 238, 0.6), transparent);
+        .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+
+        .logout-btn {
+          color: #f87171;
+          border: 1px solid rgba(239,68,68,0.15);
+          background: rgba(239,68,68,0.05);
+        }
+        .logout-btn:hover {
+          color: #fca5a5;
+          background: rgba(239,68,68,0.1);
+          border-color: rgba(239,68,68,0.25);
         }
 
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
+        .nav-item:not([style*="rgba(34,211,238"]):hover {
+          color: #c8cedc;
+          background: rgba(255,255,255,0.04);
+          border-color: rgba(255,255,255,0.06) !important;
         }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: linear-gradient(to bottom, rgba(34, 211, 238, 0.3), rgba(59, 130, 246, 0.3));
-          border-radius: 3px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(15, 23, 42, 0.3);
-          border-radius: 3px;
-        }
-
-        /* keyframes（若已在 tailwind.config 擴充，可移除） */
-        @keyframes float-slow   { 0%,100%{transform:translate(0,0) scale(1)} 25%{transform:translate(10px,-20px) scale(1.05)} 50%{transform:translate(-5px,-10px) scale(.95)} 75%{transform:translate(8px,-15px) scale(1.02)} }
-        @keyframes float-reverse{ 0%,100%{transform:translate(0,0) rotate(0)} 33%{transform:translate(-8px,15px) rotate(120deg)} 66%{transform:translate(12px,-10px) rotate(240deg)} }
-        @keyframes pulse-slow   { 0%,100%{opacity:.4;transform:scale(1)} 50%{opacity:.8;transform:scale(1.1)} }
-        @keyframes bounce-gentle{ 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
-        @keyframes float-micro  { 0%,100%{transform:translate(0,0)} 50%{transform:translate(2px,-4px)} }
-        @keyframes drift        { 0%,100%{transform:translate(0,0)} 25%{transform:translate(3px,-2px)} 50%{transform:translate(-2px,2px)} 75%{transform:translate(4px,1px)} }
-        @keyframes pulse-gentle { 0%,100%{opacity:.6} 50%{opacity:1} }
-        @keyframes pulse-soft   { 0%,100%{opacity:.5;transform:scale(1)} 50%{opacity:.9;transform:scale(1.05)} }
-        @keyframes shimmer      { 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
-        @keyframes shimmer-reverse{ 0%{transform:translateX(200%)} 100%{transform:translateX(-100%)} }
-
-        .animate-float-slow      { animation: float-slow 8s ease-in-out infinite; }
-        .animate-float-reverse   { animation: float-reverse 12s ease-in-out infinite; }
-        .animate-pulse-slow      { animation: pulse-slow 4s ease-in-out infinite; }
-        .animate-bounce-gentle   { animation: bounce-gentle 3s ease-in-out infinite; }
-        .animate-float-micro     { animation: float-micro 5s ease-in-out infinite; }
-        .animate-drift           { animation: drift 6s ease-in-out infinite; }
-        .animate-pulse-gentle    { animation: pulse-gentle 2s ease-in-out infinite; }
-        .animate-pulse-soft      { animation: pulse-soft 3s ease-in-out infinite; }
-        .animate-shimmer         { animation: shimmer 3s linear infinite; }
-        .animate-shimmer-reverse { animation: shimmer-reverse 4s linear infinite; }
-
-        .bg-gradient-radial { background: radial-gradient(circle, var(--tw-gradient-stops)); }
-
-        @media (prefers-reduced-motion: reduce) {
-          *, *::before, *::after {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            transition-duration: 0.01ms !important;
-          }
+        .nav-item:not([style*="rgba(34,211,238"]):hover svg {
+          opacity: 1;
         }
       `}</style>
     </nav>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  小型封裝：可重用的 Link                                            */
-/* ------------------------------------------------------------------ */
-function SidebarLink({ to, icon: Icon, text, navItemClass }) {
+/* ── Section Label ── */
+function NavLabel({ text }) {
   return (
-    <Link to={to} className={navItemClass(to)}>
-      {/* Hover 閃光 / 火花 */}
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-8 bg-gradient-to-b from-cyan-400 to-blue-500 rounded-r-full blur-sm animate-pulse-gentle" />
-        <div className="absolute right-2 top-2 w-4 h-4 bg-gradient-radial from-cyan-400/40 to-transparent rounded-full blur-sm animate-float-micro" />
-      </div>
+    <div className="flex items-center gap-2 px-3 mb-2">
+      <span className="text-xs font-semibold uppercase tracking-widest"
+            style={{ color: "rgba(34,211,238,0.5)" }}>
+        {text}
+      </span>
+      <div className="flex-1 h-px" style={{ background: "rgba(34,211,238,0.1)" }} />
+    </div>
+  );
+}
 
-      <Icon size={20} className="relative z-10" />
-      <span className="relative z-10">{text}</span>
+/* ── Nav Item ── */
+function NavItem({ to, icon: Icon, text, active }) {
+  return (
+    <Link to={to} className="nav-item group relative flex items-center gap-3 px-3 py-2.5 rounded-lg
+                              text-sm font-medium transition-colors duration-150"
+          style={active ? {
+            color: "#22d3ee",
+            background: "rgba(34,211,238,0.08)",
+            border: "1px solid rgba(34,211,238,0.12)",
+          } : {
+            color: "#8d93a5",
+            border: "1px solid transparent",
+          }}>
+
+      {/* 左邊框 accent */}
+      {active && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full"
+              style={{ background: "linear-gradient(180deg, #22d3ee, #0d9488)" }} />
+      )}
+
+      <Icon size={17} className="flex-shrink-0" style={{ opacity: active ? 1 : 0.7 }} />
+      <span>{text}</span>
     </Link>
   );
 }

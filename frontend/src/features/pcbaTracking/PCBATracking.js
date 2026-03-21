@@ -908,30 +908,30 @@ export default function PCBATracking() {
 
   /* ---------------- UI ---------------- */
   return (
-    <div className="min-h-screen bg-gray-50 text-[15px]">
+    <div className="min-h-screen bg-surface-base text-[15px]">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
+      <header className="bg-surface-panel border-b border-stroke sticky top-0 z-40 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 lg:px-6">
           <div className="flex items-center justify-between h-16">
             {/* Left: Brand */}
             <div className="flex items-center gap-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-50 border border-gray-200 rounded-xl flex items-center justify-center">
-                  <Package className="text-gray-700" size={20} />
+                <div className="w-10 h-10 bg-surface-base border border-stroke rounded-xl flex items-center justify-center">
+                  <Package className="text-ink-secondary" size={20} />
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold text-gray-900 leading-tight">PCBA Tracker</h1>
-                  <p className="text-xs text-gray-500 leading-tight">Production Control</p>
+                  <h1 className="text-lg font-bold text-ink-primary leading-tight">PCBA Tracker</h1>
+                  <p className="text-xs text-ink-muted leading-tight">Production Control</p>
                 </div>
               </div>
 
               <div className="hidden md:flex items-center gap-2.5">
                 <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${
-                  isEditor ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-gray-50 text-gray-600 border-gray-200"
+                  isEditor ? "bg-signal-warn/10 text-amber-400 border-amber-500/30" : "bg-surface-base text-ink-secondary border-stroke"
                 }`}>{roleBadge}</span>
 
                 {slipStatus?.slipNumber && (
-                  <span className="px-3 py-1.5 bg-teal-50 text-teal-700 rounded-lg text-xs font-semibold border border-teal-200">
+                  <span className="px-3 py-1.5 bg-teal-500/10 text-teal-400 rounded-lg text-xs font-semibold border border-teal-500/30">
                     Slip: {slipStatus.slipNumber} • {slipStatus.completedPairs}/{slipStatus.targetPairs}
                   </span>
                 )}
@@ -943,8 +943,8 @@ export default function PCBATracking() {
               {/* Connection Status */}
               <div className={`hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border ${
                 isConnected
-                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                  : "bg-red-50 text-red-700 border-red-200"
+                  ? "bg-signal-ok/10 text-emerald-400 border-emerald-500/30"
+                  : "bg-signal-error/10 text-red-400 border-red-500/30"
               }`}>
                 {isConnected ? <Wifi size={16} /> : <WifiOff size={16} />}
                 <span>{isConnected ? "Live" : isConnecting ? "Connecting..." : "Offline"}</span>
@@ -953,7 +953,7 @@ export default function PCBATracking() {
               {/* Slip Button */}
               <button
                 onClick={() => setSlipOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all text-sm font-semibold"
+                className="flex items-center gap-2 px-4 py-2 bg-surface-panel border-2 border-stroke text-ink-secondary rounded-xl hover:bg-surface-base hover:border-stroke transition-all text-sm font-semibold"
                 title="Packing Slip Tracker"
               >
                 <Tag size={16} />
@@ -972,7 +972,7 @@ export default function PCBATracking() {
               {/* Settings */}
               <button
                 onClick={reconnect}
-                className="p-2 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 text-ink-muted hover:text-ink-primary hover:bg-surface-raised rounded-lg transition-colors"
                 disabled={isConnecting}
                 title="Reconnect"
               >
@@ -986,38 +986,38 @@ export default function PCBATracking() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-5">
         {/* WIP Dashboard */}
-        <section className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
+        <section className="bg-surface-panel rounded-xl border border-stroke shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-stroke-subtle">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Production Control Center</p>
-                <h2 className="text-xl font-bold text-gray-900">PCBA Work in Process</h2>
+                <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted mb-1">Production Control Center</p>
+                <h2 className="text-xl font-bold text-ink-primary">PCBA Work in Process</h2>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={() => { fetchBoards({ reset: true }); setShowActiveBoardsModal(true); }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-surface-panel border border-stroke text-ink-secondary text-sm font-semibold hover:bg-surface-base hover:border-stroke transition-colors"
                 >
                   <Database className="w-4 h-4" />
                   <span className="hidden sm:inline">Boards</span> ({list.length})
                 </button>
                 <button
                   onClick={() => { fetchNGActive(); setShowNGModal(true); }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-surface-panel border border-stroke text-ink-secondary text-sm font-semibold hover:bg-surface-base hover:border-stroke transition-colors"
                 >
                   <AlertCircle className="w-4 h-4" />
                   <span className="hidden sm:inline">NG</span> ({ngCount})
                 </button>
                 <button
                   onClick={() => { fetchDashboardDaily(rangeDays, customFrom, customTo); setShowDailyOutputModal(true); }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-surface-panel border border-stroke text-ink-secondary text-sm font-semibold hover:bg-surface-base hover:border-stroke transition-colors"
                 >
                   <BarChart3 className="w-4 h-4" />
                   <span className="hidden sm:inline">Output</span>
                 </button>
                 <button
                   onClick={() => { fetchDailyConsumption(rangeDays, customFrom, customTo); setShowConsumptionModal(true); }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 text-sm font-semibold hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-surface-panel border border-stroke text-ink-secondary text-sm font-semibold hover:bg-surface-base hover:border-stroke transition-colors"
                 >
                   <Package className="w-4 h-4" />
                   <span className="hidden sm:inline">Consumption</span>
@@ -1028,63 +1028,63 @@ export default function PCBATracking() {
 
           {/* WIP Pipeline: Aging → Coating → Completed */}
           <div className="px-5 pt-4 pb-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-3">WIP Pipeline</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted mb-3">WIP Pipeline</p>
             <div className="flex items-stretch gap-2">
               {/* Aging */}
-              <div className="flex-1 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+              <div className="flex-1 rounded-xl border border-amber-500/30 bg-signal-warn/10 p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">Aging</span>
-                  <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                    <Clock className="w-4 h-4 text-amber-700" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">Aging</span>
+                  <div className="w-8 h-8 rounded-lg bg-signal-warn/15 flex items-center justify-center">
+                    <Clock className="w-4 h-4 text-amber-400" />
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-gray-900 tabular-nums">{stats.aging}</div>
-                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                  <span>AM7 <span className="font-semibold text-gray-700">{stageBreakdown.aging.AM7}</span></span>
-                  <span className="text-gray-300">|</span>
-                  <span>AU8 <span className="font-semibold text-gray-700">{stageBreakdown.aging.AU8}</span></span>
+                <div className="text-3xl font-bold text-ink-primary tabular-nums">{stats.aging}</div>
+                <div className="flex items-center gap-3 mt-1 text-xs text-ink-muted">
+                  <span>AM7 <span className="font-semibold text-ink-secondary">{stageBreakdown.aging.AM7}</span></span>
+                  <span className="text-ink-muted">|</span>
+                  <span>AU8 <span className="font-semibold text-ink-secondary">{stageBreakdown.aging.AU8}</span></span>
                 </div>
               </div>
 
               {/* Arrow */}
-              <div className="flex items-center text-gray-300">
+              <div className="flex items-center text-ink-muted">
                 <ArrowRight className="w-5 h-5" />
               </div>
 
               {/* Coating */}
-              <div className="flex-1 rounded-xl border border-cyan-200 bg-cyan-50/50 p-4">
+              <div className="flex-1 rounded-xl border border-cyan-500/30 bg-signal-info/10 p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-teal-700">Coating</span>
-                  <div className="w-8 h-8 rounded-lg bg-cyan-100 flex items-center justify-center">
-                    <Activity className="w-4 h-4 text-teal-700" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-teal-400">Coating</span>
+                  <div className="w-8 h-8 rounded-lg bg-signal-info/15 flex items-center justify-center">
+                    <Activity className="w-4 h-4 text-teal-400" />
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-gray-900 tabular-nums">{stats.coating}</div>
-                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                  <span>AM7 <span className="font-semibold text-gray-700">{stageBreakdown.coating.AM7}</span></span>
-                  <span className="text-gray-300">|</span>
-                  <span>AU8 <span className="font-semibold text-gray-700">{stageBreakdown.coating.AU8}</span></span>
+                <div className="text-3xl font-bold text-ink-primary tabular-nums">{stats.coating}</div>
+                <div className="flex items-center gap-3 mt-1 text-xs text-ink-muted">
+                  <span>AM7 <span className="font-semibold text-ink-secondary">{stageBreakdown.coating.AM7}</span></span>
+                  <span className="text-ink-muted">|</span>
+                  <span>AU8 <span className="font-semibold text-ink-secondary">{stageBreakdown.coating.AU8}</span></span>
                 </div>
               </div>
 
               {/* Arrow */}
-              <div className="flex items-center text-gray-300">
+              <div className="flex items-center text-ink-muted">
                 <ArrowRight className="w-5 h-5" />
               </div>
 
               {/* Completed / Available Inventory */}
-              <div className="flex-1 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+              <div className="flex-1 rounded-xl border border-emerald-500/30 bg-signal-ok/10 p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Inventory</span>
-                  <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                    <CheckCircle className="w-4 h-4 text-emerald-700" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-emerald-400">Inventory</span>
+                  <div className="w-8 h-8 rounded-lg bg-signal-ok/15 flex items-center justify-center">
+                    <CheckCircle className="w-4 h-4 text-emerald-400" />
                   </div>
                 </div>
-                <div className="text-3xl font-bold text-gray-900 tabular-nums">{available.total}</div>
-                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                  <span>AM7 <span className="font-semibold text-gray-700">{available.AM7}</span></span>
-                  <span className="text-gray-300">|</span>
-                  <span>AU8 <span className="font-semibold text-gray-700">{available.AU8}</span></span>
+                <div className="text-3xl font-bold text-ink-primary tabular-nums">{available.total}</div>
+                <div className="flex items-center gap-3 mt-1 text-xs text-ink-muted">
+                  <span>AM7 <span className="font-semibold text-ink-secondary">{available.AM7}</span></span>
+                  <span className="text-ink-muted">|</span>
+                  <span>AU8 <span className="font-semibold text-ink-secondary">{available.AU8}</span></span>
                 </div>
               </div>
             </div>
@@ -1094,42 +1094,42 @@ export default function PCBATracking() {
           <div className="px-5 pt-3 pb-5">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Available Pairs */}
-              <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
-                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Available Pairs</span>
-                <div className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{stats.pairsDone ?? 0}</div>
-                <p className="text-xs text-gray-500 mt-1">min(AM7, AU8)</p>
+              <div className="rounded-xl border border-stroke bg-surface-base/50 p-4">
+                <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Available Pairs</span>
+                <div className="text-2xl font-bold text-ink-primary tabular-nums mt-1">{stats.pairsDone ?? 0}</div>
+                <p className="text-xs text-ink-muted mt-1">min(AM7, AU8)</p>
               </div>
 
               {/* Today's Output */}
-              <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
-                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Today Output</span>
-                <div className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{todayRow?.pairs || 0}</div>
-                <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                  <span>Aging <span className="font-semibold text-gray-700">{todayRow?.aging || 0}</span></span>
-                  <span className="text-gray-300">|</span>
-                  <span>Coating <span className="font-semibold text-gray-700">{todayRow?.coating || 0}</span></span>
+              <div className="rounded-xl border border-stroke bg-surface-base/50 p-4">
+                <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Today Output</span>
+                <div className="text-2xl font-bold text-ink-primary tabular-nums mt-1">{todayRow?.pairs || 0}</div>
+                <div className="flex items-center gap-3 mt-1 text-xs text-ink-muted">
+                  <span>Aging <span className="font-semibold text-ink-secondary">{todayRow?.aging || 0}</span></span>
+                  <span className="text-ink-muted">|</span>
+                  <span>Coating <span className="font-semibold text-ink-secondary">{todayRow?.coating || 0}</span></span>
                 </div>
               </div>
 
               {/* Consumed Today */}
-              <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4">
-                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Consumed</span>
-                <div className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{todayRow?.consumed || 0}</div>
-                <p className="text-xs text-gray-500 mt-1">Today</p>
+              <div className="rounded-xl border border-stroke bg-surface-base/50 p-4">
+                <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Consumed</span>
+                <div className="text-2xl font-bold text-ink-primary tabular-nums mt-1">{todayRow?.consumed || 0}</div>
+                <p className="text-xs text-ink-muted mt-1">Today</p>
               </div>
 
               {/* NG Active */}
-              <div className="rounded-xl border border-red-200 bg-red-50/50 p-4">
-                <span className="text-xs font-semibold uppercase tracking-wide text-red-700">NG Active</span>
-                <div className="text-2xl font-bold text-gray-900 tabular-nums mt-1">{ngCount}</div>
-                <p className="text-xs text-gray-500 mt-1">Quality Issues</p>
+              <div className="rounded-xl border border-red-500/30 bg-signal-error/10 p-4">
+                <span className="text-xs font-semibold uppercase tracking-wide text-red-400">NG Active</span>
+                <div className="text-2xl font-bold text-ink-primary tabular-nums mt-1">{ngCount}</div>
+                <p className="text-xs text-ink-muted mt-1">Quality Issues</p>
               </div>
             </div>
           </div>
         </section>
 
         {/* Scanner Section */}
-        <section className="rounded-xl bg-white border border-gray-100 shadow-sm p-5">
+        <section className="rounded-xl bg-surface-panel border border-stroke-subtle shadow-sm p-5">
           <PCBAEnhancedScannerPanel
             scanInput={scan}
             setScanInput={setScan}
@@ -1144,7 +1144,7 @@ export default function PCBATracking() {
       {/* 詳情 Modal（仍保留在本檔） */}
       {pick && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-3xl lg:max-w-4xl xl:max-w-5xl w-full max-h-[90vh] overflow-hidden">
+          <div className="bg-surface-panel rounded-xl shadow-xl max-w-3xl lg:max-w-4xl xl:max-w-5xl w-full max-h-[90vh] overflow-hidden">
             <div className={`p-6 text-white ${pick.ngFlag ? "bg-red-600" : "bg-teal-600"}`}>
               <div className="flex justify-between items-start">
                 <div>
@@ -1152,7 +1152,7 @@ export default function PCBATracking() {
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="px-3 py-1 bg-white/20 rounded-lg text-sm font-medium backdrop-blur-sm">{pick.model}</span>
                     {pick.version === "V2" && (
-                      <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500 text-white shadow-md">
+                      <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-signal-ok text-white shadow-md">
                         V2 NEW
                       </span>
                     )}
@@ -1169,25 +1169,25 @@ export default function PCBATracking() {
               </div>
             </div>
             <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h4 className="text-sm font-semibold text-gray-600 mb-3">Current Status</h4>
+              <div className="bg-surface-base rounded-xl p-4">
+                <h4 className="text-sm font-semibold text-ink-secondary mb-3">Current Status</h4>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div><p className="text-xs text-gray-500 mb-1">Stage</p><p className="font-semibold text-gray-900">{labelOf(pick.stage)}</p></div>
-                  <div><p className="text-xs text-gray-500 mb-1">Duration</p><p className="font-semibold text-gray-900">{fmtElapsed(pick.startTime, pick.lastUpdate, pick.stage)}</p></div>
-                  <div><p className="text-xs text-gray-500 mb-1">Operator</p><p className="font-semibold text-gray-900">{pick.operator || "System"}</p></div>
-                  <div><p className="text-xs text-gray-500 mb-1">Start Time (CA)</p><p className="font-semibold text-gray-900">{toCaliTime(pick.startTime)}</p></div>
-                  <div><p className="text-xs text-gray-500 mb-1">Last Update (CA)</p><p className="font-semibold text-gray-900">{toCaliTime(pick.lastUpdate)}</p></div>
-                  <div><p className="text-xs text-gray-500 mb-1">Serial (PK)</p><p className="font-semibold text-gray-900 break-all">{pick.serialNumber}</p></div>
-                  {pick.slipNumber && <div><p className="text-xs text-gray-500 mb-1">Slip Number</p><p className="font-semibold text-gray-900 break-all">{pick.slipNumber}</p></div>}
-                  {pick.ngReason && <div className="md:col-span-3"><p className="text-xs text-gray-500 mb-1">NG Reason</p><p className="font-semibold text-gray-900 break-words">{pick.ngReason}</p></div>}
+                  <div><p className="text-xs text-ink-muted mb-1">Stage</p><p className="font-semibold text-ink-primary">{labelOf(pick.stage)}</p></div>
+                  <div><p className="text-xs text-ink-muted mb-1">Duration</p><p className="font-semibold text-ink-primary">{fmtElapsed(pick.startTime, pick.lastUpdate, pick.stage)}</p></div>
+                  <div><p className="text-xs text-ink-muted mb-1">Operator</p><p className="font-semibold text-ink-primary">{pick.operator || "System"}</p></div>
+                  <div><p className="text-xs text-ink-muted mb-1">Start Time (CA)</p><p className="font-semibold text-ink-primary">{toCaliTime(pick.startTime)}</p></div>
+                  <div><p className="text-xs text-ink-muted mb-1">Last Update (CA)</p><p className="font-semibold text-ink-primary">{toCaliTime(pick.lastUpdate)}</p></div>
+                  <div><p className="text-xs text-ink-muted mb-1">Serial (PK)</p><p className="font-semibold text-ink-primary break-all">{pick.serialNumber}</p></div>
+                  {pick.slipNumber && <div><p className="text-xs text-ink-muted mb-1">Slip Number</p><p className="font-semibold text-ink-primary break-all">{pick.slipNumber}</p></div>}
+                  {pick.ngReason && <div className="md:col-span-3"><p className="text-xs text-ink-muted mb-1">NG Reason</p><p className="font-semibold text-ink-primary break-words">{pick.ngReason}</p></div>}
                 </div>
               </div>
 
               {/* inline change slip */}
-              <div className="p-4 border border-gray-200 rounded-xl">
+              <div className="p-4 border border-stroke rounded-xl">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 text-gray-700">
-                    <Tag size={16} className="text-teal-600" />
+                  <div className="flex items-center gap-2 text-ink-secondary">
+                    <Tag size={16} className="text-teal-400" />
                     <span className="font-semibold">Change Slip</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1195,7 +1195,7 @@ export default function PCBATracking() {
                       value={newSlip}
                       onChange={(e)=> setNewSlip(e.target.value)}
                       placeholder="New slip…"
-                      className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-black placeholder-gray-400"
+                      className="px-3 py-2 border border-stroke rounded-lg text-sm text-ink-primary placeholder-ink-muted"
                     />
                     <button
                       onClick={()=> changeSlip(pick.serialNumber, newSlip || "")}
@@ -1208,7 +1208,7 @@ export default function PCBATracking() {
               </div>
 
               <div>
-                <h4 className="text-sm font-semibold text-gray-600 mb-3">Production History</h4>
+                <h4 className="text-sm font-semibold text-ink-secondary mb-3">Production History</h4>
                 <div className="space-y-3">
                   {(Array.isArray(pick.history) ? pick.history : []).map((h, i) => (
                     <div key={i} className="flex items-start gap-3">
@@ -1216,33 +1216,33 @@ export default function PCBATracking() {
                         {h.notes?.toLowerCase().startsWith("ng ") ? <AlertCircle className="text-white" size={16} /> : <Activity className="text-white" size={16} />}
                       </div>
                       <div className="flex-1">
-                        <p className="font-medium text-gray-900">{h.notes?.toLowerCase().startsWith("ng ") ? "NG" : labelOf(h.stage || "")}</p>
-                        <p className="text-xs text-gray-500 mt-1">{toCaliTime(h.timestamp)} • Processed by {h.operator}</p>
-                        {h.notes && <p className="text-xs text-gray-400 mt-1 italic break-words">{h.notes}</p>}
+                        <p className="font-medium text-ink-primary">{h.notes?.toLowerCase().startsWith("ng ") ? "NG" : labelOf(h.stage || "")}</p>
+                        <p className="text-xs text-ink-muted mt-1">{toCaliTime(h.timestamp)} • Processed by {h.operator}</p>
+                        {h.notes && <p className="text-xs text-ink-muted mt-1 italic break-words">{h.notes}</p>}
                       </div>
                     </div>
                   ))}
                   {(!Array.isArray(pick.history) || pick.history.length === 0) && (
-                    <p className="text-sm text-gray-400">Loading history…</p>
+                    <p className="text-sm text-ink-muted">Loading history…</p>
                   )}
                 </div>
               </div>
             </div>
-            <div className="border-t border-gray-200 p-6 bg-gray-50">
+            <div className="border-t border-stroke p-6 bg-surface-base">
               <div className="flex justify-between items-center flex-wrap gap-3">
-                <div className="text-xs text-gray-400">Serial: {pick.serialNumber}</div>
+                <div className="text-xs text-ink-muted">Serial: {pick.serialNumber}</div>
                 <div className="flex gap-3">
                   <button
                     onClick={() => toggleNG(pick, !pick.ngFlag)}
                     className={`px-4 py-2 rounded-lg transition-colors font-medium ${
-                      pick.ngFlag ? "bg-red-50 text-red-600 hover:bg-red-100"
-                                  : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                      pick.ngFlag ? "bg-signal-error/10 text-red-400 hover:bg-signal-error/15"
+                                  : "bg-signal-warn/10 text-amber-400 hover:bg-signal-warn/15"
                     }`}
                   >
                     {pick.ngFlag ? "Clear NG" : "Mark NG"}
                   </button>
                   {isEditor && (
-                    <button onClick={() => handleDelete(pick)} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-medium">
+                    <button onClick={() => handleDelete(pick)} className="px-4 py-2 bg-signal-error/10 text-red-400 rounded-lg hover:bg-signal-error/15 transition-colors font-medium">
                       Delete Board
                     </button>
                   )}
@@ -1259,40 +1259,40 @@ export default function PCBATracking() {
       {/* Active Boards Modal */}
       {showActiveBoardsModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowActiveBoardsModal(false)}>
-          <div className="bg-white rounded-xl shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
-              <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <div className="bg-surface-panel rounded-xl shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-stroke bg-surface-base">
+              <h3 className="text-xl font-semibold text-ink-primary flex items-center gap-2">
                 <Database size={22} />
                 Active Boards
-                <span className="px-3 py-1 bg-teal-50 text-teal-700 rounded-lg text-sm font-bold border border-teal-200">
+                <span className="px-3 py-1 bg-teal-500/10 text-teal-400 rounded-lg text-sm font-bold border border-teal-500/30">
                   {list.length !== data.length ? (
                     <>
-                      <span className="text-teal-900">{list.length.toLocaleString()}</span>
+                      <span className="text-teal-300">{list.length.toLocaleString()}</span>
                       <span className="text-teal-400 mx-1">/</span>
-                      <span className="text-teal-600">{data.length.toLocaleString()}</span>
+                      <span className="text-teal-400">{data.length.toLocaleString()}</span>
                     </>
                   ) : (
                     list.length.toLocaleString()
                   )} items
                 </span>
               </h3>
-              <button onClick={() => setShowActiveBoardsModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <button onClick={() => setShowActiveBoardsModal(false)} className="p-2 hover:bg-surface-raised rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Search and Filters */}
-            <div className="p-6 border-b border-gray-200 bg-white space-y-3">
+            <div className="p-6 border-b border-stroke bg-surface-panel space-y-3">
               {/* Active filters indicator */}
               {(q || filterDate || filterSlip || fStage !== "all" || modelFilter !== "all" || ngFilter !== "all") && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold text-gray-600">Active Filters:</span>
-                  {q && <span className="px-2 py-1 bg-teal-100 text-teal-700 rounded-md text-xs font-medium">Search: {q}</span>}
-                  {filterDate && <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs font-medium">Date: {filterDate}</span>}
-                  {filterSlip && <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-md text-xs font-medium">Slip: {filterSlip}</span>}
-                  {modelFilter !== "all" && <span className="px-2 py-1 bg-cyan-100 text-cyan-700 rounded-md text-xs font-medium">Model: {modelFilter}</span>}
-                  {fStage !== "all" && <span className="px-2 py-1 bg-green-100 text-green-700 rounded-md text-xs font-medium">Stage: {labelOf(fStage)}</span>}
-                  {ngFilter !== "all" && <span className="px-2 py-1 bg-red-100 text-red-700 rounded-md text-xs font-medium">Status: {ngFilter === "ng" ? "NG Only" : "OK Only"}</span>}
+                  <span className="text-xs font-semibold text-ink-secondary">Active Filters:</span>
+                  {q && <span className="px-2 py-1 bg-teal-500/15 text-teal-400 rounded-md text-xs font-medium">Search: {q}</span>}
+                  {filterDate && <span className="px-2 py-1 bg-surface-raised text-ink-secondary rounded-md text-xs font-medium">Date: {filterDate}</span>}
+                  {filterSlip && <span className="px-2 py-1 bg-signal-warn/15 text-amber-400 rounded-md text-xs font-medium">Slip: {filterSlip}</span>}
+                  {modelFilter !== "all" && <span className="px-2 py-1 bg-signal-info/15 text-cyan-400 rounded-md text-xs font-medium">Model: {modelFilter}</span>}
+                  {fStage !== "all" && <span className="px-2 py-1 bg-signal-ok/15 text-green-400 rounded-md text-xs font-medium">Stage: {labelOf(fStage)}</span>}
+                  {ngFilter !== "all" && <span className="px-2 py-1 bg-signal-error/15 text-red-400 rounded-md text-xs font-medium">Status: {ngFilter === "ng" ? "NG Only" : "OK Only"}</span>}
                   <button
                     onClick={() => {
                       setQ("");
@@ -1302,7 +1302,7 @@ export default function PCBATracking() {
                       setModelFilter("all");
                       setNgFilter("all");
                     }}
-                    className="ml-auto px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-xs font-semibold transition-colors flex items-center gap-1"
+                    className="ml-auto px-3 py-1 bg-surface-raised hover:bg-surface-overlay text-ink-secondary rounded-md text-xs font-semibold transition-colors flex items-center gap-1"
                   >
                     <X size={14} />
                     Clear All
@@ -1319,9 +1319,9 @@ export default function PCBATracking() {
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
                       placeholder="Search serial or batch..."
-                      className="w-full pl-10 pr-4 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
+                      className="w-full pl-10 pr-4 py-2.5 bg-surface-raised border-2 border-stroke rounded-xl text-sm
                                  focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-                                 text-black placeholder-gray-400 transition-all duration-200 hover:border-teal-300"
+                                 text-ink-primary placeholder-ink-muted transition-all duration-200 hover:border-teal-300"
                     />
                   </div>
                 </div>
@@ -1330,9 +1330,9 @@ export default function PCBATracking() {
                   <select
                     value={modelFilter}
                     onChange={(e) => setModelFilter(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
+                    className="w-full px-3 py-2.5 bg-surface-raised border-2 border-stroke rounded-xl text-sm
                                focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-                               text-black transition-all duration-200 hover:border-teal-300"
+                               text-ink-primary transition-all duration-200 hover:border-teal-300"
                   >
                     <option value="all">All Models</option>
                     <option value="AM7">AM7</option>
@@ -1344,9 +1344,9 @@ export default function PCBATracking() {
                   <select
                     value={fStage}
                     onChange={(e) => setFStage(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
+                    className="w-full px-3 py-2.5 bg-surface-raised border-2 border-stroke rounded-xl text-sm
                                focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-                               text-black transition-all duration-200 hover:border-teal-300"
+                               text-ink-primary transition-all duration-200 hover:border-teal-300"
                   >
                     <option value="all">All Stages</option>
                     <option value="aging">Aging</option>
@@ -1359,9 +1359,9 @@ export default function PCBATracking() {
                   <select
                     value={ngFilter}
                     onChange={(e) => setNgFilter(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
+                    className="w-full px-3 py-2.5 bg-surface-raised border-2 border-stroke rounded-xl text-sm
                                focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-                               text-black transition-all duration-200 hover:border-teal-300"
+                               text-ink-primary transition-all duration-200 hover:border-teal-300"
                   >
                     <option value="all">All Status</option>
                     <option value="ok">OK Only</option>
@@ -1374,9 +1374,9 @@ export default function PCBATracking() {
                     type="date"
                     value={filterDate}
                     onChange={(e) => setFilterDate(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-white border-2 border-gray-300 rounded-xl text-sm
+                    className="w-full px-3 py-2.5 bg-surface-raised border-2 border-stroke rounded-xl text-sm
                                focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-                               text-black transition-all duration-200 hover:border-teal-300"
+                               text-ink-primary transition-all duration-200 hover:border-teal-300"
                     title="Update Date"
                   />
                 </div>
@@ -1411,7 +1411,7 @@ export default function PCBATracking() {
                   style={{ height: Math.min(Math.max(list.length * 152, 152), 520) }}
                 />
               ) : !loadingList ? (
-                <p className="text-center text-gray-500 py-12">No active boards found</p>
+                <p className="text-center text-ink-muted py-12">No active boards found</p>
               ) : null}
             </div>
           </div>
@@ -1421,13 +1421,13 @@ export default function PCBATracking() {
       {/* NG Alerts Modal */}
       {showNGModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowNGModal(false)}>
-          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
-              <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
-                <AlertCircle size={22} className="text-red-600" />
+          <div className="bg-surface-panel rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-stroke bg-surface-base">
+              <h3 className="text-xl font-semibold text-ink-primary flex items-center gap-2">
+                <AlertCircle size={22} className="text-red-400" />
                 Quality Alerts (NG) ({ngCount})
               </h3>
-              <button onClick={() => setShowNGModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <button onClick={() => setShowNGModal(false)} className="p-2 hover:bg-surface-raised rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1448,33 +1448,33 @@ export default function PCBATracking() {
       {/* Daily Output Modal */}
       {showDailyOutputModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowDailyOutputModal(false)}>
-          <div className="bg-white rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
-              <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <div className="bg-surface-panel rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-stroke bg-surface-base">
+              <h3 className="text-xl font-semibold text-ink-primary flex items-center gap-2">
                 <BarChart3 size={22} />
                 Daily Output (Pairs)
               </h3>
-              <button onClick={() => setShowDailyOutputModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <button onClick={() => setShowDailyOutputModal(false)} className="p-2 hover:bg-surface-raised rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Time Range:</span>
-                  <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  <span className="text-sm text-ink-secondary">Time Range:</span>
+                  <div className="flex items-center bg-surface-raised rounded-lg p-1">
                     {[{k:7,label:"7d"},{k:30,label:"30d"},{k:90,label:"90d"}].map(opt => (
                       <button
                         key={opt.k}
                         onClick={() => { setRangeDays(opt.k); setCustomFrom(""); setCustomTo(""); fetchDashboardDaily(opt.k); }}
-                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${rangeDays === opt.k && !customFrom ? "bg-white shadow-sm text-gray-900" : "text-gray-600 hover:text-gray-900"}`}
+                        className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${rangeDays === opt.k && !customFrom ? "bg-surface-panel shadow-sm text-ink-primary" : "text-ink-secondary hover:text-ink-primary"}`}
                       >{opt.label}</button>
                     ))}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Avg:</span>
-                  <span className="px-3 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-sm font-semibold">{dailyAvg.toFixed(1)}</span>
+                  <span className="text-sm text-ink-secondary">Avg:</span>
+                  <span className="px-3 py-1 rounded-lg bg-signal-ok/10 text-emerald-400 text-sm font-semibold">{dailyAvg.toFixed(1)}</span>
                 </div>
               </div>
               <div className="h-[400px]">
@@ -1498,24 +1498,24 @@ export default function PCBATracking() {
       {/* Daily Consumption Modal */}
       {showConsumptionModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowConsumptionModal(false)}>
-          <div className="bg-white rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
-              <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <div className="bg-surface-panel rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-stroke bg-surface-base">
+              <h3 className="text-xl font-semibold text-ink-primary flex items-center gap-2">
                 <Package size={22} />
                 Daily Consumption (Boards Used by Assembly)
               </h3>
-              <button onClick={() => setShowConsumptionModal(false)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+              <button onClick={() => setShowConsumptionModal(false)} className="p-2 hover:bg-surface-raised rounded-lg transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 space-y-4">
               <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-ink-secondary">
                   Last 7 days consumption data
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Avg:</span>
-                  <span className="px-3 py-1 rounded-lg bg-red-50 text-red-700 text-sm font-semibold">{consumptionAvg.toFixed(1)}</span>
+                  <span className="text-sm text-ink-secondary">Avg:</span>
+                  <span className="px-3 py-1 rounded-lg bg-signal-error/10 text-red-400 text-sm font-semibold">{consumptionAvg.toFixed(1)}</span>
                 </div>
               </div>
               <div className="h-[400px]">
@@ -1531,8 +1531,8 @@ export default function PCBATracking() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-                <p className="text-sm text-gray-700">
+              <div className="p-4 bg-signal-error/10 rounded-lg border border-red-500/30">
+                <p className="text-sm text-ink-secondary">
                   <strong>Note:</strong> This tracks boards removed from WIP inventory when scanned by assembly.
                   Each scan reduces the "WIP: Inventory" count in real-time.
                 </p>
@@ -1573,9 +1573,9 @@ export default function PCBATracking() {
       <div className="fixed bottom-4 right-4 space-y-2 z-50">
         {log.map((n) => (
           <div key={n.id} className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg backdrop-blur-sm animate-slide-in ${
-              n.level === "error" ? "bg-red-500 text-white" :
-              n.level === "warning" ? "bg-amber-500 text-white" :
-              n.level === "success" ? "bg-green-500 text-white" : "bg-gray-800 text-white"}`}>
+              n.level === "error" ? "bg-signal-error text-white" :
+              n.level === "warning" ? "bg-signal-warn text-white" :
+              n.level === "success" ? "bg-signal-ok text-white" : "bg-gray-800 text-white"}`}>
             {n.level === "error" ? <AlertCircle size={20} /> : <Bell size={20} />}
             <span className="font-medium">{n.msg}</span>
           </div>

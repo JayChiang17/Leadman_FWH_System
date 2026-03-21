@@ -17,6 +17,7 @@ import annotationPlugin from 'chartjs-plugin-annotation';
 import api                     from "../../services/api";
 import { openDashboardSocket } from "../../utils/wsConnect";
 import { AuthCtx }            from "../../auth/AuthContext";
+import { applyChartJSDarkTheme } from "../../utils/chartTheme";
 
 import { fetchJSON } from "./components/DashboardConstants";
 import ModuleTodayCard from "./components/ModuleTodayCard";
@@ -40,6 +41,8 @@ ChartJS.register(
   Filler,
   annotationPlugin
 );
+
+applyChartJSDarkTheme(ChartJS);
 
 /* ===================================================================== */
 export default function Dashboard() {
@@ -493,8 +496,17 @@ export default function Dashboard() {
     aspectRatio: 1.1,
     animation: { duration: 0 },
     scales:{
-      x:{ stacked:true },
-      y:{ stacked:true, beginAtZero:true }
+      x:{
+        stacked:true,
+        grid: { color: '#2e3650' },
+        ticks: { color: '#8d93a5' }
+      },
+      y:{
+        stacked:true,
+        beginAtZero:true,
+        grid: { color: '#2e3650' },
+        ticks: { color: '#8d93a5' }
+      }
     },
     plugins:{
       legend:{ position:"bottom", labels: legendLabelStyle },
@@ -502,7 +514,7 @@ export default function Dashboard() {
         display: true, anchor: 'center', align: 'center',
         formatter: (value) => value || '',
         font: { size: 11, weight: 'bold' },
-        color: '#444'
+        color: '#8d93a5'
       }
     }
   };
@@ -512,7 +524,17 @@ export default function Dashboard() {
     maintainAspectRatio: true,
     aspectRatio: 1.6,
     plugins:{ legend:{ position:"bottom", labels: legendLabelStyle } },
-    scales:{ y:{ beginAtZero:true, ticks: { maxTicksLimit: 8 } } }
+    scales:{
+      x:{
+        grid: { color: '#2e3650' },
+        ticks: { color: '#8d93a5' }
+      },
+      y:{
+        beginAtZero:true,
+        ticks: { maxTicksLimit: 8, color: '#8d93a5' },
+        grid: { color: '#2e3650' }
+      }
+    }
   };
 
   /* ⑬ ────────── JSX ────────── */

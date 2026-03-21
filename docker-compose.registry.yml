@@ -1,0 +1,42 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Private Docker Registry — runs independently (no chicken-and-egg with app)
+#
+# One-time setup:
+#   bash registry/setup.sh          ← generates registry/auth/htpasswd
+#
+# Start registry:
+#   docker compose -f docker-compose.registry.yml up -d
+#
+# Verify:
+#   curl -sk https://192.168.10.100:5000/v2/
+#   → {} or {"errors":[{"code":"UNAUTHORIZED",...}]} means registry is UP
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  registry:
+    image: registry:2
+    container_name: leadman-registry
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      REGISTRY_HTTP_ADDR: "0.0.0.0:5000"
+      REGISTRY_HTTP_TLS_CERTIFICATE: /certs/cert.pem
+      REGISTRY_HTTP_TLS_KEY: /certs/key.pem
+      REGISTRY_AUTH: htpasswd
+      REGISTRY_AUTH_HTPASSWD_REALM: "Leadman Private Registry"
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+      REGISTRY_LOG_LEVEL: info
+    volumes:
+      - registry_data:/var/lib/registry
+      - ./frontend/ssl:/certs:ro
+      - ./registry/auth:/auth:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --no-check-certificate -O /dev/null https://localhost:5000/v2/ 2>&1; exit 0"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  registry_data:

@@ -44,15 +44,15 @@ function MiniItem({ to, icon: Icon, label }) {
           relative flex h-11 w-11 items-center justify-center rounded-xl
           transition-all duration-200 border
           ${active
-            ? "bg-gradient-to-br from-teal-600/30 to-cyan-500/20 text-cyan-300 border-teal-400/30 shadow-lg shadow-teal-500/20"
-            : "text-gray-400 border-transparent hover:text-cyan-300 hover:bg-teal-600/10 hover:border-teal-400/20"
+            ? "bg-gradient-to-br from-teal-600/30 to-signal-info/100/20 text-cyan-300 border-teal-400/30 shadow-lg shadow-teal-500/20"
+            : "text-ink-muted border-transparent hover:text-cyan-300 hover:bg-teal-600/10 hover:border-teal-400/20"
           }
         `}
       >
         {/* active left-bar accent */}
         {active && (
           <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6
-                           bg-gradient-to-b from-cyan-400 to-teal-500 rounded-r-full" />
+                           bg-gradient-to-b from-cyan-400 to-teal-500/100 rounded-r-full" />
         )}
         <Icon size={18} className="relative z-10" />
       </Link>
@@ -76,7 +76,7 @@ function CollapsedSidebar({ role, onLogout }) {
   return (
     <nav className="w-16 h-full flex flex-col items-center py-4
                     bg-gradient-to-b from-gray-900 via-teal-900/20 to-gray-950
-                    shadow-2xl shadow-black/50 relative overflow-hidden">
+                    shadow-lg shadow-black/50 relative overflow-hidden">
 
       {/* background ambient */}
       <div className="absolute inset-0 pointer-events-none">
@@ -141,7 +141,7 @@ function CollapsedSidebar({ role, onLogout }) {
           onClick={onLogout}
           className="shrink-0 mt-3 flex h-11 w-11 items-center justify-center rounded-xl
                      border border-transparent
-                     text-red-400 hover:text-red-300 hover:bg-red-500/15 hover:border-red-400/25
+                     text-red-400 hover:text-red-300 hover:bg-signal-error/15 hover:border-red-400/25
                      transition-all duration-200 relative z-10"
         >
           <LogOut size={18} />
@@ -202,29 +202,31 @@ export default function AppLayout() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col bg-gray-50 overflow-hidden min-w-0">
+      <div className="flex-1 flex flex-col bg-surface-base overflow-hidden min-w-0">
 
         {/* TopBar */}
-        <header className="h-14 bg-white border-b border-gray-200
+        <header className="h-14 bg-surface-panel border-b border-stroke
                            flex items-center justify-between px-4 md:px-5
-                           shadow-sm sticky top-0 z-30 flex-shrink-0">
+                           shadow-none sticky top-0 z-30 flex-shrink-0">
           <div className="flex items-center gap-3">
             <button
               onClick={toggleSidebar}
-              className="p-2 text-gray-500 hover:text-teal-600 hover:bg-gray-100
-                         rounded-lg transition-all duration-200"
+              className="p-2 text-ink-secondary hover:text-signal-info hover:bg-surface-raised
+                         rounded-lg transition-colors duration-150"
               aria-label="Toggle sidebar"
             >
               {isMobileOpen ? <X size={22} /> : <Menu size={22} />}
             </button>
-            <img
-              src={require("../assets/Leadman_Logo.png")}
-              alt="Leadman"
-              className="h-8 hidden md:block"
-            />
+            <div className="h-6 opacity-80 hidden md:block">
+              <img
+                src={require("../assets/Leadman_Logo.png")}
+                alt="Leadman"
+                className="h-full object-contain"
+              />
+            </div>
           </div>
 
-          <div className="text-xs text-gray-400 font-mono tabular-nums">
+          <div className="text-xs text-ink-muted font-mono tabular-nums">
             {new Date().toLocaleString("en-US", {
               month: "short",
               day: "numeric",
@@ -235,7 +237,7 @@ export default function AppLayout() {
         </header>
 
         {/* Page content */}
-        <div className="flex-1 overflow-y-auto bg-gray-50">
+        <div className="flex-1 overflow-y-auto bg-surface-base">
           <Outlet />
         </div>
       </div>

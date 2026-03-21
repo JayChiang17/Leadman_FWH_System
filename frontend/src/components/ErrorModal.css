@@ -11,12 +11,13 @@
   }
   
   .err-modal {
-    background: white;
+    background: #1e2437;
+    border: 1px solid #2e3650;
     border-radius: 12px;
     padding: 24px;
     max-width: 400px;
     width: 90%;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     text-align: center;
     animation: slideIn 0.3s ease-out;
   }
@@ -29,7 +30,7 @@
   
   .err-modal p {
     margin-bottom: 20px;
-    color: #333;
+    color: #8d93a5;
     font-size: 16px;
     line-height: 1.5;
   }

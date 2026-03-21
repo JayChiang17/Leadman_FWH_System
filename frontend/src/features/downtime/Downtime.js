@@ -701,7 +701,7 @@ export default function Downtime() {
   // ─────────────────────────────────────────────────────────────────
   return (
     <div className={`dt-container ${alert ? "dt-flash" : ""}`}>
-      <h1 className="text-xl md:text-2xl font-semibold text-slate-800 mb-3">Downtime Log</h1>
+      <h1 className="text-xl md:text-2xl font-semibold text-ink-primary mb-3">Downtime Log</h1>
 
       {/* ── Step Breadcrumb ── */}
       <div className="dt-breadcrumb">
@@ -861,7 +861,7 @@ export default function Downtime() {
           <div className="downtime-card downtime-card-full uph-correlation-card" ref={uphCardRef}>
             <div className="downtime-card-header">
               <div className="downtime-header-content" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f0fdfa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
                   </svg>
@@ -918,7 +918,7 @@ export default function Downtime() {
           <div className="downtime-card downtime-card-full">
             <div className="downtime-card-header">
               <div className="downtime-header-content" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: '#f0fdfa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(16,185,129,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
                   </svg>
@@ -931,14 +931,14 @@ export default function Downtime() {
             </div>
             <div style={{ padding: '0 1rem 1rem' }}>
               {surface3dLoading ? (
-                <div style={{ height: 460, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                <div style={{ height: 460, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e2437', borderRadius: 8, border: '1px solid #2e3650' }}>
                   <div style={{ textAlign: 'center', color: '#94a3b8' }}>
-                    <div className="animate-spin" style={{ width: 28, height: 28, border: '3px solid #e5e7eb', borderTopColor: '#0d9488', borderRadius: '50%', margin: '0 auto 0.5rem' }} />
+                    <div className="animate-spin" style={{ width: 28, height: 28, border: '3px solid #2e3650', borderTopColor: '#0d9488', borderRadius: '50%', margin: '0 auto 0.5rem' }} />
                     <p style={{ fontSize: '0.8125rem' }}>Building 3D surface…</p>
                   </div>
                 </div>
               ) : surface3dData.length === 0 ? (
-                <div style={{ height: 460, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb', color: '#94a3b8', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ height: 460, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e2437', borderRadius: 8, border: '1px solid #2e3650', color: '#94a3b8', flexDirection: 'column', gap: '0.5rem' }}>
                   <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
                   <p style={{ fontSize: '0.875rem', fontWeight: 600 }}>No downtime data in the past 30 days</p>
                 </div>

@@ -18,32 +18,32 @@
    a:hover{ color: var(--clr-accent); }
    button{ cursor: pointer; font-family: inherit; }
    
-   /* ---------- 表單：強制黑字 / placeholder 灰 / autofill 修復 ---------- */
+   /* ---------- 表單：深色主題 ---------- */
    input, select, textarea {
-     color: var(--text-1) !important;   /* 文字黑 */
-     background-color: #fff;            /* 白底（深色時元件可另外覆寫） */
+     color: var(--text-1) !important;
+     background-color: #262d42;         /* dark raised surface */
      caret-color: var(--text-1);
    }
    ::placeholder { color: var(--text-3); opacity: 1; }
    ::-ms-input-placeholder { color: var(--text-3); }
    :-ms-input-placeholder  { color: var(--text-3); }
-   
-   /* Chrome/Safari autofill 避免白字黃底 */
+
+   /* Chrome/Safari autofill 深色修復 */
    input:-webkit-autofill,
    textarea:-webkit-autofill,
    select:-webkit-autofill{
      -webkit-text-fill-color: var(--text-1) !important;
-     box-shadow: 0 0 0 1000px #fff inset !important;
+     box-shadow: 0 0 0 1000px #262d42 inset !important;
      transition: background-color 5000s ease-in-out 0s;
    }
    
-   /* glass（可選） */
+   /* dark glass panel */
    .glass{
-     background: rgba(255,255,255,.45);
+     background: rgba(30,36,55,.85);
      backdrop-filter: blur(10px);
-     border:1px solid rgba(255,255,255,.4);
+     border:1px solid rgba(46,54,80,.8);
      border-radius:.75rem;
-     box-shadow:0 4px 8px rgba(0,0,0,.06);
+     box-shadow:0 4px 8px rgba(0,0,0,.3);
    }
    
    /* helpers */

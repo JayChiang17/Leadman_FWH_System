@@ -41,10 +41,10 @@ const PIE_COLORS = [
 ];
 
 const getRisk = (n) => {
-  if (n >= 100) return { label: 'CRITICAL', textCls: 'text-red-600',    bgCls: 'bg-red-50 border-red-300',      dot: 'bg-red-500',     lineColor: '#ef4444' };
-  if (n >= 50)  return { label: 'WARNING',  textCls: 'text-amber-600',  bgCls: 'bg-amber-50 border-amber-300',   dot: 'bg-amber-500',   lineColor: '#f59e0b' };
-  if (n >= 20)  return { label: 'CAUTION',  textCls: 'text-yellow-600', bgCls: 'bg-yellow-50 border-yellow-300', dot: 'bg-yellow-500',  lineColor: '#eab308' };
-  return              { label: 'GOOD',     textCls: 'text-emerald-600',bgCls: 'bg-emerald-50 border-emerald-300',dot: 'bg-emerald-500', lineColor: '#10b981' };
+  if (n >= 100) return { label: 'CRITICAL', textCls: 'text-red-400',    bgCls: 'bg-signal-error/10 border-red-300',      dot: 'bg-signal-error',     lineColor: '#ef4444' };
+  if (n >= 50)  return { label: 'WARNING',  textCls: 'text-amber-400',  bgCls: 'bg-signal-warn/10 border-amber-300',   dot: 'bg-signal-warn',   lineColor: '#f59e0b' };
+  if (n >= 20)  return { label: 'CAUTION',  textCls: 'text-yellow-400', bgCls: 'bg-signal-warn/10 border-yellow-300', dot: 'bg-signal-warn',  lineColor: '#eab308' };
+  return              { label: 'GOOD',     textCls: 'text-emerald-400',bgCls: 'bg-signal-ok/10 border-emerald-300',dot: 'bg-signal-ok', lineColor: '#10b981' };
 };
 
 // ── component ─────────────────────────────────────────────────────────
@@ -169,18 +169,18 @@ export default function NGDashboard() {
   return (
     <div
       ref={dashRef}
-      className="h-screen bg-stone-50 flex flex-col overflow-hidden"
+      className="h-screen bg-surface-base flex flex-col overflow-hidden"
       onDoubleClick={toggleFullscreen}
     >
       {/* ── header ──────────────────────────────────────────────── */}
-      <header className="flex-shrink-0 bg-white border-b border-stone-200 shadow-sm z-40">
+      <header className="flex-shrink-0 bg-surface-panel border-b border-stroke shadow-sm z-40">
         <div className="px-5 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-100 rounded-lg">
-              <Activity className="w-5 h-5 text-red-600" />
+            <div className="p-2 bg-signal-error/15 rounded-lg">
+              <Activity className="w-5 h-5 text-red-400" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-stone-900 leading-tight">NG Dashboard</h1>
+              <h1 className="text-lg font-bold text-ink-primary leading-tight">NG Dashboard</h1>
               <p className="text-xs text-stone-400">Assembly NG · This Month</p>
             </div>
           </div>
@@ -199,14 +199,14 @@ export default function NGDashboard() {
             <button
               onClick={fetchData}
               disabled={loading}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-200 bg-white text-stone-600 text-xs font-semibold hover:bg-stone-50 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stroke bg-surface-panel text-ink-secondary text-xs font-semibold hover:bg-surface-base disabled:opacity-50 transition-colors"
             >
               <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
               Refresh
             </button>
             <button
               onClick={toggleFullscreen}
-              className="p-1.5 rounded-lg border border-stone-200 text-stone-500 hover:bg-stone-50 transition-colors"
+              className="p-1.5 rounded-lg border border-stroke text-ink-muted hover:bg-surface-base transition-colors"
               title="Toggle fullscreen"
             >
               {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
@@ -220,21 +220,21 @@ export default function NGDashboard() {
 
         {/* stats row */}
         <div className="flex-shrink-0 grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-white rounded-lg border border-stone-200 px-4 py-3 shadow-sm">
+          <div className="bg-surface-panel rounded-lg border border-stroke px-4 py-3 shadow-sm">
             <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide">Total NG</p>
-            <p className="text-3xl font-black font-mono text-stone-800 mt-0.5">{totalNG}</p>
+            <p className="text-3xl font-black font-mono text-ink-primary mt-0.5">{totalNG}</p>
           </div>
-          <div className="bg-white rounded-lg border border-red-200 px-4 py-3 shadow-sm">
-            <p className="text-[10px] font-semibold text-red-600 uppercase tracking-wide">Active NG</p>
-            <p className="text-3xl font-black font-mono text-red-700 mt-0.5">{activeCount}</p>
+          <div className="bg-surface-panel rounded-lg border border-red-500/30 px-4 py-3 shadow-sm">
+            <p className="text-[10px] font-semibold text-red-400 uppercase tracking-wide">Active NG</p>
+            <p className="text-3xl font-black font-mono text-red-400 mt-0.5">{activeCount}</p>
           </div>
-          <div className="bg-white rounded-lg border border-emerald-200 px-4 py-3 shadow-sm">
-            <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wide">Fixed</p>
-            <p className="text-3xl font-black font-mono text-emerald-700 mt-0.5">{fixedCount}</p>
+          <div className="bg-surface-panel rounded-lg border border-emerald-500/30 px-4 py-3 shadow-sm">
+            <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wide">Fixed</p>
+            <p className="text-3xl font-black font-mono text-emerald-400 mt-0.5">{fixedCount}</p>
           </div>
-          <div className="bg-white rounded-lg border border-teal-200 px-4 py-3 shadow-sm">
-            <p className="text-[10px] font-semibold text-teal-600 uppercase tracking-wide">Fix Rate</p>
-            <p className="text-3xl font-black font-mono text-teal-700 mt-0.5">
+          <div className="bg-surface-panel rounded-lg border border-teal-500/30 px-4 py-3 shadow-sm">
+            <p className="text-[10px] font-semibold text-teal-400 uppercase tracking-wide">Fix Rate</p>
+            <p className="text-3xl font-black font-mono text-teal-400 mt-0.5">
               {passRate === '—' ? '—' : `${passRate}%`}
             </p>
           </div>
@@ -247,10 +247,10 @@ export default function NGDashboard() {
           <div className="flex flex-col gap-4 min-h-0 overflow-y-auto">
 
             {/* trend chart */}
-            <div className="bg-white rounded-lg border border-stone-200 shadow-sm flex-shrink-0">
-              <div className="px-4 py-3 border-b border-stone-100">
+            <div className="bg-surface-panel rounded-lg border border-stroke shadow-sm flex-shrink-0">
+              <div className="px-4 py-3 border-b border-stroke-subtle">
                 <p className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Daily Trend</p>
-                <h3 className="text-sm font-semibold text-stone-800 mt-0.5">NG Count — This Month</h3>
+                <h3 className="text-sm font-semibold text-ink-primary mt-0.5">NG Count — This Month</h3>
               </div>
               <div className="p-4" style={{ height: 200 }}>
                 {trend.labels.length > 0 ? (
@@ -287,10 +287,10 @@ export default function NGDashboard() {
             </div>
 
             {/* pie chart */}
-            <div className="bg-white rounded-lg border border-stone-200 shadow-sm flex-shrink-0">
-              <div className="px-4 py-3 border-b border-stone-100">
+            <div className="bg-surface-panel rounded-lg border border-stroke shadow-sm flex-shrink-0">
+              <div className="px-4 py-3 border-b border-stroke-subtle">
                 <p className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Breakdown</p>
-                <h3 className="text-sm font-semibold text-stone-800 mt-0.5">NG Reason Distribution</h3>
+                <h3 className="text-sm font-semibold text-ink-primary mt-0.5">NG Reason Distribution</h3>
               </div>
               <div className="p-4" style={{ height: 220 }}>
                 {totalNG > 0 ? (
@@ -323,20 +323,20 @@ export default function NGDashboard() {
           </div>
 
           {/* right: NG list */}
-          <div className="bg-white rounded-lg border border-stone-200 shadow-sm flex flex-col min-h-0 overflow-hidden">
+          <div className="bg-surface-panel rounded-lg border border-stroke shadow-sm flex flex-col min-h-0 overflow-hidden">
 
             {/* list header */}
-            <div className="flex-shrink-0 px-5 py-3 border-b border-stone-100 flex items-center justify-between gap-3">
+            <div className="flex-shrink-0 px-5 py-3 border-b border-stroke-subtle flex items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Assembly Line</p>
-                <h3 className="text-sm font-semibold text-stone-800 mt-0.5">
+                <h3 className="text-sm font-semibold text-ink-primary mt-0.5">
                   NG Units
                   <span className="ml-2 text-xs font-normal text-stone-400">({displayed.length} shown)</span>
                 </h3>
               </div>
 
               {/* filter tabs */}
-              <div className="flex rounded-lg border border-stone-200 overflow-hidden text-xs font-semibold">
+              <div className="flex rounded-lg border border-stroke overflow-hidden text-xs font-semibold">
                 {[
                   { key: 'all',    label: `All (${totalNG})` },
                   { key: 'active', label: `Active (${activeCount})` },
@@ -348,7 +348,7 @@ export default function NGDashboard() {
                     className={`px-3 py-1.5 transition-colors ${
                       filter === key
                         ? 'bg-stone-800 text-white'
-                        : 'bg-white text-stone-600 hover:bg-stone-50'
+                        : 'bg-surface-panel text-ink-secondary hover:bg-surface-base'
                     }`}
                   >
                     {label}
@@ -358,7 +358,7 @@ export default function NGDashboard() {
             </div>
 
             {/* column headers */}
-            <div className="flex-shrink-0 grid grid-cols-[2rem_1.6fr_2fr_1.2fr] gap-3 px-5 py-2 bg-stone-50 border-b border-stone-100">
+            <div className="flex-shrink-0 grid grid-cols-[2rem_1.6fr_2fr_1.2fr] gap-3 px-5 py-2 bg-surface-base border-b border-stroke-subtle">
               <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide">#</span>
               <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide">Serial No.</span>
               <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide">NG Reason</span>
@@ -374,7 +374,7 @@ export default function NGDashboard() {
             ) : displayed.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-2 text-stone-400">
                 <CheckCircle size={28} className="text-emerald-400" />
-                <p className="text-sm font-medium text-stone-500">
+                <p className="text-sm font-medium text-ink-muted">
                   {filter === 'active' ? 'No active NG — all cleared!' : 'No records found'}
                 </p>
               </div>
@@ -386,16 +386,16 @@ export default function NGDashboard() {
                     <div
                       key={item.id || i}
                       className={`grid grid-cols-[2rem_1.6fr_2fr_1.2fr] gap-3 px-5 py-3 transition-colors
-                        ${isFixed ? 'hover:bg-emerald-50/40' : 'hover:bg-red-50/40'}`}
+                        ${isFixed ? 'hover:bg-signal-ok/10' : 'hover:bg-signal-error/10'}`}
                     >
                       <span className="text-xs font-mono text-stone-300 self-center">{i + 1}</span>
-                      <span className="font-mono text-xs font-semibold text-stone-700 self-center break-all">
+                      <span className="font-mono text-xs font-semibold text-ink-secondary self-center break-all">
                         {item.us_sn || item.id || '—'}
                       </span>
-                      <span className={`text-sm font-medium leading-snug self-center ${isFixed ? 'text-emerald-600' : 'text-red-600'}`}>
+                      <span className={`text-sm font-medium leading-snug self-center ${isFixed ? 'text-emerald-400' : 'text-red-400'}`}>
                         <span>{item.ng_reason || 'No reason'}</span>
                         {isFixed && (
-                          <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                          <span className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-400 bg-signal-ok/10 border border-emerald-500/30 px-1.5 py-0.5 rounded">
                             <CheckCircle size={9} /> FIXED
                           </span>
                         )}

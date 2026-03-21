@@ -7,34 +7,34 @@ export default function PCBAStatCard({ title, value, icon: Icon, color = "gray",
   // Color mappings - solid colors only, no gradients
   const colorClasses = {
     amber: {
-      bg: "bg-amber-50",
-      border: "border-amber-200",
-      icon: "bg-amber-100 text-amber-700",
-      text: "text-amber-700"
+      bg: "bg-signal-warn/10",
+      border: "border-amber-500/30",
+      icon: "bg-signal-warn/15 text-amber-400",
+      text: "text-amber-400"
     },
     sky: {
-      bg: "bg-sky-50",
-      border: "border-sky-200",
-      icon: "bg-sky-100 text-sky-700",
-      text: "text-sky-700"
+      bg: "bg-signal-info/10",
+      border: "border-sky-500/30",
+      icon: "bg-signal-info/15 text-sky-400",
+      text: "text-sky-400"
     },
     emerald: {
-      bg: "bg-emerald-50",
-      border: "border-emerald-200",
-      icon: "bg-emerald-100 text-emerald-700",
-      text: "text-emerald-700"
+      bg: "bg-signal-ok/10",
+      border: "border-emerald-500/30",
+      icon: "bg-signal-ok/15 text-emerald-400",
+      text: "text-emerald-400"
     },
     gray: {
-      bg: "bg-gray-50",
-      border: "border-gray-200",
-      icon: "bg-gray-100 text-gray-700",
-      text: "text-gray-700"
+      bg: "bg-surface-base",
+      border: "border-stroke",
+      icon: "bg-surface-raised text-ink-secondary",
+      text: "text-ink-secondary"
     },
     rose: {
-      bg: "bg-rose-50",
-      border: "border-rose-200",
-      icon: "bg-rose-100 text-rose-700",
-      text: "text-rose-700"
+      bg: "bg-signal-error/10",
+      border: "border-rose-500/30",
+      icon: "bg-signal-error/15 text-rose-400",
+      text: "text-rose-400"
     }
   };
 
@@ -46,15 +46,15 @@ export default function PCBAStatCard({ title, value, icon: Icon, color = "gray",
       {/* Badge (if any) */}
       {badgeLabel && (
         <div className="absolute -top-2 -right-2 z-20">
-          <span className="flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-bold bg-red-500 text-white shadow-lg border-2 border-white">
+          <span className="flex items-center justify-center px-3 py-1.5 rounded-full text-xs font-bold bg-signal-error text-white shadow-lg border-2 border-white">
             {badgeLabel}
           </span>
         </div>
       )}
 
       <div
-        className={`relative bg-white rounded-2xl p-5 md:p-6 shadow-sm border ${colors.border} transition-all duration-200
-                    ${isClickable ? 'cursor-pointer hover:shadow-md hover:border-gray-300' : ''}
+        className={`relative bg-surface-panel rounded-xl p-5 md:p-6 shadow-sm border ${colors.border} transition-all duration-200
+                    ${isClickable ? 'cursor-pointer hover:shadow-md hover:border-stroke' : ''}
                     ${isClickable ? 'hover:scale-[1.01]' : ''}`}
         onClick={onClick}
         role={isClickable ? "button" : undefined}
@@ -69,13 +69,13 @@ export default function PCBAStatCard({ title, value, icon: Icon, color = "gray",
           </div>
 
           {/* Title */}
-          <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+          <p className="text-xs font-semibold text-ink-secondary mb-2 uppercase tracking-wide">
             {title}
           </p>
 
           {/* Main Value - Large Display */}
           <div className="flex items-baseline gap-2 mb-3">
-            <p className="text-4xl md:text-5xl font-black text-gray-900 tabular-nums tracking-tight leading-none">
+            <p className="text-4xl md:text-5xl font-black text-ink-primary tabular-nums tracking-tight leading-none">
               {Number(value || 0).toLocaleString()}
             </p>
           </div>
@@ -83,19 +83,19 @@ export default function PCBAStatCard({ title, value, icon: Icon, color = "gray",
           {/* Breakdown (AM7 / AU8) */}
           {hasBreakdown && (
             <div className="grid grid-cols-2 gap-2.5 mb-2">
-              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-sky-50 border border-sky-100">
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-signal-info/10 border border-signal-info/20">
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-sky-700 font-semibold uppercase tracking-wide">AM7</span>
-                  <span className="text-xl md:text-2xl font-bold text-sky-900 tabular-nums">
+                  <span className="text-[10px] text-sky-400 font-semibold uppercase tracking-wide">AM7</span>
+                  <span className="text-xl md:text-2xl font-bold text-sky-300 tabular-nums">
                     {Number(breakdown.AM7 || 0).toLocaleString()}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-100">
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-signal-ok/10 border border-signal-ok/20">
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-emerald-700 font-semibold uppercase tracking-wide">AU8</span>
-                  <span className="text-xl md:text-2xl font-bold text-emerald-900 tabular-nums">
+                  <span className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wide">AU8</span>
+                  <span className="text-xl md:text-2xl font-bold text-emerald-300 tabular-nums">
                     {Number(breakdown.AU8 || 0).toLocaleString()}
                   </span>
                 </div>
@@ -105,7 +105,7 @@ export default function PCBAStatCard({ title, value, icon: Icon, color = "gray",
 
           {/* Subtitle */}
           {subtitle && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-ink-muted">
               {subtitle}
             </p>
           )}

@@ -1,9 +1,9 @@
 import React from "react";
 import { RefreshCw, AlertTriangle, BarChart2, Cpu } from "lucide-react";
 
-function ParetoBar({ pct, color = "bg-red-500" }) {
+function ParetoBar({ pct, color = "bg-signal-error" }) {
   return (
-    <div className="w-full bg-stone-100 rounded-sm h-2 overflow-hidden">
+    <div className="w-full bg-surface-raised rounded-sm h-2 overflow-hidden">
       <div
         className={`h-2 rounded-sm transition-all duration-500 ${color}`}
         style={{ width: `${Math.min(pct, 100)}%` }}
@@ -16,25 +16,25 @@ function ClusterRow({ cluster, rank }) {
   const [expanded, setExpanded] = React.useState(false);
 
   const barColor =
-    rank === 0 ? "bg-red-500"
-    : rank === 1 ? "bg-amber-500"
+    rank === 0 ? "bg-signal-error"
+    : rank === 1 ? "bg-signal-warn"
     : rank <= 3 ? "bg-amber-400"
     : "bg-stone-400";
 
   return (
-    <div className="border border-stone-200 rounded-lg overflow-hidden">
+    <div className="border border-stroke rounded-lg overflow-hidden">
       <button
-        className="w-full text-left px-3 py-3 hover:bg-stone-50 transition-colors"
+        className="w-full text-left px-3 py-3 hover:bg-surface-base transition-colors"
         onClick={() => setExpanded((v) => !v)}
       >
         <div className="flex items-center gap-2 mb-1.5">
-          <span className="shrink-0 w-5 h-5 rounded bg-stone-100 text-[10px] font-bold text-stone-500 flex items-center justify-center">
+          <span className="shrink-0 w-5 h-5 rounded bg-surface-raised text-[10px] font-bold text-ink-muted flex items-center justify-center">
             {rank + 1}
           </span>
-          <span className="flex-1 text-sm text-stone-800 font-medium truncate">
+          <span className="flex-1 text-sm text-ink-primary font-medium truncate">
             {cluster.representative}
           </span>
-          <span className="shrink-0 text-xs font-mono font-semibold text-stone-600">
+          <span className="shrink-0 text-xs font-mono font-semibold text-ink-secondary">
             {cluster.count}
           </span>
           <span className="shrink-0 text-xs text-stone-400 w-10 text-right">
@@ -45,12 +45,12 @@ function ClusterRow({ cluster, rank }) {
       </button>
 
       {expanded && cluster.samples?.length > 0 && (
-        <div className="border-t border-stone-100 px-3 py-2 bg-stone-50 space-y-1">
+        <div className="border-t border-stroke-subtle px-3 py-2 bg-surface-base space-y-1">
           <div className="text-[10px] uppercase tracking-wide text-stone-400 font-semibold mb-1">
             Sample reasons
           </div>
           {cluster.samples.map((s, i) => (
-            <div key={i} className="text-xs text-stone-600 italic truncate">
+            <div key={i} className="text-xs text-ink-secondary italic truncate">
               "{s}"
             </div>
           ))}
@@ -73,7 +73,7 @@ export default function NGClustersPanel({ clusters, totalNG, loading, error, onR
           <button
             onClick={onRetrain}
             disabled={retraining}
-            className="flex items-center gap-1 px-2 py-1 rounded border border-red-200 bg-red-50 text-red-700 text-xs font-medium hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1 px-2 py-1 rounded border border-red-500/30 bg-signal-error/10 text-red-400 text-xs font-medium hover:bg-signal-error/15 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             title="Run ML clustering on all existing NG reasons"
           >
             <Cpu size={11} className={retraining ? "animate-pulse" : ""} />
@@ -83,7 +83,7 @@ export default function NGClustersPanel({ clusters, totalNG, loading, error, onR
         <button
           onClick={onRefresh}
           disabled={loading}
-          className="p-1 rounded text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+          className="p-1 rounded text-stone-400 hover:text-ink-secondary hover:bg-surface-raised transition-colors"
           title="Refresh"
         >
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
@@ -112,7 +112,7 @@ export default function NGClustersPanel({ clusters, totalNG, loading, error, onR
     return (
       <div>
         {header}
-        <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 text-sm text-red-400 bg-signal-error/10 border border-red-500/30 rounded-lg px-3 py-2">
           <AlertTriangle size={14} />
           {error}
         </div>
@@ -125,7 +125,7 @@ export default function NGClustersPanel({ clusters, totalNG, loading, error, onR
       <div>
         {header}
         {retrainMsg && (
-          <div className="text-xs text-teal-700 bg-teal-50 border border-teal-200 rounded px-3 py-2 mb-2">
+          <div className="text-xs text-teal-400 bg-teal-500/10 border border-teal-500/30 rounded px-3 py-2 mb-2">
             {retrainMsg} — clustering runs in background, results appear in ~10s
           </div>
         )}
@@ -142,7 +142,7 @@ export default function NGClustersPanel({ clusters, totalNG, loading, error, onR
     <div className="space-y-2">
       {header}
       {retrainMsg && (
-        <div className="text-xs text-teal-700 bg-teal-50 border border-teal-200 rounded px-3 py-2">
+        <div className="text-xs text-teal-400 bg-teal-500/10 border border-teal-500/30 rounded px-3 py-2">
           {retrainMsg}
         </div>
       )}

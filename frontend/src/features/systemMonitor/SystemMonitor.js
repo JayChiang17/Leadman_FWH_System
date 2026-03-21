@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import api from "../../services/api";
 import "./SystemMonitor.css";
 import Plot3D, { buildHourDowMatrix } from "../../components/Plot3D";
+import { PLOTLY_DARK_LAYOUT } from "../../utils/chartTheme";
 
 // ── Tab definitions ──
 const TABS = [
@@ -18,11 +19,11 @@ export default function SystemMonitor() {
   const [tab, setTab] = useState("health");
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6 pb-20 md:pb-8">
-      <h1 className="text-xl md:text-2xl font-bold text-gray-800 mb-4">System Monitor</h1>
+    <div className="min-h-screen bg-surface-base p-4 md:p-6 pb-20 md:pb-8">
+      <h1 className="text-xl md:text-2xl font-bold text-ink-primary mb-4">System Monitor</h1>
 
       {/* Tab bar */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6 overflow-x-auto">
+      <div className="flex gap-1 border-b border-stroke mb-6 overflow-x-auto">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -30,7 +31,7 @@ export default function SystemMonitor() {
             className={`px-4 py-2 text-sm whitespace-nowrap transition-colors duration-150 ${
               tab === t.key
                 ? "monitor-tab-active"
-                : "text-gray-500 hover:text-gray-700"
+                : "text-ink-muted hover:text-ink-secondary"
             }`}
           >
             {t.label}
@@ -75,7 +76,7 @@ function HealthTab() {
   }, [fetch_]);
 
   if (loading) return <Spinner />;
-  if (!data) return <p className="text-gray-500">Failed to load health data.</p>;
+  if (!data) return <p className="text-ink-muted">Failed to load health data.</p>;
 
   const fmtUptime = (s) => {
     const h = Math.floor(s / 3600);
@@ -101,46 +102,46 @@ function HealthTab() {
       </div>
 
       {/* DB health summary */}
-      <div className="bg-white border border-stone-200 rounded-lg shadow-sm p-4">
-        <h3 className="font-semibold text-gray-700 text-sm mb-3">Database Health</h3>
+      <div className="bg-surface-panel border border-stroke rounded-lg shadow-sm p-4">
+        <h3 className="font-semibold text-ink-secondary text-sm mb-3">Database Health</h3>
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
-          <div className="rounded border border-gray-200 p-3 bg-gray-50">
-            <p className="text-gray-500 text-xs uppercase tracking-wide">Status</p>
-            <p className={`font-semibold mt-1 ${dbHealth.status === "ok" ? "text-emerald-600" : "text-amber-600"}`}>{dbHealth.status || "unknown"}</p>
+          <div className="rounded border border-stroke p-3 bg-surface-base">
+            <p className="text-ink-muted text-xs uppercase tracking-wide">Status</p>
+            <p className={`font-semibold mt-1 ${dbHealth.status === "ok" ? "text-emerald-400" : "text-amber-400"}`}>{dbHealth.status || "unknown"}</p>
           </div>
-          <div className="rounded border border-gray-200 p-3 bg-gray-50">
-            <p className="text-gray-500 text-xs uppercase tracking-wide">Response</p>
+          <div className="rounded border border-stroke p-3 bg-surface-base">
+            <p className="text-ink-muted text-xs uppercase tracking-wide">Response</p>
             <p className="font-semibold mt-1">{dbHealth.response_ms ?? 0} ms</p>
           </div>
-          <div className="rounded border border-gray-200 p-3 bg-gray-50">
-            <p className="text-gray-500 text-xs uppercase tracking-wide">Conn Usage</p>
-            <p className={`font-semibold mt-1 ${connUsage > 80 ? "text-red-600" : "text-gray-800"}`}>{connUsage}%</p>
+          <div className="rounded border border-stroke p-3 bg-surface-base">
+            <p className="text-ink-muted text-xs uppercase tracking-wide">Conn Usage</p>
+            <p className={`font-semibold mt-1 ${connUsage > 80 ? "text-red-400" : "text-ink-primary"}`}>{connUsage}%</p>
           </div>
-          <div className="rounded border border-gray-200 p-3 bg-gray-50">
-            <p className="text-gray-500 text-xs uppercase tracking-wide">Cache Hit</p>
+          <div className="rounded border border-stroke p-3 bg-surface-base">
+            <p className="text-ink-muted text-xs uppercase tracking-wide">Cache Hit</p>
             <p className="font-semibold mt-1">{dbHealth.cache_hit_percent ?? 0}%</p>
           </div>
-          <div className="rounded border border-gray-200 p-3 bg-gray-50">
-            <p className="text-gray-500 text-xs uppercase tracking-wide">Deadlocks / Temp</p>
+          <div className="rounded border border-stroke p-3 bg-surface-base">
+            <p className="text-ink-muted text-xs uppercase tracking-wide">Deadlocks / Temp</p>
             <p className="font-semibold mt-1">{dbHealth.deadlocks ?? 0} / {dbHealth.temp_size_pretty || "0 bytes"}</p>
           </div>
         </div>
       </div>
 
       {/* DB detail table */}
-      <div className="bg-white border border-stone-200 rounded-lg shadow-sm overflow-x-auto">
+      <div className="bg-surface-panel border border-stroke rounded-lg shadow-sm overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-surface-base">
             <tr>
-              <th className="text-left px-4 py-2 font-semibold text-gray-600">Database</th>
-              <th className="text-left px-4 py-2 font-semibold text-gray-600">Status</th>
-              <th className="text-right px-4 py-2 font-semibold text-gray-600">Tables</th>
-              <th className="text-right px-4 py-2 font-semibold text-gray-600">Size</th>
+              <th className="text-left px-4 py-2 font-semibold text-ink-secondary">Database</th>
+              <th className="text-left px-4 py-2 font-semibold text-ink-secondary">Status</th>
+              <th className="text-right px-4 py-2 font-semibold text-ink-secondary">Tables</th>
+              <th className="text-right px-4 py-2 font-semibold text-ink-secondary">Size</th>
             </tr>
           </thead>
           <tbody>
             {data.databases.map((db) => (
-              <tr key={db.name} className="border-t border-gray-100">
+              <tr key={db.name} className="border-t border-stroke-subtle">
                 <td className="px-4 py-2 font-medium">{db.name}</td>
                 <td className="px-4 py-2">
                   <span className={`monitor-status-dot ${db.status}`} />{" "}
@@ -155,25 +156,25 @@ function HealthTab() {
       </div>
 
       {/* Table capacity */}
-      <div className="bg-white border border-stone-200 rounded-lg shadow-sm">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-semibold text-gray-700 text-sm">Table Capacity</h3>
-          <span className="text-xs text-gray-500">{dbCapacity.table_count ?? 0} tables</span>
+      <div className="bg-surface-panel border border-stroke rounded-lg shadow-sm">
+        <div className="px-4 py-3 border-b border-stroke-subtle flex items-center justify-between">
+          <h3 className="font-semibold text-ink-secondary text-sm">Table Capacity</h3>
+          <span className="text-xs text-ink-muted">{dbCapacity.table_count ?? 0} tables</span>
         </div>
         <div className="overflow-x-auto max-h-[420px]">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 sticky top-0">
+            <thead className="bg-surface-base sticky top-0">
               <tr>
-                <th className="text-left px-4 py-2 font-semibold text-gray-600">Table</th>
-                <th className="text-right px-4 py-2 font-semibold text-gray-600">Rows(est)</th>
-                <th className="text-right px-4 py-2 font-semibold text-gray-600">Data</th>
-                <th className="text-right px-4 py-2 font-semibold text-gray-600">Index</th>
-                <th className="text-right px-4 py-2 font-semibold text-gray-600">Total</th>
+                <th className="text-left px-4 py-2 font-semibold text-ink-secondary">Table</th>
+                <th className="text-right px-4 py-2 font-semibold text-ink-secondary">Rows(est)</th>
+                <th className="text-right px-4 py-2 font-semibold text-ink-secondary">Data</th>
+                <th className="text-right px-4 py-2 font-semibold text-ink-secondary">Index</th>
+                <th className="text-right px-4 py-2 font-semibold text-ink-secondary">Total</th>
               </tr>
             </thead>
             <tbody>
               {dbTables.map((t) => (
-                <tr key={`${t.schema_name}.${t.table_name}`} className="border-t border-gray-100">
+                <tr key={`${t.schema_name}.${t.table_name}`} className="border-t border-stroke-subtle">
                   <td className="px-4 py-2 font-mono text-xs">{t.schema_name}.{t.table_name}</td>
                   <td className="px-4 py-2 text-right font-mono">{t.estimated_rows ?? 0}</td>
                   <td className="px-4 py-2 text-right font-mono text-xs">{t.table_size_pretty || "-"}</td>
@@ -183,7 +184,7 @@ function HealthTab() {
               ))}
               {dbTables.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 text-gray-400">No table capacity data.</td>
+                  <td colSpan={5} className="text-center py-8 text-ink-muted">No table capacity data.</td>
                 </tr>
               )}
             </tbody>
@@ -222,30 +223,30 @@ function DockerTab() {
   }, [fetch_]);
 
   if (loading) return <Spinner />;
-  if (!data)   return <p className="text-gray-500">Failed to load Docker data.</p>;
+  if (!data)   return <p className="text-ink-muted">Failed to load Docker data.</p>;
 
   /* ── Docker not available ── */
   if (!data.available) {
     return (
-      <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 flex items-start gap-3">
+      <div className="bg-signal-warn/10 border border-amber-500/30 rounded-lg p-6 flex items-start gap-3">
         <span className="text-2xl mt-0.5">🐳</span>
         <div>
-          <p className="font-semibold text-amber-800 mb-1">Docker unavailable</p>
-          <p className="text-sm text-amber-700">{data.error || "Docker CLI not found or daemon not running."}</p>
+          <p className="font-semibold text-amber-300 mb-1">Docker unavailable</p>
+          <p className="text-sm text-amber-400">{data.error || "Docker CLI not found or daemon not running."}</p>
         </div>
       </div>
     );
   }
 
   const stateChip = (state) => {
-    if (state === "running") return "bg-emerald-50 text-emerald-700 border-emerald-200";
-    if (state === "exited")  return "bg-red-50    text-red-700    border-red-200";
-    if (state === "paused")  return "bg-amber-50  text-amber-700  border-amber-200";
-    return                          "bg-gray-50   text-gray-600   border-gray-200";
+    if (state === "running") return "bg-signal-ok/10 text-emerald-400 border-emerald-500/30";
+    if (state === "exited")  return "bg-signal-error/10    text-red-400    border-red-500/30";
+    if (state === "paused")  return "bg-signal-warn/10  text-amber-400  border-amber-500/30";
+    return                          "bg-surface-base   text-ink-secondary   border-stroke";
   };
 
   const stateDot = (state) => {
-    if (state === "running") return "bg-emerald-500 shadow-emerald-400";
+    if (state === "running") return "bg-signal-ok shadow-emerald-400";
     if (state === "exited")  return "bg-red-400";
     if (state === "paused")  return "bg-amber-400";
     return                          "bg-gray-400";
@@ -263,16 +264,16 @@ function DockerTab() {
       </div>
 
       {/* ── Container table ── */}
-      <div className="bg-white border border-stone-200 rounded-lg shadow-sm">
-        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+      <div className="bg-surface-panel border border-stroke rounded-lg shadow-sm">
+        <div className="px-4 py-3 border-b border-stroke-subtle flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-lg">🐳</span>
-            <h3 className="font-semibold text-gray-700 text-sm">Containers</h3>
-            <span className="text-xs text-gray-400">{data.total} total</span>
+            <h3 className="font-semibold text-ink-secondary text-sm">Containers</h3>
+            <span className="text-xs text-ink-muted">{data.total} total</span>
           </div>
           <div className="flex items-center gap-3">
             {lastUpdated && (
-              <span className="text-xs text-gray-400 hidden md:inline">
+              <span className="text-xs text-ink-muted hidden md:inline">
                 Updated {lastUpdated.toLocaleTimeString("en-US", { hour12: false })}
               </span>
             )}
@@ -286,27 +287,27 @@ function DockerTab() {
         </div>
 
         {data.containers.length === 0 ? (
-          <p className="text-center py-10 text-gray-400 text-sm">No containers found.</p>
+          <p className="text-center py-10 text-ink-muted text-sm">No containers found.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-surface-base">
                 <tr>
                   <th className="w-4 px-3 py-2.5" />
-                  <th className="text-left px-3 py-2.5 font-semibold text-gray-600 whitespace-nowrap">Name</th>
-                  <th className="text-left px-3 py-2.5 font-semibold text-gray-600 whitespace-nowrap">Image</th>
-                  <th className="text-left px-3 py-2.5 font-semibold text-gray-600 whitespace-nowrap">Status</th>
-                  <th className="text-right px-3 py-2.5 font-semibold text-gray-600 whitespace-nowrap">CPU%</th>
-                  <th className="text-right px-3 py-2.5 font-semibold text-gray-600 whitespace-nowrap">Memory</th>
-                  <th className="text-right px-3 py-2.5 font-semibold text-gray-600 whitespace-nowrap">Mem%</th>
-                  <th className="text-right px-3 py-2.5 font-semibold text-gray-600 whitespace-nowrap">Net I/O</th>
-                  <th className="text-right px-3 py-2.5 font-semibold text-gray-600 whitespace-nowrap">Block I/O</th>
-                  <th className="text-right px-3 py-2.5 font-semibold text-gray-600 whitespace-nowrap">PIDs</th>
+                  <th className="text-left px-3 py-2.5 font-semibold text-ink-secondary whitespace-nowrap">Name</th>
+                  <th className="text-left px-3 py-2.5 font-semibold text-ink-secondary whitespace-nowrap">Image</th>
+                  <th className="text-left px-3 py-2.5 font-semibold text-ink-secondary whitespace-nowrap">Status</th>
+                  <th className="text-right px-3 py-2.5 font-semibold text-ink-secondary whitespace-nowrap">CPU%</th>
+                  <th className="text-right px-3 py-2.5 font-semibold text-ink-secondary whitespace-nowrap">Memory</th>
+                  <th className="text-right px-3 py-2.5 font-semibold text-ink-secondary whitespace-nowrap">Mem%</th>
+                  <th className="text-right px-3 py-2.5 font-semibold text-ink-secondary whitespace-nowrap">Net I/O</th>
+                  <th className="text-right px-3 py-2.5 font-semibold text-ink-secondary whitespace-nowrap">Block I/O</th>
+                  <th className="text-right px-3 py-2.5 font-semibold text-ink-secondary whitespace-nowrap">PIDs</th>
                 </tr>
               </thead>
               <tbody>
                 {data.containers.map((c) => (
-                  <tr key={c.id} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
+                  <tr key={c.id} className="border-t border-stroke-subtle hover:bg-surface-raised transition-colors">
                     {/* state dot */}
                     <td className="px-3 py-3">
                       <span
@@ -314,11 +315,11 @@ function DockerTab() {
                       />
                     </td>
                     {/* name */}
-                    <td className="px-3 py-3 font-mono font-semibold text-gray-800 whitespace-nowrap">
+                    <td className="px-3 py-3 font-mono font-semibold text-ink-primary whitespace-nowrap">
                       {c.name}
                     </td>
                     {/* image */}
-                    <td className="px-3 py-3 font-mono text-xs text-gray-500 max-w-[160px] truncate" title={c.image}>
+                    <td className="px-3 py-3 font-mono text-xs text-ink-muted max-w-[160px] truncate" title={c.image}>
                       {c.image}
                     </td>
                     {/* status chip */}
@@ -329,32 +330,32 @@ function DockerTab() {
                     </td>
                     {/* cpu */}
                     <td className={`px-3 py-3 text-right font-mono text-xs ${
-                      parseFloat(c.cpu_pct) > 80 ? "text-red-600 font-bold" :
-                      parseFloat(c.cpu_pct) > 50 ? "text-amber-600" : "text-gray-700"
+                      parseFloat(c.cpu_pct) > 80 ? "text-red-400 font-bold" :
+                      parseFloat(c.cpu_pct) > 50 ? "text-amber-400" : "text-ink-secondary"
                     }`}>
                       {c.cpu_pct}
                     </td>
                     {/* mem usage */}
-                    <td className="px-3 py-3 text-right font-mono text-xs text-gray-700 whitespace-nowrap">
+                    <td className="px-3 py-3 text-right font-mono text-xs text-ink-secondary whitespace-nowrap">
                       {c.mem_usage}
                     </td>
                     {/* mem pct */}
                     <td className={`px-3 py-3 text-right font-mono text-xs ${
-                      parseFloat(c.mem_pct) > 80 ? "text-red-600 font-bold" :
-                      parseFloat(c.mem_pct) > 60 ? "text-amber-600" : "text-gray-500"
+                      parseFloat(c.mem_pct) > 80 ? "text-red-400 font-bold" :
+                      parseFloat(c.mem_pct) > 60 ? "text-amber-400" : "text-ink-muted"
                     }`}>
                       {c.mem_pct}
                     </td>
                     {/* net io */}
-                    <td className="px-3 py-3 text-right font-mono text-xs text-gray-500 whitespace-nowrap">
+                    <td className="px-3 py-3 text-right font-mono text-xs text-ink-muted whitespace-nowrap">
                       {c.net_io}
                     </td>
                     {/* block io */}
-                    <td className="px-3 py-3 text-right font-mono text-xs text-gray-500 whitespace-nowrap">
+                    <td className="px-3 py-3 text-right font-mono text-xs text-ink-muted whitespace-nowrap">
                       {c.block_io}
                     </td>
                     {/* pids */}
-                    <td className="px-3 py-3 text-right font-mono text-xs text-gray-600">
+                    <td className="px-3 py-3 text-right font-mono text-xs text-ink-secondary">
                       {c.pids}
                     </td>
                   </tr>
@@ -367,9 +368,9 @@ function DockerTab() {
 
       {/* ── Ports section (if any container exposes ports) ── */}
       {data.containers.some((c) => c.ports) && (
-        <div className="bg-white border border-stone-200 rounded-lg shadow-sm">
-          <div className="px-4 py-3 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-700 text-sm">Port Mappings</h3>
+        <div className="bg-surface-panel border border-stroke rounded-lg shadow-sm">
+          <div className="px-4 py-3 border-b border-stroke-subtle">
+            <h3 className="font-semibold text-ink-secondary text-sm">Port Mappings</h3>
           </div>
           <div className="p-4 space-y-2">
             {data.containers
@@ -377,16 +378,16 @@ function DockerTab() {
               .map((c) => (
                 <div key={c.id} className="flex items-start gap-3">
                   <span className={`mt-0.5 inline-block w-2 h-2 rounded-full flex-shrink-0 ${stateDot(c.state)}`} />
-                  <span className="text-sm font-mono font-semibold text-gray-700 w-36 shrink-0">{c.name}</span>
-                  <span className="text-xs font-mono text-gray-500 break-all">{c.ports}</span>
+                  <span className="text-sm font-mono font-semibold text-ink-secondary w-36 shrink-0">{c.name}</span>
+                  <span className="text-xs font-mono text-ink-muted break-all">{c.ports}</span>
                 </div>
               ))}
           </div>
         </div>
       )}
 
-      <p className="text-xs text-gray-400">
-        Auto-refreshes every 15s · Stats via <code className="font-mono bg-gray-100 px-1 rounded">docker stats --no-stream</code>
+      <p className="text-xs text-ink-muted">
+        Auto-refreshes every 15s · Stats via <code className="font-mono bg-surface-raised px-1 rounded">docker stats --no-stream</code>
       </p>
     </div>
   );
@@ -419,7 +420,7 @@ function WebSocketTab() {
   }, [fetch_]);
 
   if (loading) return <Spinner />;
-  if (!data) return <p className="text-gray-500">Failed to load WebSocket data.</p>;
+  if (!data) return <p className="text-ink-muted">Failed to load WebSocket data.</p>;
 
   return (
     <div className="space-y-6">
@@ -436,11 +437,11 @@ function WebSocketTab() {
 
       {/* Excessive warning */}
       {data.excessive.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-700 font-semibold text-sm mb-2">Excessive Connections Detected (&gt;3 per user)</p>
+        <div className="bg-signal-error/10 border border-red-500/30 rounded-lg p-4">
+          <p className="text-red-400 font-semibold text-sm mb-2">Excessive Connections Detected (&gt;3 per user)</p>
           <div className="flex flex-wrap gap-2">
             {data.excessive.map((e) => (
-              <span key={e.user} className="bg-red-100 text-red-800 text-xs font-mono px-2 py-1 rounded">
+              <span key={e.user} className="bg-signal-error/15 text-red-300 text-xs font-mono px-2 py-1 rounded">
                 {e.user}: {e.count} connections
               </span>
             ))}
@@ -450,23 +451,23 @@ function WebSocketTab() {
 
       {/* By user */}
       {data.by_user.length > 0 && (
-        <div className="bg-white border border-stone-200 rounded-lg shadow-sm overflow-x-auto">
-          <div className="px-4 py-3 border-b border-gray-100">
-            <h3 className="font-semibold text-gray-700 text-sm">Connections by User</h3>
+        <div className="bg-surface-panel border border-stroke rounded-lg shadow-sm overflow-x-auto">
+          <div className="px-4 py-3 border-b border-stroke-subtle">
+            <h3 className="font-semibold text-ink-secondary text-sm">Connections by User</h3>
           </div>
           <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-surface-base">
               <tr>
-                <th className="text-left px-4 py-2 font-semibold text-gray-600">User</th>
-                <th className="text-right px-4 py-2 font-semibold text-gray-600">Connections</th>
+                <th className="text-left px-4 py-2 font-semibold text-ink-secondary">User</th>
+                <th className="text-right px-4 py-2 font-semibold text-ink-secondary">Connections</th>
               </tr>
             </thead>
             <tbody>
               {data.by_user.map((u) => (
-                <tr key={u.user} className="border-t border-gray-100">
+                <tr key={u.user} className="border-t border-stroke-subtle">
                   <td className="px-4 py-2 font-medium">{u.user}</td>
                   <td className="px-4 py-2 text-right">
-                    <span className={`font-mono ${u.count > 3 ? "text-red-600 font-bold" : "text-gray-700"}`}>{u.count}</span>
+                    <span className={`font-mono ${u.count > 3 ? "text-red-400 font-bold" : "text-ink-secondary"}`}>{u.count}</span>
                   </td>
                 </tr>
               ))}
@@ -476,30 +477,30 @@ function WebSocketTab() {
       )}
 
       {/* All connections detail */}
-      <div className="bg-white border border-stone-200 rounded-lg shadow-sm overflow-x-auto">
-        <div className="px-4 py-3 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-700 text-sm">All Active Connections</h3>
+      <div className="bg-surface-panel border border-stroke rounded-lg shadow-sm overflow-x-auto">
+        <div className="px-4 py-3 border-b border-stroke-subtle">
+          <h3 className="font-semibold text-ink-secondary text-sm">All Active Connections</h3>
         </div>
         {data.connections.length === 0 ? (
-          <p className="text-center py-8 text-gray-400 text-sm">No active WebSocket connections</p>
+          <p className="text-center py-8 text-ink-muted text-sm">No active WebSocket connections</p>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-surface-base">
               <tr>
                 {["User", "Role", "Connected", "Messages", "Idle"].map((h) => (
-                  <th key={h} className="text-left px-3 py-2 font-semibold text-gray-600">{h}</th>
+                  <th key={h} className="text-left px-3 py-2 font-semibold text-ink-secondary">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {data.connections.map((c, i) => (
-                <tr key={`${c.user || "anon"}-${i}`} className="border-t border-gray-100">
+                <tr key={`${c.user || "anon"}-${i}`} className="border-t border-stroke-subtle">
                   <td className="px-3 py-2 font-medium">{c.user}</td>
-                  <td className="px-3 py-2 text-gray-500">{c.role}</td>
+                  <td className="px-3 py-2 text-ink-muted">{c.role}</td>
                   <td className="px-3 py-2">{fmtDuration(c.connected_seconds)}</td>
                   <td className="px-3 py-2 text-right font-mono">{c.msg_count}</td>
                   <td className="px-3 py-2">
-                    <span className={c.idle_seconds > 120 ? "text-amber-600" : "text-gray-600"}>
+                    <span className={c.idle_seconds > 120 ? "text-amber-400" : "text-ink-secondary"}>
                       {fmtDuration(c.idle_seconds)}
                     </span>
                   </td>
@@ -583,14 +584,14 @@ function ApiLogsTab() {
           placeholder="Filter by path..."
           value={filterPath}
           onChange={(e) => { setFilterPath(e.target.value); setPage(1); }}
-          className="border-2 border-stone-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+          className="border-2 border-stroke rounded-lg px-3 py-2 text-sm bg-surface-panel focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
         />
         <input
           type="text"
           placeholder="Status code..."
           value={filterStatus}
           onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}
-          className="border-2 border-stone-300 rounded-lg px-3 py-2 text-sm bg-white w-32 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+          className="border-2 border-stroke rounded-lg px-3 py-2 text-sm bg-surface-panel w-32 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
         />
         <button onClick={() => { setRefreshKey((k) => k + 1); fetchStats(); }}
           className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm rounded-lg font-medium transition-colors duration-150">
@@ -599,26 +600,26 @@ function ApiLogsTab() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-stone-200 rounded-lg shadow-sm overflow-x-auto">
+      <div className="bg-surface-panel border border-stroke rounded-lg shadow-sm overflow-x-auto">
         {loading ? <Spinner /> : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-surface-base">
               <tr>
                 {["Timestamp", "Method", "Path", "Status", "Duration", "User"].map((h) => (
-                  <th key={h} className="text-left px-3 py-2 font-semibold text-gray-600">{h}</th>
+                  <th key={h} className="text-left px-3 py-2 font-semibold text-ink-secondary">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {logs.map((r) => (
-                <tr key={r.id} className="border-t border-gray-100">
+                <tr key={r.id} className="border-t border-stroke-subtle">
                   <td className="px-3 py-2 whitespace-nowrap">{fmtTs(r.occurred_at)}</td>
                   <td className="px-3 py-2">
                     <span className={`font-mono text-xs px-1.5 py-0.5 rounded ${methodColor(r.method)}`}>{r.method}</span>
                   </td>
                   <td className="px-3 py-2 font-mono text-xs max-w-xs truncate">{r.path}</td>
                   <td className="px-3 py-2">
-                    <span className={`font-mono ${r.status_code >= 400 ? "text-red-600 font-bold" : "text-gray-700"}`}>{r.status_code}</span>
+                    <span className={`font-mono ${r.status_code >= 400 ? "text-red-400 font-bold" : "text-ink-secondary"}`}>{r.status_code}</span>
                   </td>
                   <td className="px-3 py-2 text-right">{r.duration_ms?.toFixed(1)}ms</td>
                   <td className="px-3 py-2">{r.username || "-"}</td>
@@ -633,10 +634,10 @@ function ApiLogsTab() {
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           <button disabled={page <= 1} onClick={() => setPage(page - 1)}
-            className="px-3 py-1 border border-stone-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors">Prev</button>
-          <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
+            className="px-3 py-1 border border-stroke rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-raised transition-colors">Prev</button>
+          <span className="text-sm text-ink-secondary">Page {page} of {totalPages}</span>
           <button disabled={page >= totalPages} onClick={() => setPage(page + 1)}
-            className="px-3 py-1 border border-stone-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors">Next</button>
+            className="px-3 py-1 border border-stroke rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-raised transition-colors">Next</button>
         </div>
       )}
     </div>
@@ -682,9 +683,9 @@ function AuditTab() {
       <div className="flex flex-col md:flex-row gap-2">
         <input type="text" placeholder="Filter by user..." value={filterUser}
           onChange={(e) => { setFilterUser(e.target.value); setPage(1); }}
-          className="border-2 border-stone-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500" />
+          className="border-2 border-stroke rounded-lg px-3 py-2 text-sm bg-surface-panel focus:ring-2 focus:ring-teal-500 focus:border-teal-500" />
         <select value={filterAction} onChange={(e) => { setFilterAction(e.target.value); setPage(1); }}
-          className="border-2 border-stone-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+          className="border-2 border-stroke rounded-lg px-3 py-2 text-sm bg-surface-panel focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
           <option value="">All Actions</option>
           <option value="ate_ng_mark">ATE NG Mark</option>
           <option value="ate_ng_clear">ATE NG Clear</option>
@@ -699,31 +700,31 @@ function AuditTab() {
         </button>
       </div>
 
-      <div className="bg-white border border-stone-200 rounded-lg shadow-sm overflow-x-auto">
+      <div className="bg-surface-panel border border-stroke rounded-lg shadow-sm overflow-x-auto">
         {loading ? <Spinner /> : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-surface-base">
               <tr>
                 {["Timestamp", "User", "Action", "Target", "Old Value", "New Value"].map((h) => (
-                  <th key={h} className="text-left px-3 py-2 font-semibold text-gray-600">{h}</th>
+                  <th key={h} className="text-left px-3 py-2 font-semibold text-ink-secondary">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {logs.map((r) => (
-                <tr key={r.id} className="border-t border-gray-100">
+                <tr key={r.id} className="border-t border-stroke-subtle">
                   <td className="px-3 py-2 whitespace-nowrap">{fmtTs(r.occurred_at)}</td>
                   <td className="px-3 py-2 font-medium">{r.username}</td>
                   <td className="px-3 py-2">
-                    <span className="bg-gray-100 text-gray-700 text-xs font-mono px-2 py-0.5 rounded">{r.action}</span>
+                    <span className="bg-surface-raised text-ink-secondary text-xs font-mono px-2 py-0.5 rounded">{r.action}</span>
                   </td>
                   <td className="px-3 py-2">{r.target || "-"}</td>
-                  <td className="px-3 py-2 text-gray-500 max-w-[120px] truncate">{r.old_value || "-"}</td>
+                  <td className="px-3 py-2 text-ink-muted max-w-[120px] truncate">{r.old_value || "-"}</td>
                   <td className="px-3 py-2 max-w-[120px] truncate">{r.new_value || "-"}</td>
                 </tr>
               ))}
               {logs.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-8 text-gray-400">
+                <tr><td colSpan={6} className="text-center py-8 text-ink-muted">
                   <p className="font-medium mb-1">No audit logs yet</p>
                   <p className="text-xs">Audit events are recorded when actions are performed: ATE NG mark/clear, downtime add/delete, user role change, email config update.</p>
                 </td></tr>
@@ -736,10 +737,10 @@ function AuditTab() {
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           <button disabled={page <= 1} onClick={() => setPage(page - 1)}
-            className="px-3 py-1 border border-stone-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors">Prev</button>
-          <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
+            className="px-3 py-1 border border-stroke rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-raised transition-colors">Prev</button>
+          <span className="text-sm text-ink-secondary">Page {page} of {totalPages}</span>
           <button disabled={page >= totalPages} onClick={() => setPage(page + 1)}
-            className="px-3 py-1 border border-stone-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors">Next</button>
+            className="px-3 py-1 border border-stroke rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-raised transition-colors">Next</button>
         </div>
       )}
     </div>
@@ -780,29 +781,29 @@ function FrontendErrorsTab() {
         Refresh
       </button>
 
-      <div className="bg-white border border-stone-200 rounded-lg shadow-sm overflow-x-auto">
+      <div className="bg-surface-panel border border-stroke rounded-lg shadow-sm overflow-x-auto">
         {loading ? <Spinner /> : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-surface-base">
               <tr>
                 {["Timestamp", "Component", "Error", "User", "URL", ""].map((h) => (
-                  <th key={h} className="text-left px-3 py-2 font-semibold text-gray-600">{h}</th>
+                  <th key={h} className="text-left px-3 py-2 font-semibold text-ink-secondary">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {errors.map((r) => (
                 <React.Fragment key={r.id}>
-                  <tr className="border-t border-gray-100">
+                  <tr className="border-t border-stroke-subtle">
                     <td className="px-3 py-2 whitespace-nowrap">{fmtTs(r.occurred_at)}</td>
                     <td className="px-3 py-2">{r.component || "-"}</td>
-                    <td className="px-3 py-2 max-w-xs truncate text-red-600">{r.error_message}</td>
+                    <td className="px-3 py-2 max-w-xs truncate text-red-400">{r.error_message}</td>
                     <td className="px-3 py-2">{r.username || "-"}</td>
-                    <td className="px-3 py-2 max-w-[150px] truncate text-gray-500">{r.url || "-"}</td>
+                    <td className="px-3 py-2 max-w-[150px] truncate text-ink-muted">{r.url || "-"}</td>
                     <td className="px-3 py-2">
                       {r.stack && (
                         <button onClick={() => setExpanded(expanded === r.id ? null : r.id)}
-                          className="text-teal-600 hover:text-teal-700 text-xs font-medium monitor-stack-toggle">
+                          className="text-teal-400 hover:text-teal-400 text-xs font-medium monitor-stack-toggle">
                           {expanded === r.id ? "Hide" : "Stack"}
                         </button>
                       )}
@@ -810,15 +811,15 @@ function FrontendErrorsTab() {
                   </tr>
                   {expanded === r.id && r.stack && (
                     <tr>
-                      <td colSpan={6} className="px-3 py-2 bg-gray-50">
-                        <pre className="text-xs text-gray-600 whitespace-pre-wrap max-h-48 overflow-y-auto font-mono">{r.stack}</pre>
+                      <td colSpan={6} className="px-3 py-2 bg-surface-base">
+                        <pre className="text-xs text-ink-secondary whitespace-pre-wrap max-h-48 overflow-y-auto font-mono">{r.stack}</pre>
                       </td>
                     </tr>
                   )}
                 </React.Fragment>
               ))}
               {errors.length === 0 && (
-                <tr><td colSpan={6} className="text-center py-8 text-gray-400">
+                <tr><td colSpan={6} className="text-center py-8 text-ink-muted">
                   <p className="font-medium mb-1">No frontend errors recorded</p>
                   <p className="text-xs">Errors are captured automatically when React components crash (via ErrorBoundary). No crashes have occurred.</p>
                 </td></tr>
@@ -831,10 +832,10 @@ function FrontendErrorsTab() {
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           <button disabled={page <= 1} onClick={() => setPage(page - 1)}
-            className="px-3 py-1 border border-stone-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors">Prev</button>
-          <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
+            className="px-3 py-1 border border-stroke rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-raised transition-colors">Prev</button>
+          <span className="text-sm text-ink-secondary">Page {page} of {totalPages}</span>
           <button disabled={page >= totalPages} onClick={() => setPage(page + 1)}
-            className="px-3 py-1 border border-stone-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors">Next</button>
+            className="px-3 py-1 border border-stroke rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-surface-raised transition-colors">Next</button>
         </div>
       )}
     </div>
@@ -869,9 +870,9 @@ function Monitor3DTab() {
   const renderChart = () => {
     if (!data || data.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center bg-gray-50 rounded-lg border border-gray-200" style={{ height: 480 }}>
-          <p className="text-gray-400 font-semibold text-sm">No API log data yet</p>
-          <p className="text-gray-400 text-xs mt-1">Logs accumulate over time</p>
+        <div className="flex flex-col items-center justify-center bg-surface-base rounded-lg border border-stroke" style={{ height: 480 }}>
+          <p className="text-ink-muted font-semibold text-sm">No API log data yet</p>
+          <p className="text-ink-muted text-xs mt-1">Logs accumulate over time</p>
         </div>
       );
     }
@@ -908,18 +909,19 @@ function Monitor3DTab() {
             : "<b>%{y}</b><br>Hour: %{x}<br>Requests: <b>%{z}</b><extra></extra>",
         }]}
         layout={{
+          ...PLOTLY_DARK_LAYOUT,
           scene: {
+            ...PLOTLY_DARK_LAYOUT.scene,
             camera: { eye: { x: 1.5, y: 1.5, z: 1.2 } },
             yaxis: {
-              backgroundcolor: "#f9fafb", gridcolor: "#e5e7eb",
+              ...PLOTLY_DARK_LAYOUT.scene.yaxis,
               title: "Day of Week",
               tickmode: "array", tickvals: [0,1,2,3,4,5,6], ticktext: DOW_LABELS,
             },
-            xaxis: { backgroundcolor: "#f9fafb", gridcolor: "#e5e7eb", title: "Hour of Day" },
-            zaxis: { backgroundcolor: "#f0fdf4", gridcolor: "#bbf7d0", title: isMs ? "ms" : "Count" },
+            xaxis: { ...PLOTLY_DARK_LAYOUT.scene.xaxis, title: "Hour of Day" },
+            zaxis: { ...PLOTLY_DARK_LAYOUT.scene.zaxis, title: isMs ? "ms" : "Count" },
           },
           margin: { l: 0, r: 0, t: 10, b: 0 },
-          paper_bgcolor: "white",
         }}
       />
     );
@@ -929,16 +931,16 @@ function Monitor3DTab() {
     <div className="space-y-4">
       {/* Controls */}
       <div className="flex items-center gap-3">
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        <div className="flex gap-1 bg-surface-raised rounded-lg p-1">
           <button
             onClick={() => setMetric("avg_ms")}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${metric === "avg_ms" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${metric === "avg_ms" ? "bg-surface-panel text-ink-primary shadow-sm" : "text-ink-muted hover:text-ink-secondary"}`}
           >
             Avg Response Time
           </button>
           <button
             onClick={() => setMetric("request_count")}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${metric === "request_count" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${metric === "request_count" ? "bg-surface-panel text-ink-primary shadow-sm" : "text-ink-muted hover:text-ink-secondary"}`}
           >
             Request Volume
           </button>
@@ -950,18 +952,18 @@ function Monitor3DTab() {
         >
           Refresh
         </button>
-        <span className="text-xs text-gray-400">Past 30 days · drag to rotate</span>
+        <span className="text-xs text-ink-muted">Past 30 days · drag to rotate</span>
       </div>
 
       {/* Chart cards */}
-      <div className="bg-white border border-stone-200 rounded-lg shadow-sm p-4">
-        <h3 className="font-semibold text-gray-700 text-sm mb-1">
+      <div className="bg-surface-panel border border-stroke rounded-lg shadow-sm p-4">
+        <h3 className="font-semibold text-ink-secondary text-sm mb-1">
           {metric === "avg_ms" ? "API Response Time Heatmap" : "API Request Volume Heatmap"}
         </h3>
-        <p className="text-xs text-gray-400 mb-3">Hour-of-Day × Day-of-Week · 3D surface chart</p>
+        <p className="text-xs text-ink-muted mb-3">Hour-of-Day × Day-of-Week · 3D surface chart</p>
         {loading ? (
-          <div className="flex items-center justify-center bg-gray-50 rounded-lg border border-gray-200 animate-pulse" style={{ height: 480 }}>
-            <p className="text-sm text-gray-400">Building 3D surface…</p>
+          <div className="flex items-center justify-center bg-surface-base rounded-lg border border-stroke animate-pulse" style={{ height: 480 }}>
+            <p className="text-sm text-ink-muted">Building 3D surface…</p>
           </div>
         ) : renderChart()}
       </div>
@@ -975,12 +977,12 @@ function Monitor3DTab() {
 
 function StatCard({ label, value, color }) {
   const colorMap = {
-    teal: "bg-teal-50 text-teal-700 border-teal-200",
-    cyan: "bg-cyan-50 text-cyan-700 border-cyan-200",
-    emerald: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    amber: "bg-amber-50 text-amber-700 border-amber-200",
-    red: "bg-red-50 text-red-700 border-red-200",
-    gray: "bg-gray-50 text-gray-700 border-gray-200",
+    teal: "bg-teal-500/10 text-teal-400 border-teal-500/30",
+    cyan: "bg-signal-info/10 text-cyan-400 border-cyan-500/30",
+    emerald: "bg-signal-ok/10 text-emerald-400 border-emerald-500/30",
+    amber: "bg-signal-warn/10 text-amber-400 border-amber-500/30",
+    red: "bg-signal-error/10 text-red-400 border-red-500/30",
+    gray: "bg-surface-base text-ink-secondary border-stroke",
   };
   return (
     <div className={`border rounded-lg p-4 ${colorMap[color] || colorMap.gray}`}>
@@ -1018,6 +1020,6 @@ function fmtTs(iso) {
 }
 
 function methodColor(m) {
-  const map = { GET: "bg-emerald-100 text-emerald-700", POST: "bg-cyan-100 text-cyan-700", PUT: "bg-amber-100 text-amber-700", DELETE: "bg-red-100 text-red-700", PATCH: "bg-gray-100 text-gray-700" };
-  return map[m] || "bg-gray-100 text-gray-700";
+  const map = { GET: "bg-signal-ok/15 text-emerald-400", POST: "bg-signal-info/15 text-cyan-400", PUT: "bg-signal-warn/15 text-amber-400", DELETE: "bg-signal-error/15 text-red-400", PATCH: "bg-surface-raised text-ink-secondary" };
+  return map[m] || "bg-surface-raised text-ink-secondary";
 }

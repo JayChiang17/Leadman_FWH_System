@@ -8,11 +8,60 @@
 @import "./styles/theme.css";
 @import "./styles/layout.css";
 
-/* 若想保留淡淡格線，可改用純 CSS（不依賴圖檔） */
-/*
+/* ── Splunk-inspired dark base ─────────────────────────────────────── */
 body {
-  background:
-    linear-gradient(#e5e7eb 1px, transparent 1px) 0 0 / 16px 16px,
-    linear-gradient(90deg, #e5e7eb 1px, transparent 1px) 0 0 / 16px 16px;
+  background-color: #161b2d;
+  color: #c8cedc;
 }
-*/
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #161b2d;
+}
+::-webkit-scrollbar-thumb {
+  background: #2e3650;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3d4867;
+}
+
+/* Splunk dark table zebra */
+.splunk-table tr:nth-child(even) {
+  background-color: #1e2437;
+}
+.splunk-table tr:hover {
+  background-color: #262d42;
+}
+.splunk-table th {
+  background-color: #1e2437;
+  color: #8d93a5;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  border-bottom: 1px solid #2e3650;
+}
+.splunk-table td {
+  border-bottom: 1px solid #222840;
+  color: #c8cedc;
+}
+
+/* Monospace metric numbers */
+.metric-value {
+  font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dark input autofill fix */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px #262d42 inset;
+  -webkit-text-fill-color: #c8cedc;
+  caret-color: #c8cedc;
+}

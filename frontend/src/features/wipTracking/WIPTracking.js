@@ -20,17 +20,17 @@ const STAGE_LABEL = {
 };
 
 const STAGE_DOT = {
-  assembling: "bg-cyan-500",
-  aging: "bg-amber-500",
-  fqc_passed: "bg-emerald-500",
-  shipped: "bg-sky-500",
+  assembling: "bg-signal-info",
+  aging: "bg-signal-warn",
+  fqc_passed: "bg-signal-ok",
+  shipped: "bg-signal-info",
 };
 
 const STAGE_CARD = {
-  assembling: "from-cyan-500/15 to-white border-cyan-200 text-cyan-900",
-  aging: "from-amber-500/15 to-white border-amber-200 text-amber-900",
-  fqc_passed: "from-emerald-500/15 to-white border-emerald-200 text-emerald-900",
-  shipped: "from-sky-500/15 to-white border-sky-200 text-sky-900",
+  assembling: "from-signal-info/15 to-surface-panel border-cyan-500/30 text-cyan-300",
+  aging: "from-signal-warn/15 to-surface-panel border-amber-500/30 text-amber-300",
+  fqc_passed: "from-signal-ok/15 to-surface-panel border-emerald-500/30 text-emerald-300",
+  shipped: "from-signal-info/15 to-surface-panel border-sky-500/30 text-sky-300",
 };
 
 function timeAgo(iso) {
@@ -127,31 +127,31 @@ export default function WIPTracking() {
   }, [columns.shipped, loadStage]);
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
-      <div className="flex-shrink-0 bg-white border-b border-stone-200">
-        <div className="px-5 py-4 bg-gradient-to-r from-stone-100 via-white to-cyan-50 border-b border-stone-200">
+    <div className="h-screen bg-surface-base flex flex-col overflow-hidden">
+      <div className="flex-shrink-0 bg-surface-panel border-b border-stroke">
+        <div className="px-5 py-4 bg-gradient-to-r from-surface-raised via-surface-panel to-signal-info/10 border-b border-stroke">
           <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4 mb-4">
             <div>
-              <p className="text-[11px] uppercase tracking-[0.32em] text-teal-600 mb-1">Live Dashboard</p>
-              <h1 className="text-stone-900 font-semibold text-2xl leading-tight">APower WIP</h1>
-              <p className="text-stone-500 text-sm">Assembly Pipeline</p>
+              <p className="text-[11px] uppercase tracking-[0.32em] text-teal-400 mb-1">Live Dashboard</p>
+              <h1 className="text-ink-primary font-semibold text-2xl leading-tight">APower WIP</h1>
+              <p className="text-ink-muted text-sm">Assembly Pipeline</p>
             </div>
             <div className="flex gap-3 flex-wrap self-start xl:self-auto">
-              <div className="rounded-2xl border border-stone-200 bg-white px-4 py-3 min-w-[170px] shadow-sm">
+              <div className="rounded-xl border border-stroke bg-surface-panel px-4 py-3 min-w-[170px] shadow-sm">
                 <div className="text-[11px] uppercase tracking-[0.24em] text-stone-400 mb-1">Total Tracked</div>
-                <div className="text-4xl font-black font-mono text-stone-900 leading-none">
+                <div className="text-4xl font-black font-mono text-ink-primary leading-none">
                   {(stats.total || 0).toLocaleString()}
                 </div>
               </div>
-              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 min-w-[170px] shadow-sm">
-                <div className="text-[11px] uppercase tracking-[0.24em] text-emerald-700/80 mb-1">Today FQC</div>
-                <div className="text-4xl font-black font-mono text-emerald-900 leading-none">
+              <div className="rounded-xl border border-emerald-500/30 bg-signal-ok/10 px-4 py-3 min-w-[170px] shadow-sm">
+                <div className="text-[11px] uppercase tracking-[0.24em] text-emerald-400/80 mb-1">Today FQC</div>
+                <div className="text-4xl font-black font-mono text-emerald-300 leading-none">
                   {(stats.today_fqc || 0).toLocaleString()}
                 </div>
               </div>
-              <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 min-w-[170px] shadow-sm">
-                <div className="text-[11px] uppercase tracking-[0.24em] text-sky-700/80 mb-1">Today Shipped</div>
-                <div className="text-4xl font-black font-mono text-sky-900 leading-none">
+              <div className="rounded-xl border border-sky-500/30 bg-signal-info/10 px-4 py-3 min-w-[170px] shadow-sm">
+                <div className="text-[11px] uppercase tracking-[0.24em] text-sky-400/80 mb-1">Today Shipped</div>
+                <div className="text-4xl font-black font-mono text-sky-300 leading-none">
                   {(stats.today_shipped || 0).toLocaleString()}
                 </div>
               </div>
@@ -162,7 +162,7 @@ export default function WIPTracking() {
             {STAGES.map((s) => (
               <div
                 key={s}
-                className={`rounded-2xl border bg-gradient-to-br ${STAGE_CARD[s]} px-4 py-3 shadow-sm`}
+                className={`rounded-xl border bg-gradient-to-br ${STAGE_CARD[s]} px-4 py-3 shadow-sm`}
               >
                 <div className="flex items-center gap-2 mb-3">
                   <span className={`w-2.5 h-2.5 rounded-full ${STAGE_DOT[s]}`} />
@@ -175,10 +175,10 @@ export default function WIPTracking() {
                 </div>
                 <div className="mt-3">
                   <div className="text-[10px] uppercase tracking-[0.18em] text-stone-400">Last updated</div>
-                  <div className="text-xs font-semibold text-stone-700 mt-1">
+                  <div className="text-xs font-semibold text-ink-secondary mt-1">
                     {timeAgo(stats.last_updated?.[s])}
                   </div>
-                  <div className="text-[11px] text-stone-500 mt-0.5">
+                  <div className="text-[11px] text-ink-muted mt-0.5">
                     {formatAbsoluteTime(stats.last_updated?.[s])}
                   </div>
                 </div>
@@ -187,15 +187,15 @@ export default function WIPTracking() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 px-5 py-3 bg-white">
+        <div className="flex flex-wrap items-center gap-3 px-5 py-3 bg-surface-panel">
           <div className="text-xs text-stone-400 uppercase tracking-[0.2em] font-semibold">Controls</div>
 
           <button
             onClick={() => setShowBattery((v) => !v)}
             className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors
               ${showBattery
-                ? "bg-amber-50 border-amber-200 text-amber-700"
-                : "bg-white border-stone-200 text-stone-500 hover:border-stone-300"
+                ? "bg-signal-warn/10 border-amber-500/30 text-amber-400"
+                : "bg-surface-panel border-stroke text-ink-muted hover:border-stroke"
               }`}
           >
             <Zap size={13} className={showBattery ? "text-amber-500" : "text-stone-400"} />
@@ -210,7 +210,7 @@ export default function WIPTracking() {
               onChange={(e) => { setScanInput(e.target.value); setScanError(""); setScanResult(null); }}
               onKeyDown={handleScanKey}
               placeholder="Scan SN..."
-              className="w-48 border border-stone-200 rounded-lg pl-8 pr-3 py-1.5 text-stone-800 text-sm bg-white focus:border-teal-400 scan-input transition-colors"
+              className="w-48 border border-stroke rounded-lg pl-8 pr-3 py-1.5 text-ink-primary text-sm bg-surface-panel focus:border-teal-400 scan-input transition-colors"
               style={{ fontSize: "16px" }}
             />
           </div>
@@ -218,14 +218,14 @@ export default function WIPTracking() {
           <button
             onClick={() => { refresh(); refreshBat(); }}
             disabled={statsLoading}
-            className="shrink-0 p-1.5 rounded-lg border border-stone-200 text-stone-400 hover:text-stone-600 hover:border-stone-300 transition-colors disabled:opacity-40"
+            className="shrink-0 p-1.5 rounded-lg border border-stroke text-stone-400 hover:text-ink-secondary hover:border-stroke transition-colors disabled:opacity-40"
           >
             <RefreshCw size={14} className={statsLoading ? "animate-spin" : ""} />
           </button>
         </div>
 
         {showBattery && (
-          <div className="border-t border-stone-100 px-5 py-3 bg-stone-50">
+          <div className="border-t border-stroke-subtle px-5 py-3 bg-surface-base">
             <BatteryInventoryPanel
               batteries={batteries}
               onAdjust={(kind) => {
@@ -245,14 +245,14 @@ export default function WIPTracking() {
       {(allErrors.length > 0 || scanResult) && (
         <div className="flex-shrink-0 px-5 pt-3 space-y-2">
           {allErrors.map((err, i) => (
-            <div key={i} className="flex items-center gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <div key={i} className="flex items-center gap-2 text-sm text-red-400 bg-signal-error/10 border border-red-500/30 rounded-lg px-3 py-2">
               <span className="flex-1">{err}</span>
               <button onClick={() => setScanError("")}><X size={13} className="text-red-400" /></button>
             </div>
           ))}
           {scanResult && (
-            <div className="flex items-center gap-3 bg-teal-50 border border-teal-200 rounded-lg px-3 py-2">
-              <span className="text-sm text-teal-800 flex-1">
+            <div className="flex items-center gap-3 bg-teal-500/10 border border-teal-500/30 rounded-lg px-3 py-2">
+              <span className="text-sm text-teal-300 flex-1">
                 <span className="font-mono font-semibold">{scanResult.card.us_sn}</span>
                 {" "}-> {" "}<span className="font-semibold">{STAGE_LABEL[scanResult.stage]}</span>
                 {scanCanAdvance ? " -> advance to next stage?" : ""}
@@ -265,7 +265,7 @@ export default function WIPTracking() {
                   Advance
                 </button>
               )}
-              <button onClick={() => setScanResult(null)} className="text-teal-400 hover:text-teal-600"><X size={13} /></button>
+              <button onClick={() => setScanResult(null)} className="text-teal-400 hover:text-teal-400"><X size={13} /></button>
             </div>
           )}
         </div>

@@ -45,7 +45,7 @@ export default function StageAdvanceBtn({ usSn, currentStage, onAdvance, disable
             onClick={() => setOpen(false)}
           >
             <motion.div
-              className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-80 shadow-2xl"
+              className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-80 shadow-lg"
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
@@ -53,8 +53,8 @@ export default function StageAdvanceBtn({ usSn, currentStage, onAdvance, disable
               onClick={e => e.stopPropagation()}
             >
               <h3 className="text-white font-bold text-base mb-1">Confirm Stage Advance</h3>
-              <p className="text-gray-400 text-sm mb-4">
-                <span className="font-mono text-gray-300">{usSn}</span>
+              <p className="text-ink-muted text-sm mb-4">
+                <span className="font-mono text-ink-muted">{usSn}</span>
                 <br />
                 From <span className="text-amber-400">{currentStage}</span>
                 {" → "}
@@ -73,7 +73,7 @@ export default function StageAdvanceBtn({ usSn, currentStage, onAdvance, disable
                 <button
                   onClick={() => setOpen(false)}
                   className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg
-                             bg-gray-800 hover:bg-gray-700 text-gray-300 font-semibold text-sm
+                             bg-gray-800 hover:bg-gray-700 text-ink-muted font-semibold text-sm
                              border border-gray-600 transition-colors duration-150 min-h-[44px]"
                 >
                   <X size={16} />

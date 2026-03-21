@@ -2,7 +2,7 @@ import React from "react";
 import { Bar } from "react-chartjs-2";
 import { COL_APOWER2, COL_APOWERS, COL_PLAN_BG, COL_PLAN } from "./DashboardConstants";
 
-const datalabelsCfg = (color = '#333') => ({
+const datalabelsCfg = (color = '#8d93a5') => ({
   display: true,
   anchor: 'center',
   align: 'center',
@@ -35,7 +35,7 @@ const AssemblyWeeklyKPICard = ({
                 backgroundColor: COL_APOWER2,
                 stack: "act",
                 order: 2,
-                datalabels: datalabelsCfg('#333')
+                datalabels: datalabelsCfg('#8d93a5')
               },
               {
                 label: "Apower S",
@@ -43,7 +43,7 @@ const AssemblyWeeklyKPICard = ({
                 backgroundColor: COL_APOWERS,
                 stack: "act",
                 order: 3,
-                datalabels: datalabelsCfg('#333')
+                datalabels: datalabelsCfg('#8d93a5')
               },
               {
                 label: "Planned",
@@ -53,7 +53,7 @@ const AssemblyWeeklyKPICard = ({
                 borderWidth: 1,
                 stack: "plan",
                 order: 99,
-                datalabels: datalabelsCfg('#666')
+                datalabels: datalabelsCfg('#8d93a5')
               },
             ]
           }}

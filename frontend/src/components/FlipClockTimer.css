@@ -71,7 +71,8 @@
   }
   
   .modal {
-    background: white;
+    background: #1e2437;
+    border: 1px solid #2e3650;
     padding: 1.5rem;
     border-radius: 10px;
     width: 320px;

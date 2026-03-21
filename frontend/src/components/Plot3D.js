@@ -52,9 +52,9 @@ export function buildStationHourMatrix(records) {
 
 const SCENE_DEFAULTS = {
   camera: { eye: { x: 1.4, y: 1.4, z: 1.1 } },
-  xaxis: { backgroundcolor: "#f9fafb", gridcolor: "#e5e7eb" },
-  yaxis: { backgroundcolor: "#f9fafb", gridcolor: "#e5e7eb" },
-  zaxis: { backgroundcolor: "#f0fdf4", gridcolor: "#bbf7d0" },
+  xaxis: { backgroundcolor: "#1e2437", gridcolor: "#2e3650" },
+  yaxis: { backgroundcolor: "#1e2437", gridcolor: "#2e3650" },
+  zaxis: { backgroundcolor: "#1e2437", gridcolor: "#2e3650" },
 };
 
 export default function Plot3D({
@@ -68,7 +68,7 @@ export default function Plot3D({
   colorscale = "Teal",
 }) {
   const mergedLayout = {
-    title: title ? { text: title, font: { size: 13, color: "#374151", family: "Inter, sans-serif" } } : undefined,
+    title: title ? { text: title, font: { size: 13, color: "#c8cedc", family: "Inter, sans-serif" } } : undefined,
     scene: {
       ...SCENE_DEFAULTS,
       xaxis: { ...SCENE_DEFAULTS.xaxis, title: xTitle },
@@ -76,7 +76,9 @@ export default function Plot3D({
       zaxis: { ...SCENE_DEFAULTS.zaxis, title: zTitle },
     },
     margin: { l: 0, r: 0, t: title ? 40 : 10, b: 0 },
-    paper_bgcolor: "white",
+    paper_bgcolor: "#1e2437",
+    plot_bgcolor:  "#1e2437",
+    font: { color: "#c8cedc", family: "Inter, ui-sans-serif, sans-serif" },
     autosize: true,
     ...layout,
   };
@@ -104,11 +106,11 @@ function ChartSkeleton({ height }) {
   return (
     <div
       style={{ height }}
-      className="flex flex-col items-center justify-center bg-gray-50 rounded-lg border border-gray-200 animate-pulse"
+      className="flex flex-col items-center justify-center bg-surface-base rounded-lg border border-stroke animate-pulse"
     >
-      <div className="w-12 h-12 rounded-lg bg-gray-200 mb-3" />
-      <div className="w-32 h-3 bg-gray-200 rounded" />
-      <p className="text-xs text-gray-400 mt-2">Loading 3D chart…</p>
+      <div className="w-12 h-12 rounded-lg bg-surface-raised mb-3" />
+      <div className="w-32 h-3 bg-surface-raised rounded" />
+      <p className="text-xs text-ink-muted mt-2">Loading 3D chart…</p>
     </div>
   );
 }

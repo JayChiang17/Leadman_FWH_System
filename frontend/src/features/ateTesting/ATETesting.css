@@ -102,17 +102,17 @@ button:active {
 }
 
 .overflow-y-auto::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #161b2d;
   border-radius: 4px;
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #2e3650;
   border-radius: 4px;
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #565e74;
 }
 
 /* ─────────────────────────── Table Responsive ─────────────────────────── */
@@ -142,18 +142,18 @@ button:active {
 }
 
 .status-badge-ng {
-  background-color: #fee2e2;
+  background-color: rgba(239, 68, 68, 0.15);
   color: #dc2626;
 }
 
 .status-badge-fixed {
-  background-color: #d1fae5;
+  background-color: rgba(16, 185, 129, 0.15);
   color: #059669;
 }
 
 .status-badge-ok {
-  background-color: #e0f2fe;
-  color: #0284c7;
+  background-color: rgba(34, 211, 238, 0.12);
+  color: #22d3ee;
 }
 
 /* ─────────────────────────── Focus States ─────────────────────────── */
@@ -177,7 +177,7 @@ input:disabled,
 textarea:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  background-color: #f1f5f9;
+  background-color: #262d42;
 }
 
 /* ─────────────────────────── Card Hover Effects ─────────────────────────── */
@@ -188,7 +188,7 @@ textarea:disabled {
 
 .card-hover:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.35);
 }
 
 /* ─────────────────────────── Loading State ─────────────────────────── */

@@ -35,10 +35,10 @@ const NGAnalysis         = lazy(() => import("../features/ngAnalysis/NGAnalysis"
 
 /* ───── loading fallback ───── */
 const PageLoader = () => (
-  <div className="flex items-center justify-center h-screen bg-gray-50">
+  <div className="flex items-center justify-center h-screen bg-surface-base">
     <div className="flex flex-col items-center gap-3">
       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
-      <span className="text-sm text-gray-400">Loading...</span>
+      <span className="text-sm text-ink-muted">Loading...</span>
     </div>
   </div>
 );

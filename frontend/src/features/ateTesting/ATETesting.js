@@ -318,18 +318,18 @@ export default function ATETesting() {
   const isNgRecord = (currentRecord?.status || "").toUpperCase() === "NG";
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 md:pb-8" style={{ paddingBottom: 'max(5rem, env(safe-area-inset-bottom))' }}>
+    <div className="min-h-screen bg-surface-base pb-20 md:pb-8" style={{ paddingBottom: 'max(5rem, env(safe-area-inset-bottom))' }}>
       {/* Fixed Header (Mobile) */}
-      <header className="sticky top-0 z-40 bg-white border-b border-gray-200 px-4 py-3 md:px-6 md:py-4 shadow-sm">
+      <header className="sticky top-0 z-40 bg-surface-panel border-b border-stroke px-4 py-3 md:px-6 md:py-4 shadow-sm">
         <div className="flex items-center gap-2 md:gap-3">
-          <div className="p-2 bg-teal-100 rounded-lg">
-            <Activity className="w-6 h-6 md:w-7 md:h-7 text-teal-600" />
+          <div className="p-2 bg-teal-500/15 rounded-lg">
+            <Activity className="w-6 h-6 md:w-7 md:h-7 text-teal-400" />
           </div>
           <div>
-            <h1 className="text-lg md:text-xl lg:text-2xl font-bold text-gray-800">
+            <h1 className="text-lg md:text-xl lg:text-2xl font-bold text-ink-primary">
               ATE Testing Station
             </h1>
-            <p className="text-xs text-gray-500 font-medium hidden md:block">Quality Control Management</p>
+            <p className="text-xs text-ink-muted font-medium hidden md:block">Quality Control Management</p>
           </div>
         </div>
       </header>
@@ -338,31 +338,31 @@ export default function ATETesting() {
 
         {/* Stats Cards — 2 cols mobile, 4 cols desktop */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-          <div className="bg-white rounded-lg border border-amber-200 p-3 md:p-4 shadow-sm">
-            <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">NG Units</p>
-            <p className="text-2xl md:text-3xl font-bold text-amber-700 mt-1">{stats.ng_count}</p>
+          <div className="bg-surface-panel rounded-lg border border-amber-500/30 p-3 md:p-4 shadow-sm">
+            <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">NG Units</p>
+            <p className="text-2xl md:text-3xl font-bold text-amber-400 mt-1">{stats.ng_count}</p>
           </div>
-          <div className="bg-white rounded-lg border border-emerald-200 p-3 md:p-4 shadow-sm">
-            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Fixed</p>
-            <p className="text-2xl md:text-3xl font-bold text-emerald-700 mt-1">{stats.fixed_count}</p>
+          <div className="bg-surface-panel rounded-lg border border-emerald-500/30 p-3 md:p-4 shadow-sm">
+            <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">Fixed</p>
+            <p className="text-2xl md:text-3xl font-bold text-emerald-400 mt-1">{stats.fixed_count}</p>
           </div>
-          <div className="bg-white rounded-lg border border-teal-200 p-3 md:p-4 shadow-sm">
-            <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide">Pass Rate</p>
-            <p className="text-2xl md:text-3xl font-bold text-teal-700 mt-1">
+          <div className="bg-surface-panel rounded-lg border border-teal-500/30 p-3 md:p-4 shadow-sm">
+            <p className="text-xs font-semibold text-teal-400 uppercase tracking-wide">Pass Rate</p>
+            <p className="text-2xl md:text-3xl font-bold text-teal-400 mt-1">
               {typeof stats.pass_rate === 'number' ? `${stats.pass_rate.toFixed(1)}%` : '—'}
             </p>
           </div>
-          <div className="bg-white rounded-lg border border-stone-200 p-3 md:p-4 shadow-sm">
-            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Total Today</p>
-            <p className="text-2xl md:text-3xl font-bold text-stone-700 mt-1">{stats.total_today ?? 0}</p>
+          <div className="bg-surface-panel rounded-lg border border-stroke p-3 md:p-4 shadow-sm">
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">Total Today</p>
+            <p className="text-2xl md:text-3xl font-bold text-ink-secondary mt-1">{stats.total_today ?? 0}</p>
           </div>
         </div>
 
         {/* Scan Section — always full width, unified for all breakpoints */}
-        <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl border-2 border-teal-200 p-4 md:p-5 shadow-sm">
+        <div className="bg-gradient-to-br from-teal-500/10 to-signal-info/10 rounded-xl border-2 border-teal-500/30 p-4 md:p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
-            <Search className="w-5 h-5 text-teal-600" />
-            <label className="text-sm md:text-base font-bold text-teal-900">Scan Serial Number</label>
+            <Search className="w-5 h-5 text-teal-400" />
+            <label className="text-sm md:text-base font-bold text-teal-300">Scan Serial Number</label>
           </div>
           <div className="flex gap-3">
             <input
@@ -371,8 +371,8 @@ export default function ATETesting() {
               onChange={(e) => setSn(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleScan()}
               placeholder="Enter or scan US SN..."
-              className="flex-1 px-4 py-3 md:py-3 bg-white border-2 border-teal-300
-                         rounded-lg text-base md:text-lg font-semibold text-stone-900
+              className="flex-1 px-4 py-3 md:py-3 bg-surface-raised border-2 border-teal-300
+                         rounded-lg text-base md:text-lg font-semibold text-ink-primary
                          focus:ring-2 focus:ring-teal-400 focus:border-teal-500
                          transition-all shadow-inner placeholder:text-stone-400"
               style={{ fontSize: '16px' }}
@@ -393,35 +393,35 @@ export default function ATETesting() {
           {currentRecord && (
             <div className={`mt-3 px-4 py-3 rounded-lg border flex flex-wrap items-center gap-x-5 gap-y-1 text-sm ${
               isNgRecord
-                ? 'bg-red-50 border-red-200'
+                ? 'bg-signal-error/10 border-red-500/30'
                 : currentRecord.status === 'FIXED'
-                ? 'bg-emerald-50 border-emerald-200'
-                : 'bg-white border-stone-200'
+                ? 'bg-signal-ok/10 border-emerald-500/30'
+                : 'bg-surface-panel border-stroke'
             }`}>
               <div className="flex items-center gap-2">
-                <span className="text-stone-500 font-medium">SN:</span>
-                <span className="font-mono font-semibold text-stone-800">{currentRecord.us_sn || sn}</span>
+                <span className="text-ink-muted font-medium">SN:</span>
+                <span className="font-mono font-semibold text-ink-primary">{currentRecord.us_sn || sn}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-stone-500 font-medium">Status:</span>
+                <span className="text-ink-muted font-medium">Status:</span>
                 <span className={`font-bold ${
-                  isNgRecord ? 'text-red-600' :
-                  currentRecord.status === 'FIXED' ? 'text-emerald-600' :
-                  'text-teal-700'
+                  isNgRecord ? 'text-red-400' :
+                  currentRecord.status === 'FIXED' ? 'text-emerald-400' :
+                  'text-teal-400'
                 }`}>
                   {currentRecord.status || 'OK'}
                 </span>
               </div>
               {currentRecord.ng_reason && (
                 <div className="flex items-center gap-2">
-                  <span className="text-stone-500 font-medium">Reason:</span>
-                  <span className="font-medium text-stone-700">{currentRecord.ng_reason}</span>
+                  <span className="text-ink-muted font-medium">Reason:</span>
+                  <span className="font-medium text-ink-secondary">{currentRecord.ng_reason}</span>
                 </div>
               )}
               {currentRecord.operator && (
                 <div className="flex items-center gap-2">
-                  <span className="text-stone-500 font-medium">Operator:</span>
-                  <span className="text-stone-700">{currentRecord.operator}</span>
+                  <span className="text-ink-muted font-medium">Operator:</span>
+                  <span className="text-ink-secondary">{currentRecord.operator}</span>
                 </div>
               )}
             </div>
@@ -432,28 +432,28 @@ export default function ATETesting() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
 
           {/* Left: NG Operations */}
-          <div className="bg-white rounded-lg border border-stone-200 p-4 md:p-5 shadow-sm flex flex-col">
-            <h2 className="text-base font-semibold text-stone-800 mb-4 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-600" />
+          <div className="bg-surface-panel rounded-lg border border-stroke p-4 md:p-5 shadow-sm flex flex-col">
+            <h2 className="text-base font-semibold text-ink-primary mb-4 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400" />
               NG Management
             </h2>
 
             {/* Idle state — no record scanned yet */}
             {!hasRecord ? (
               <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
-                <div className="w-14 h-14 bg-stone-100 rounded-lg flex items-center justify-center mb-3">
+                <div className="w-14 h-14 bg-surface-raised rounded-lg flex items-center justify-center mb-3">
                   <Search className="w-7 h-7 text-stone-400" />
                 </div>
-                <p className="text-stone-600 font-semibold text-base">Scan a serial number to begin</p>
+                <p className="text-ink-secondary font-semibold text-base">Scan a serial number to begin</p>
                 <p className="text-stone-400 text-sm mt-1">Results will appear here after scanning</p>
-                <div className="mt-5 flex flex-col gap-2 text-sm text-stone-500 text-left">
+                <div className="mt-5 flex flex-col gap-2 text-sm text-ink-muted text-left">
                   {[
                     { step: '1', text: 'Enter or scan US serial number above' },
                     { step: '2', text: 'Enter NG reason (if marking NG)' },
                     { step: '3', text: 'Press Label NG or Clean NG' },
                   ].map(({ step, text }) => (
                     <div key={step} className="flex items-center gap-3">
-                      <span className="w-6 h-6 bg-teal-100 text-teal-700 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0">
+                      <span className="w-6 h-6 bg-teal-500/15 text-teal-400 rounded-md flex items-center justify-center text-xs font-bold flex-shrink-0">
                         {step}
                       </span>
                       <span>{text}</span>
@@ -463,11 +463,11 @@ export default function ATETesting() {
               </div>
             ) : isNgRecord ? (
               <>
-                <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                <div className="mb-3 rounded-lg border border-amber-500/30 bg-signal-warn/10 px-3 py-2 text-sm text-amber-300">
                   <span className="font-semibold">Current NG Reason:</span>{" "}
                   <span>{currentRecord?.ng_reason || "-"}</span>
                 </div>
-                <p className="text-sm font-medium text-stone-700 mb-2">
+                <p className="text-sm font-medium text-ink-secondary mb-2">
                   Update Module / PCBA SN (optional)
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -478,14 +478,14 @@ export default function ATETesting() {
                     { label: 'AM7 SN',      value: pcbaAm7, setter: setPcbaAm7, placeholder: 'AM7 SN' },
                   ].map(({ label, value, setter, placeholder }) => (
                     <div key={label}>
-                      <label className="block text-xs font-semibold text-stone-600 mb-1">{label}</label>
+                      <label className="block text-xs font-semibold text-ink-secondary mb-1">{label}</label>
                       <input
                         value={value}
                         onChange={(e) => setter(e.target.value)}
                         placeholder={placeholder}
-                        className="w-full px-3 py-2 bg-white border-2 border-stone-300 rounded-lg
+                        className="w-full px-3 py-2 bg-surface-raised border-2 border-stroke rounded-lg
                                    focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-                                   text-base text-stone-800 transition-colors"
+                                   text-base text-ink-primary transition-colors"
                       />
                     </div>
                   ))}
@@ -493,17 +493,17 @@ export default function ATETesting() {
               </>
             ) : (
               <>
-                <label className="block text-sm font-medium text-stone-700 mb-2">
-                  NG Reason <span className="text-red-600">*</span>
+                <label className="block text-sm font-medium text-ink-secondary mb-2">
+                  NG Reason <span className="text-red-400">*</span>
                 </label>
                 <textarea
                   value={ngReason}
                   onChange={(e) => setNgReason(e.target.value)}
                   placeholder="Enter NG reason..."
                   rows={4}
-                  className="w-full px-4 py-3 bg-white border-2 border-stone-300 rounded-lg
+                  className="w-full px-4 py-3 bg-surface-raised border-2 border-stroke rounded-lg
                              focus:ring-2 focus:ring-teal-500 focus:border-teal-500
-                             text-base text-stone-800 resize-none transition-colors"
+                             text-base text-ink-primary resize-none transition-colors"
                   required
                 />
               </>
@@ -537,9 +537,9 @@ export default function ATETesting() {
           </div>
 
           {/* Right: Recent NG Records */}
-          <div className="bg-white rounded-lg border border-stone-200 p-4 md:p-5 shadow-sm flex flex-col">
+          <div className="bg-surface-panel rounded-lg border border-stroke p-4 md:p-5 shadow-sm flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-stone-800 flex items-center gap-2">
+              <h2 className="text-base font-semibold text-ink-primary flex items-center gap-2">
                 Recent NG Records
                 <span className="text-xs font-normal text-stone-400">(Live)</span>
               </h2>
@@ -551,10 +551,10 @@ export default function ATETesting() {
             {recentNg.length === 0 ? (
               /* Empty state — meaningful, not just "No records" */
               <div className="flex-1 flex flex-col items-center justify-center py-10 text-center">
-                <div className="w-14 h-14 bg-emerald-50 rounded-lg flex items-center justify-center mb-3">
+                <div className="w-14 h-14 bg-signal-ok/10 rounded-lg flex items-center justify-center mb-3">
                   <CheckCircle className="w-7 h-7 text-emerald-500" />
                 </div>
-                <p className="text-stone-600 font-semibold">No NG records today</p>
+                <p className="text-ink-secondary font-semibold">No NG records today</p>
                 <p className="text-stone-400 text-sm mt-1">
                   {stats.total_today > 0
                     ? `${stats.total_today} units scanned — all passed`
@@ -567,15 +567,15 @@ export default function ATETesting() {
                 <div className="block md:hidden space-y-2 max-h-[28rem] overflow-y-auto">
                   {recentNg.map((record) => (
                     <div key={record.id} className={`border rounded-lg p-3 ${
-                      record.status === 'NG' ? 'bg-red-50/50 border-red-200' : 'bg-emerald-50/50 border-emerald-200'
+                      record.status === 'NG' ? 'bg-signal-error/10 border-red-500/30' : 'bg-signal-ok/10 border-emerald-500/30'
                     }`}>
                       <div className="flex items-start justify-between mb-1">
-                        <span className="font-mono text-sm font-semibold text-stone-800">{record.us_sn}</span>
+                        <span className="font-mono text-sm font-semibold text-ink-primary">{record.us_sn}</span>
                         <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                          record.status === 'NG' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                          record.status === 'NG' ? 'bg-signal-error/15 text-red-400' : 'bg-signal-ok/15 text-emerald-400'
                         }`}>{record.status}</span>
                       </div>
-                      <p className="text-xs text-stone-600">{record.ng_reason || '—'}</p>
+                      <p className="text-xs text-ink-secondary">{record.ng_reason || '—'}</p>
                       <p className="text-xs text-stone-400 mt-1">
                         {new Date(record.timestamp).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       </p>
@@ -586,26 +586,26 @@ export default function ATETesting() {
                 {/* Tablet/Desktop: Table */}
                 <div className="hidden md:block overflow-y-auto flex-1" style={{ maxHeight: '360px' }}>
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-stone-50 z-10">
-                      <tr className="border-b border-stone-200">
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-stone-500 uppercase">US SN</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-stone-500 uppercase">Status</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-stone-500 uppercase">Reason</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-stone-500 uppercase">Time</th>
+                    <thead className="sticky top-0 bg-surface-base z-10">
+                      <tr className="border-b border-stroke">
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-ink-muted uppercase">US SN</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-ink-muted uppercase">Status</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-ink-muted uppercase">Reason</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-ink-muted uppercase">Time</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-100">
                       {recentNg.map((record) => (
-                        <tr key={record.id} className={`hover:bg-stone-50 transition-colors ${
-                          record.status === 'NG' ? 'bg-red-50/20' : 'bg-emerald-50/20'
+                        <tr key={record.id} className={`hover:bg-surface-base transition-colors ${
+                          record.status === 'NG' ? 'bg-signal-error/10' : 'bg-signal-ok/10'
                         }`}>
-                          <td className="px-3 py-2 font-mono text-stone-800">{record.us_sn}</td>
+                          <td className="px-3 py-2 font-mono text-ink-primary">{record.us_sn}</td>
                           <td className="px-3 py-2">
                             <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                              record.status === 'NG' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                              record.status === 'NG' ? 'bg-signal-error/15 text-red-400' : 'bg-signal-ok/15 text-emerald-400'
                             }`}>{record.status}</span>
                           </td>
-                          <td className="px-3 py-2 text-stone-600 max-w-[160px] truncate" title={record.ng_reason}>
+                          <td className="px-3 py-2 text-ink-secondary max-w-[160px] truncate" title={record.ng_reason}>
                             {record.ng_reason || '—'}
                           </td>
                           <td className="px-3 py-2 text-xs text-stone-400 whitespace-nowrap">
@@ -626,7 +626,7 @@ export default function ATETesting() {
       {showInstallPrompt && (
         <div className="fixed bottom-24 left-4 right-4 md:left-auto md:right-4 md:w-96
                         bg-teal-600 text-white
-                        p-4 rounded-xl shadow-2xl z-50 animate-slide-up">
+                        p-4 rounded-xl shadow-lg z-50 animate-slide-up">
           <div className="flex items-start gap-3">
             <div className="p-2 bg-white/20 rounded-lg">
               <Download className="w-5 h-5" />
@@ -639,8 +639,8 @@ export default function ATETesting() {
               <div className="flex gap-2">
                 <button
                   onClick={handleInstallClick}
-                  className="flex-1 px-4 py-2 bg-white text-teal-600 font-semibold
-                           rounded-lg hover:bg-gray-100 transition-colors text-sm"
+                  className="flex-1 px-4 py-2 bg-surface-panel text-teal-400 font-semibold
+                           rounded-lg hover:bg-surface-raised transition-colors text-sm"
                 >
                   Install
                 </button>
@@ -660,7 +660,7 @@ export default function ATETesting() {
       {/* Toast Message */}
       {message.text && (
         <div className={`fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96
-                        p-4 rounded-lg shadow-2xl z-50 animate-slide-up ${
+                        p-4 rounded-lg shadow-lg z-50 animate-slide-up ${
           message.type === 'success'
             ? 'bg-emerald-600 text-white'
             : message.type === 'error'

@@ -31,19 +31,19 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
   const palette = {
     aging:     {
       active: "bg-amber-600 border-amber-600 shadow-md",
-      hover: "hover:bg-amber-50 hover:border-amber-400",
+      hover: "hover:bg-signal-warn/10 hover:border-amber-400",
       ring: "ring-amber-500",
       dot: "bg-amber-300"
     },
     coating:   {
       active: "bg-teal-600 border-teal-600 shadow-md",
-      hover: "hover:bg-teal-50 hover:border-teal-400",
+      hover: "hover:bg-teal-500/10 hover:border-teal-400",
       ring: "ring-teal-500",
       dot: "bg-teal-300"
     },
     completed: {
       active: "bg-emerald-600 border-emerald-600 shadow-md",
-      hover: "hover:bg-emerald-50 hover:border-emerald-400",
+      hover: "hover:bg-signal-ok/10 hover:border-emerald-400",
       ring: "ring-emerald-500",
       dot: "bg-emerald-300"
     },
@@ -63,7 +63,7 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
   };
 
   return (
-    <div className="rounded-xl p-4 md:p-5 bg-white border border-gray-200">
+    <div className="rounded-xl p-4 md:p-5 bg-surface-panel border border-stroke">
       <div className="space-y-4">
         {/* 標題區 */}
         <div className="flex items-center justify-between">
@@ -72,19 +72,19 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
               <QrCode size={22} className="text-white" />
             </div>
             <div>
-              <h2 className="text-base md:text-lg font-bold text-gray-900">Scan Production Board</h2>
-              <p className="text-[11px] md:text-xs text-gray-500">Aging → Coating → Inventory</p>
+              <h2 className="text-base md:text-lg font-bold text-ink-primary">Scan Production Board</h2>
+              <p className="text-[11px] md:text-xs text-ink-muted">Aging → Coating → Inventory</p>
             </div>
           </div>
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 border border-teal-200">
-            <Zap size={12} className="text-teal-600" />
-            <span className="text-[10px] font-semibold text-teal-700">1/2/3 Shortcuts</span>
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-500/10 border border-teal-500/30">
+            <Zap size={12} className="text-teal-400" />
+            <span className="text-[10px] font-semibold text-teal-400">1/2/3 Shortcuts</span>
           </div>
         </div>
 
         {/* 階段選擇 */}
         <div>
-          <label className="block text-xs font-semibold text-gray-700 mb-2 uppercase tracking-wide">Select Stage</label>
+          <label className="block text-xs font-semibold text-ink-secondary mb-2 uppercase tracking-wide">Select Stage</label>
           <div className="grid grid-cols-3 gap-2.5">
             {classStage.map((s, idx) => {
               const Icon = s.icon;
@@ -97,15 +97,15 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
                               flex flex-col items-center justify-center gap-2 ${
                                 active
                                   ? `${palette[s.key].active} text-white ring-2 ${palette[s.key].ring}`
-                                  : `bg-white text-gray-700 border-gray-200 ${palette[s.key].hover}`
+                                  : `bg-surface-panel text-ink-secondary border-stroke ${palette[s.key].hover}`
                               } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                 >
-                  <Icon className={`w-7 h-7 ${active ? "text-white" : "text-gray-600"}`} />
+                  <Icon className={`w-7 h-7 ${active ? "text-white" : "text-ink-secondary"}`} />
                   <span className="text-sm font-bold">{s.label}</span>
 
                   {/* 快捷鍵提示 */}
                   <span className={`absolute top-2 left-2 w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold ${
-                    active ? "bg-white/30 text-white" : "bg-gray-100 text-gray-500"
+                    active ? "bg-white/30 text-white" : "bg-surface-raised text-ink-muted"
                   }`}>{idx + 1}</span>
 
                   {active && (
@@ -119,7 +119,7 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
 
         {/* 序號輸入 */}
         <div className="space-y-2">
-          <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">Serial Number</label>
+          <label className="block text-xs font-semibold text-ink-secondary uppercase tracking-wide">Serial Number</label>
           <div className="relative">
             <input
               ref={inputRef}
@@ -130,20 +130,20 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
               disabled={disabled}
               autoFocus
               className={`w-full px-4 py-4 rounded-xl border-2 transition-colors duration-200
-                         text-base md:text-lg font-mono text-black placeholder-gray-400
-                         focus:outline-none disabled:opacity-60 disabled:bg-gray-50 ${
+                         text-base md:text-lg font-mono text-ink-primary placeholder-ink-muted
+                         focus:outline-none disabled:opacity-60 disabled:bg-surface-base ${
                            modelPreview
-                             ? "border-emerald-400 bg-emerald-50/30 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                             ? "border-emerald-400 bg-signal-ok/10 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                              : scanInput
-                               ? "border-red-400 bg-red-50/30 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                               : "border-gray-300 bg-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                               ? "border-red-400 bg-signal-error/10 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                               : "border-stroke bg-surface-raised focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                          }`}
             />
             {isScanning && (
-              <div className="absolute inset-0 rounded-xl bg-white/80 backdrop-blur-sm flex items-center justify-center">
+              <div className="absolute inset-0 rounded-xl bg-surface-overlay/90 backdrop-blur-sm flex items-center justify-center">
                 <div className="flex flex-col items-center gap-2">
                   <div className="animate-spin rounded-lg h-8 w-8 border-3 border-teal-600 border-b-transparent"></div>
-                  <span className="text-xs font-medium text-teal-600">Processing...</span>
+                  <span className="text-xs font-medium text-teal-400">Processing...</span>
                 </div>
               </div>
             )}
@@ -152,14 +152,14 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
           {scanInput && (
             <div className="flex items-center justify-center">
               {modelPreview ? (
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-100 border border-emerald-300">
-                  <CheckCircle size={18} className="text-emerald-600" />
-                  <span className="text-sm font-semibold text-emerald-800">Detected: {modelPreview} Model</span>
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-signal-ok/15 border border-emerald-300">
+                  <CheckCircle size={18} className="text-emerald-400" />
+                  <span className="text-sm font-semibold text-emerald-300">Detected: {modelPreview} Model</span>
                 </div>
               ) : (
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-red-100 border border-red-300">
-                  <AlertCircle size={18} className="text-red-600" />
-                  <span className="text-sm font-semibold text-red-800">Invalid - Only AM7/AU8 Accepted</span>
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-signal-error/15 border border-red-300">
+                  <AlertCircle size={18} className="text-red-400" />
+                  <span className="text-sm font-semibold text-red-300">Invalid - Only AM7/AU8 Accepted</span>
                 </div>
               )}
             </div>
@@ -174,7 +174,7 @@ export default function PCBAEnhancedScannerPanel({ scanInput, setScanInput, hand
                       flex items-center justify-center gap-2 ${
             scanInput.trim() && modelPreview && !disabled
               ? submitColors[selected]
-              : "bg-gray-100 text-gray-400 cursor-not-allowed"
+              : "bg-surface-raised text-ink-muted cursor-not-allowed"
           }`}
         >
           {disabled ? (

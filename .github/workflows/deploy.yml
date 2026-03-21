@@ -1,14 +1,18 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # CD — runs on push to main (after CI passes)
-# Builds images → pushes to GitHub Container Registry (ghcr.io)
-# Then SSHes into the production server to pull & restart
+# Builds images → pushes to local registry (192.168.10.100:5000)
+# Then pulls & restarts containers — all on the self-hosted LAN runner.
+# No internet dependency, no ghcr.io, no SSH needed.
 #
 # Required GitHub Secrets:
-#   POSTGRES_PASSWORD   — production DB password
-#   DEPLOY_HOST         — server IP (e.g. 192.168.10.100)
-#   DEPLOY_USER         — SSH user (e.g. admin)
-#   DEPLOY_SSH_KEY      — private SSH key (run: ssh-keygen -t ed25519)
+#   REGISTRY_USER       — local registry username (e.g. leadman)
+#   REGISTRY_PASSWORD   — local registry password
 #   DEPLOY_PATH         — project folder on server (e.g. /opt/leadman)
+#   POSTGRES_PASSWORD   — production DB password
+#
+# One-time server setup (before first deploy):
+#   bash registry/setup.sh
+#   docker compose -f docker-compose.registry.yml up -d
 # ──────────────────────────────────────────────────────────────────────────────
 
 name: Deploy
@@ -18,102 +22,62 @@ on:
     branches: [main]
   workflow_dispatch:   # allow manual trigger from GitHub UI
 
-# Opt into Node.js 24 now to avoid deprecation warnings
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  REGISTRY: 192.168.10.100:5000
 
 jobs:
-  build-and-push:
-    name: Build & Push Images
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write   # needed to push to ghcr.io
-
-    outputs:
-      version: ${{ steps.meta-backend.outputs.version }}
+  build-and-deploy:
+    name: Build, Push & Deploy
+    runs-on: self-hosted
+    environment: production
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Login to local registry
+        run: |
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | \
+          docker login $REGISTRY -u ${{ secrets.REGISTRY_USER }} --password-stdin
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # docker/metadata-action auto-lowercases image names (required by ghcr.io)
-      - name: Image metadata — backend
-        id: meta-backend
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/leadman-backend
-          tags: |
-            type=sha,prefix=,format=short
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-
-      - name: Image metadata — frontend
-        id: meta-frontend
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/leadman-frontend
-          tags: |
-            type=sha,prefix=,format=short
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+      - name: Set image tag (short SHA)
+        id: tag
+        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Build & push backend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile
-          push: true
-          tags: ${{ steps.meta-backend.outputs.tags }}
-          labels: ${{ steps.meta-backend.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: |
+          docker build \
+            -t $REGISTRY/leadman-backend:${{ steps.tag.outputs.sha }} \
+            -t $REGISTRY/leadman-backend:latest \
+            ./backend
+          docker push $REGISTRY/leadman-backend:${{ steps.tag.outputs.sha }}
+          docker push $REGISTRY/leadman-backend:latest
 
       - name: Build & push frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          push: true
-          tags: ${{ steps.meta-frontend.outputs.tags }}
-          labels: ${{ steps.meta-frontend.outputs.labels }}
-          build-args: |
-            REACT_APP_API_BASE=/api
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        run: |
+          docker build \
+            --build-arg REACT_APP_API_BASE=/api \
+            -t $REGISTRY/leadman-frontend:${{ steps.tag.outputs.sha }} \
+            -t $REGISTRY/leadman-frontend:latest \
+            ./frontend
+          docker push $REGISTRY/leadman-frontend:${{ steps.tag.outputs.sha }}
+          docker push $REGISTRY/leadman-frontend:latest
 
-  deploy:
-    name: Deploy to Server
-    # Runs on the self-hosted runner installed on the LAN server (192.168.10.100).
-    # GitHub cloud runners cannot reach a private LAN IP.
-    # Setup: Settings → Actions → Runners → New self-hosted runner
-    runs-on: self-hosted
-    needs: build-and-push
-    environment: production   # adds manual approval gate in GitHub UI (optional)
-
-    steps:
       - name: Pull latest code
         run: git -C ${{ secrets.DEPLOY_PATH }} pull origin main
 
-      - name: Pull latest images from ghcr.io
+      - name: Pull updated images
         run: docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml pull
 
-      - name: Restart production containers
+      - name: Restart containers
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
           docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml \
             up -d --remove-orphans
 
-      - name: Remove dangling images
+      - name: Prune old images
         run: docker image prune -f
 
       - name: Done
-        run: echo "✅ Deployed ${{ needs.build-and-push.outputs.version }} at $(date)"
+        run: echo "✅ Deployed ${{ steps.tag.outputs.sha }} at $(date)"

@@ -5,7 +5,7 @@ import api from "../../services/api";
 /* ── tiny inline bar ─────────────────────────────────────────────────── */
 function MiniBar({ pct, color = "bg-red-400" }) {
   return (
-    <div className="flex-1 h-2 bg-stone-100 rounded-sm overflow-hidden">
+    <div className="flex-1 h-2 bg-surface-raised rounded-sm overflow-hidden">
       <div
         className={`h-2 rounded-sm transition-all duration-500 ${color}`}
         style={{ width: `${Math.min(pct, 100)}%` }}
@@ -55,24 +55,24 @@ function DayHistogram({ byDay }) {
 
       {/* ── summary pills ──────────────────────────────────────── */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="inline-flex items-center gap-1.5 bg-white border border-stone-200 rounded-lg px-2.5 py-1.5">
+        <span className="inline-flex items-center gap-1.5 bg-surface-panel border border-stroke rounded-lg px-2.5 py-1.5">
           <span className="text-[8px] uppercase tracking-wider font-bold text-stone-400">First</span>
-          <span className="text-[11px] font-semibold text-stone-600">{firstDay.day.slice(5)}</span>
+          <span className="text-[11px] font-semibold text-ink-secondary">{firstDay.day.slice(5)}</span>
         </span>
-        <span className="inline-flex items-center gap-1.5 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+        <span className="inline-flex items-center gap-1.5 bg-signal-error/10 border border-red-500/30 rounded-lg px-2.5 py-1.5">
           <span className="text-[8px] uppercase tracking-wider font-bold text-red-400">Peak</span>
-          <span className="text-[11px] font-bold text-red-600">{peakDay.day.slice(5)}</span>
-          <span className="text-[10px] font-mono font-bold text-red-500 bg-red-100 rounded px-1.5 py-px">
+          <span className="text-[11px] font-bold text-red-400">{peakDay.day.slice(5)}</span>
+          <span className="text-[10px] font-mono font-bold text-red-500 bg-signal-error/15 rounded px-1.5 py-px">
             {peakDay.count}
           </span>
         </span>
-        <span className="inline-flex items-center gap-1.5 bg-white border border-stone-200 rounded-lg px-2.5 py-1.5">
+        <span className="inline-flex items-center gap-1.5 bg-surface-panel border border-stroke rounded-lg px-2.5 py-1.5">
           <span className="text-[8px] uppercase tracking-wider font-bold text-stone-400">Last</span>
-          <span className="text-[11px] font-semibold text-stone-600">{lastDay.day.slice(5)}</span>
+          <span className="text-[11px] font-semibold text-ink-secondary">{lastDay.day.slice(5)}</span>
         </span>
-        <span className="ml-auto inline-flex items-center gap-1.5 bg-stone-50 border border-stone-200 rounded-lg px-2.5 py-1.5">
+        <span className="ml-auto inline-flex items-center gap-1.5 bg-surface-base border border-stroke rounded-lg px-2.5 py-1.5">
           <span className="text-[8px] uppercase tracking-wider font-bold text-stone-400">Span</span>
-          <span className="text-[11px] font-semibold text-stone-600">{n}d</span>
+          <span className="text-[11px] font-semibold text-ink-secondary">{n}d</span>
         </span>
       </div>
 
@@ -87,7 +87,7 @@ function DayHistogram({ byDay }) {
           {[0.25, 0.5, 0.75, 1].map((r) => (
             <div
               key={r}
-              className="absolute inset-x-0 border-t border-stone-100 pointer-events-none"
+              className="absolute inset-x-0 border-t border-stroke-subtle pointer-events-none"
               style={{ top: Math.round((1 - r) * H) }}
             />
           ))}
@@ -110,7 +110,7 @@ function DayHistogram({ byDay }) {
                 {/* peak ring dot */}
                 {isPeak && (
                   <div
-                    className="absolute w-2 h-2 rounded-full bg-red-500 ring-2 ring-white left-1/2 -translate-x-1/2"
+                    className="absolute w-2 h-2 rounded-full bg-signal-error ring-2 ring-white left-1/2 -translate-x-1/2"
                     style={{ top: H - barH - 8 }}
                   />
                 )}
@@ -159,12 +159,12 @@ function DayHistogram({ byDay }) {
       </div>
 
       {/* ── hover info strip ──────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg min-h-[34px]">
+      <div className="flex items-center gap-2 px-3 py-2 bg-surface-base border border-stroke rounded-lg min-h-[34px]">
         {hovD ? (
           <>
-            <span className="text-[11px] font-mono font-semibold text-stone-600">{hovD.day}</span>
-            <span className="flex-1 border-t border-dashed border-stone-300" />
-            <span className="text-[11px] font-mono font-bold text-red-600">
+            <span className="text-[11px] font-mono font-semibold text-ink-secondary">{hovD.day}</span>
+            <span className="flex-1 border-t border-dashed border-stroke" />
+            <span className="text-[11px] font-mono font-bold text-red-400">
               {hovD.count} case{hovD.count !== 1 ? "s" : ""}
             </span>
             <span className="text-[10px] text-stone-400 font-medium">
@@ -193,7 +193,7 @@ function DetailBody({ data, loading, error }) {
 
   if (!loading && error) {
     return (
-      <div className="m-4 flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+      <div className="m-4 flex items-center gap-2 text-sm text-red-400 bg-signal-error/10 border border-red-500/30 rounded-xl px-4 py-3">
         <AlertTriangle size={14} />
         {error}
       </div>
@@ -204,7 +204,7 @@ function DetailBody({ data, loading, error }) {
     return (
       <div className="flex flex-col items-center gap-3 py-16 px-6 text-center text-stone-400">
         <RefreshCw size={24} className="text-stone-300" />
-        <p className="text-sm font-medium text-stone-500">No member data</p>
+        <p className="text-sm font-medium text-ink-muted">No member data</p>
         <p className="text-xs leading-relaxed">
           This cluster was created before member tracking was added.
           Press <span className="font-semibold text-red-500">Run Clustering</span> on the main page to regenerate.
@@ -244,14 +244,14 @@ function DetailBody({ data, loading, error }) {
                 const pct = Math.round((r.count / (data.count || 1)) * 100);
                 return (
                   <div key={i} className="flex items-center gap-3">
-                    <span className="shrink-0 w-5 h-5 rounded bg-stone-100 text-[9px] font-bold text-stone-500 flex items-center justify-center">
+                    <span className="shrink-0 w-5 h-5 rounded bg-surface-raised text-[9px] font-bold text-ink-muted flex items-center justify-center">
                       {i + 1}
                     </span>
-                    <span className="flex-1 text-xs text-stone-700 truncate" title={r.reason}>
+                    <span className="flex-1 text-xs text-ink-secondary truncate" title={r.reason}>
                       {r.reason}
                     </span>
-                    <MiniBar pct={pct} color={i === 0 ? "bg-red-400" : "bg-stone-300"} />
-                    <span className="shrink-0 w-8 text-right text-xs font-mono font-semibold text-stone-600">
+                    <MiniBar pct={pct} color={i === 0 ? "bg-red-400" : "bg-surface-overlay"} />
+                    <span className="shrink-0 w-8 text-right text-xs font-mono font-semibold text-ink-secondary">
                       {r.count}
                     </span>
                   </div>
@@ -275,9 +275,9 @@ function DetailBody({ data, loading, error }) {
                 const pct = Math.round((p.count / (data.count || 1)) * 100);
                 return (
                   <div key={i} className="flex items-center gap-3">
-                    <span className="flex-1 text-xs text-stone-700 truncate">{p.product_line}</span>
+                    <span className="flex-1 text-xs text-ink-secondary truncate">{p.product_line}</span>
                     <MiniBar pct={pct} color="bg-amber-400" />
-                    <span className="shrink-0 w-14 text-right text-xs text-stone-500">
+                    <span className="shrink-0 w-14 text-right text-xs text-ink-muted">
                       {p.count} ({pct}%)
                     </span>
                   </div>
@@ -296,20 +296,20 @@ function DetailBody({ data, loading, error }) {
               </span>
               <span className="text-xs text-stone-400">{data.records.length} shown</span>
             </div>
-            <div className="border border-stone-200 rounded-xl overflow-hidden">
+            <div className="border border-stroke rounded-xl overflow-hidden">
               <table className="w-full text-xs">
-                <thead className="bg-stone-50 border-b border-stone-200">
+                <thead className="bg-surface-base border-b border-stroke">
                   <tr>
-                    <th className="text-left px-3 py-2 text-stone-500 font-semibold">SN</th>
-                    <th className="text-left px-3 py-2 text-stone-500 font-semibold">NG Reason</th>
-                    <th className="text-left px-3 py-2 text-stone-500 font-semibold whitespace-nowrap">Date</th>
+                    <th className="text-left px-3 py-2 text-ink-muted font-semibold">SN</th>
+                    <th className="text-left px-3 py-2 text-ink-muted font-semibold">NG Reason</th>
+                    <th className="text-left px-3 py-2 text-ink-muted font-semibold whitespace-nowrap">Date</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
                   {data.records.map((r, i) => (
-                    <tr key={i} className="hover:bg-stone-50 transition-colors">
-                      <td className="px-3 py-2 font-mono text-stone-700 whitespace-nowrap">{r.us_sn}</td>
-                      <td className="px-3 py-2 text-stone-600 max-w-[200px] truncate" title={r.ng_reason}>
+                    <tr key={i} className="hover:bg-surface-base transition-colors">
+                      <td className="px-3 py-2 font-mono text-ink-secondary whitespace-nowrap">{r.us_sn}</td>
+                      <td className="px-3 py-2 text-ink-secondary max-w-[200px] truncate" title={r.ng_reason}>
                         {r.ng_reason || "—"}
                       </td>
                       <td className="px-3 py-2 text-stone-400 whitespace-nowrap">
@@ -358,20 +358,20 @@ export default function NGClusterDetail({
 
   /* ── shared header ── */
   const header = (
-    <div className="flex-shrink-0 border-b border-stone-200 bg-stone-50 px-5 py-4">
+    <div className="flex-shrink-0 border-b border-stroke bg-surface-base px-5 py-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-[10px] uppercase tracking-widest text-red-500 font-semibold mb-1">
             Cluster · Root Cause Analysis
           </p>
-          <h2 className="text-stone-900 font-bold text-base leading-tight truncate">
+          <h2 className="text-ink-primary font-bold text-base leading-tight truncate">
             {representative}
           </h2>
-          <p className="text-stone-500 text-xs mt-0.5">{totalCount} total cases</p>
+          <p className="text-ink-muted text-xs mt-0.5">{totalCount} total cases</p>
         </div>
         <button
           onClick={onClose}
-          className="shrink-0 p-1.5 rounded-lg text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
+          className="shrink-0 p-1.5 rounded-lg text-stone-400 hover:text-ink-secondary hover:bg-surface-raised transition-colors"
         >
           <X size={16} />
         </button>
@@ -383,7 +383,7 @@ export default function NGClusterDetail({
   if (inline) {
     return (
       <div
-        className="bg-white border border-stone-200 rounded-xl shadow-sm flex flex-col overflow-hidden"
+        className="bg-surface-panel border border-stroke rounded-xl shadow-sm flex flex-col overflow-hidden"
         style={{ maxHeight: "calc(100vh - 160px)" }}
       >
         {header}
@@ -399,7 +399,7 @@ export default function NGClusterDetail({
     <div className="fixed inset-0 z-50 flex justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[1px]" />
       <div
-        className="relative w-full max-w-xl h-full bg-white shadow-2xl flex flex-col overflow-hidden"
+        className="relative w-full max-w-xl h-full bg-surface-panel shadow-lg flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {header}

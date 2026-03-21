@@ -26,15 +26,15 @@ const TabButton = React.memo(({ active, onClick, icon: Icon, label, badge }) => 
     className={`flex-1 flex items-center justify-center gap-2 px-4 py-3
                font-medium text-sm rounded-md transition-colors duration-150
                ${active
-                 ? 'bg-white text-slate-900 shadow-sm border border-slate-200'
-                 : 'text-slate-500 hover:text-slate-700'
+                 ? 'bg-surface-panel text-ink-primary shadow-sm border border-stroke'
+                 : 'text-ink-muted hover:text-ink-secondary'
                }`}
   >
     <Icon className="w-4 h-4" />
     <span>{label}</span>
     {badge !== undefined && badge > 0 && (
       <span className={`px-2 py-0.5 text-xs font-bold rounded
-                       ${active ? 'bg-teal-100 text-teal-700' : 'bg-slate-200 text-slate-600'}`}>
+                       ${active ? 'bg-teal-500/15 text-teal-400' : 'bg-surface-overlay text-ink-secondary'}`}>
         {badge}
       </span>
     )}
@@ -742,19 +742,19 @@ export default function AssemblyProduction() {
   };
 
   const FilterPanel = ({ onApply, onReset }) => (
-    <div className="bg-slate-100 rounded-lg p-4 space-y-3">
+    <div className="bg-surface-raised rounded-lg p-4 space-y-3">
       <div className="flex items-center gap-2">
-        <Filter className="w-4 h-4 text-slate-500" />
-        <span className="font-medium text-slate-700 text-sm">Filters</span>
+        <Filter className="w-4 h-4 text-ink-muted" />
+        <span className="font-medium text-ink-secondary text-sm">Filters</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">Status</label>
+          <label className="block text-sm font-medium text-ink-secondary mb-1">Status</label>
           <select
             value={filters.status}
             onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
-            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-slate-700"
+            className="w-full px-3 py-2 bg-surface-raised border border-stroke rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-ink-secondary"
           >
             <option value="all">All Status</option>
             <option value="ok">OK</option>
@@ -764,22 +764,22 @@ export default function AssemblyProduction() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">From Date</label>
+          <label className="block text-sm font-medium text-ink-secondary mb-1">From Date</label>
           <input
             type="date"
             value={filters.fromDate}
             onChange={(e) => setFilters(prev => ({ ...prev, fromDate: e.target.value }))}
-            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+            className="w-full px-3 py-2 bg-surface-raised border border-stroke rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">To Date</label>
+          <label className="block text-sm font-medium text-ink-secondary mb-1">To Date</label>
           <input
             type="date"
             value={filters.toDate}
             onChange={(e) => setFilters(prev => ({ ...prev, toDate: e.target.value }))}
-            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+            className="w-full px-3 py-2 bg-surface-raised border border-stroke rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
           />
         </div>
 
@@ -803,7 +803,7 @@ export default function AssemblyProduction() {
               });
               onReset();
             }}
-            className="px-4 py-2 bg-slate-500 hover:bg-slate-600 text-white font-medium rounded-md transition-colors duration-150"
+            className="px-4 py-2 bg-surface-base0 hover:bg-slate-600 text-white font-medium rounded-md transition-colors duration-150"
           >
             Reset
           </button>
@@ -820,12 +820,12 @@ export default function AssemblyProduction() {
 
       <div className="max-w-[1800px] mx-auto">
         {/* Header */}
-        <div className="bg-white rounded-xl border border-slate-200/80 p-5 md:p-6 mb-5">
+        <div className="bg-surface-panel rounded-xl border border-stroke p-5 md:p-6 mb-5">
           {/* Title Bar */}
-          <div className="flex flex-wrap justify-between items-center gap-3 pb-4 mb-4 border-b border-slate-100">
-            <h1 className="text-xl font-semibold text-slate-800 flex items-center gap-3">
-              <div className="p-2.5 bg-teal-50 rounded-lg">
-                <Package className="w-5 h-5 text-teal-600" />
+          <div className="flex flex-wrap justify-between items-center gap-3 pb-4 mb-4 border-b border-stroke-subtle">
+            <h1 className="text-xl font-semibold text-ink-primary flex items-center gap-3">
+              <div className="p-2.5 bg-teal-500/10 rounded-lg">
+                <Package className="w-5 h-5 text-teal-400" />
               </div>
               Assembly Line Production
             </h1>
@@ -868,7 +868,7 @@ export default function AssemblyProduction() {
           </div>
 
           {/* Tab Navigation - Control Group Pattern */}
-          <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-4">
+          <div className="flex gap-1 p-1 bg-surface-raised rounded-lg mb-4">
             <TabButton
               active={activeTab === 'start'}
               onClick={() => {
@@ -892,64 +892,64 @@ export default function AssemblyProduction() {
 
           {/* Export Panel (client-side CSV) */}
           {showExport && (
-            <div className="mb-4 p-4 bg-slate-100 rounded-lg space-y-3">
-              <div className="flex items-center gap-2 text-slate-700">
+            <div className="mb-4 p-4 bg-surface-raised rounded-lg space-y-3">
+              <div className="flex items-center gap-2 text-ink-secondary">
                 <Download className="w-4 h-4" />
                 <span className="font-medium text-sm">Export Options</span>
               </div>
 
               {/* Modes */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <label className="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-slate-300 transition-colors duration-150">
+                <label className="flex items-center gap-2 p-3 bg-surface-panel border border-stroke rounded-lg cursor-pointer hover:border-stroke transition-colors duration-150">
                   <input
                     type="radio"
                     name="exportMode"
                     value="raw"
                     checked={exportMode === "raw"}
                     onChange={() => setExportMode("raw")}
-                    className="text-teal-600 focus:ring-teal-500"
+                    className="text-teal-400 focus:ring-teal-500"
                   />
-                  <span className="text-slate-700 text-sm">All details</span>
+                  <span className="text-ink-secondary text-sm">All details</span>
                 </label>
-                <label className="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-slate-300 transition-colors duration-150">
+                <label className="flex items-center gap-2 p-3 bg-surface-panel border border-stroke rounded-lg cursor-pointer hover:border-stroke transition-colors duration-150">
                   <input
                     type="radio"
                     name="exportMode"
                     value="daily"
                     checked={exportMode === "daily"}
                     onChange={() => setExportMode("daily")}
-                    className="text-teal-600 focus:ring-teal-500"
+                    className="text-teal-400 focus:ring-teal-500"
                   />
-                  <span className="text-slate-700 text-sm">Units per day</span>
+                  <span className="text-ink-secondary text-sm">Units per day</span>
                 </label>
-                <label className="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-slate-300 transition-colors duration-150">
+                <label className="flex items-center gap-2 p-3 bg-surface-panel border border-stroke rounded-lg cursor-pointer hover:border-stroke transition-colors duration-150">
                   <input
                     type="radio"
                     name="exportMode"
                     value="hourly"
                     checked={exportMode === "hourly"}
                     onChange={() => setExportMode("hourly")}
-                    className="text-teal-600 focus:ring-teal-500"
+                    className="text-teal-400 focus:ring-teal-500"
                   />
-                  <span className="text-slate-700 text-sm">Units per hour</span>
+                  <span className="text-ink-secondary text-sm">Units per hour</span>
                 </label>
               </div>
 
               {/* Conditions (range for all modes) */}
-              <div className="flex flex-wrap items-center gap-3 text-slate-600 text-sm">
+              <div className="flex flex-wrap items-center gap-3 text-ink-secondary text-sm">
                 <span className="font-medium">Range:</span>
                 <input
                   type="date"
                   value={exportRange.from}
                   onChange={(e) => setExportRange(prev => ({ ...prev, from: e.target.value }))}
-                  className="px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  className="px-3 py-2 bg-surface-raised border border-stroke rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                 />
-                <span className="text-slate-400">to</span>
+                <span className="text-ink-muted">to</span>
                 <input
                   type="date"
                   value={exportRange.to}
                   onChange={(e) => setExportRange(prev => ({ ...prev, to: e.target.value }))}
-                  className="px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                  className="px-3 py-2 bg-surface-raised border border-stroke rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                 />
                 <div className="ml-auto flex items-center gap-2">
                   <span className="font-medium">Max rows:</span>
@@ -958,7 +958,7 @@ export default function AssemblyProduction() {
                     min={1}
                     value={exportLimit}
                     onChange={(e) => setExportLimit(parseInt(e.target.value || "1", 10))}
-                    className="w-24 px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    className="w-24 px-3 py-2 bg-surface-raised border border-stroke rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                   />
                 </div>
               </div>
@@ -973,7 +973,7 @@ export default function AssemblyProduction() {
                 </button>
                 <button
                   onClick={() => setShowExport(false)}
-                  className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-600 font-medium rounded-md transition-colors duration-150 border border-slate-200"
+                  className="px-4 py-2 bg-surface-panel hover:bg-surface-raised text-ink-secondary font-medium rounded-md transition-colors duration-150 border border-stroke"
                 >
                   Close
                 </button>
@@ -986,22 +986,22 @@ export default function AssemblyProduction() {
             <div className="space-y-4">
               {/* Start Timer Form */}
               <div
-                className="bg-gradient-to-br from-teal-50 via-white to-cyan-50 rounded-xl p-5 border border-teal-100"
+                className="bg-gradient-to-br from-teal-500/10 via-surface-panel to-signal-info/10 rounded-xl p-5 border border-teal-500/20"
                 onClick={() => { if (activeTab === 'start' && !startTimerBusy) startTimerInputRef.current?.focus(); }}
               >
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2.5 bg-teal-100 rounded-lg">
-                    <Play className="w-6 h-6 text-teal-700" />
+                  <div className="p-2.5 bg-teal-500/15 rounded-lg">
+                    <Play className="w-6 h-6 text-teal-400" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-semibold text-stone-800">Start Assembly</h2>
-                    <p className="text-sm text-stone-500">First station: Scan US SN to begin</p>
+                    <h2 className="text-lg font-semibold text-ink-primary">Start Assembly</h2>
+                    <p className="text-sm text-ink-muted">First station: Scan US SN to begin</p>
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-stone-600 mb-2">
+                    <label className="block text-sm font-medium text-ink-secondary mb-2">
                       US Serial Number
                     </label>
                     <input
@@ -1027,12 +1027,12 @@ export default function AssemblyProduction() {
                       spellCheck="false"
                       inputMode="text"
                       placeholder="Scan or enter US SN"
-                      className={`w-full px-4 py-4 md:py-3 bg-white border-2 rounded-lg text-lg
+                      className={`w-full px-4 py-4 md:py-3 bg-surface-raised border-2 rounded-lg text-lg
                                focus:ring-2 focus:ring-teal-500 focus:border-teal-500
                                disabled:opacity-50 disabled:cursor-not-allowed
                                transition-colors duration-150
-                               ${startTimerFlash === 'success' ? 'border-emerald-400 bg-emerald-50' : ''}
-                               ${startTimerFlash === 'error' ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                               ${startTimerFlash === 'success' ? 'border-emerald-400 bg-signal-ok/10' : ''}
+                               ${startTimerFlash === 'error' ? 'border-red-400 bg-signal-error/10' : 'border-stroke'}`}
                     />
                   </div>
 
@@ -1060,8 +1060,8 @@ export default function AssemblyProduction() {
                   {/* Message */}
                   {startTimerMsg && (
                     <div className={`p-3 rounded-lg text-center text-sm font-medium
-                      ${startTimerFlash === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : ''}
-                      ${startTimerFlash === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : ''}`}>
+                      ${startTimerFlash === 'success' ? 'bg-signal-ok/10 text-emerald-400 border border-emerald-500/30' : ''}
+                      ${startTimerFlash === 'error' ? 'bg-signal-error/10 text-red-400 border border-red-500/30' : ''}`}>
                       {startTimerMsg}
                     </div>
                   )}
@@ -1069,41 +1069,41 @@ export default function AssemblyProduction() {
               </div>
 
               {/* Active Timers List */}
-              <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
-                <div className="px-4 py-3 bg-stone-50 border-b border-stone-200 flex items-center justify-between">
+              <div className="bg-surface-panel rounded-xl border border-stroke overflow-hidden">
+                <div className="px-4 py-3 bg-surface-base border-b border-stroke flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-stone-500" />
-                    <span className="font-semibold text-stone-700 text-sm uppercase tracking-wide">
+                    <Clock className="w-4 h-4 text-ink-muted" />
+                    <span className="font-semibold text-ink-secondary text-sm uppercase tracking-wide">
                       In Progress
                     </span>
-                    <span className="px-2 py-0.5 bg-teal-100 text-teal-700 text-xs font-bold rounded-md">
+                    <span className="px-2 py-0.5 bg-teal-500/15 text-teal-400 text-xs font-bold rounded-md">
                       {activeTimers.length}
                     </span>
                   </div>
                   <button
                     onClick={fetchActiveTimers}
-                    className="p-1.5 hover:bg-stone-200 rounded-md transition-colors"
+                    className="p-1.5 hover:bg-surface-overlay rounded-md transition-colors"
                     title="Refresh"
                   >
-                    <RefreshCw className="w-4 h-4 text-stone-500" />
+                    <RefreshCw className="w-4 h-4 text-ink-muted" />
                   </button>
                 </div>
 
                 <div className="divide-y divide-stone-100 max-h-[300px] overflow-y-auto">
                   {activeTimers.length > 0 ? (
                     activeTimers.map((timer, idx) => (
-                      <div key={timer.us_sn || idx} className="px-4 py-3 flex items-center justify-between hover:bg-stone-50">
+                      <div key={timer.us_sn || idx} className="px-4 py-3 flex items-center justify-between hover:bg-surface-raised">
                         <div>
-                          <span className="font-medium text-stone-800">{timer.us_sn}</span>
-                          <p className="text-xs text-stone-500 mt-0.5">Started: {timer.start_time}</p>
+                          <span className="font-medium text-ink-primary">{timer.us_sn}</span>
+                          <p className="text-xs text-ink-muted mt-0.5">Started: {timer.start_time}</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs font-semibold rounded-md">
+                          <span className="px-2 py-1 bg-signal-warn/15 text-amber-400 text-xs font-semibold rounded-md">
                             In Progress
                           </span>
                           <button
                             onClick={() => handleDeleteTimer(timer.us_sn)}
-                            className="p-1.5 text-stone-300 hover:text-red-600 transition-colors"
+                            className="p-1.5 text-stone-300 hover:text-red-400 transition-colors"
                             title="Delete timer"
                           >
                             <X className="w-4 h-4" />
@@ -1112,7 +1112,7 @@ export default function AssemblyProduction() {
                       </div>
                     ))
                   ) : (
-                    <div className="px-4 py-8 text-center text-stone-500">
+                    <div className="px-4 py-8 text-center text-ink-muted">
                       <Clock className="w-8 h-8 mx-auto mb-2 opacity-30" />
                       <p>No items in progress</p>
                       <p className="text-xs mt-1">Scan a US SN to start</p>
@@ -1123,21 +1123,21 @@ export default function AssemblyProduction() {
 
               {/* Today's Stats Summary */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-white rounded-lg border border-stone-200 p-4 text-center">
-                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Today's Total</p>
-                  <p className="text-2xl font-bold text-stone-800 mt-1">{daily.count}</p>
+                <div className="bg-surface-panel rounded-lg border border-stroke p-4 text-center">
+                  <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">Today's Total</p>
+                  <p className="text-2xl font-bold text-ink-primary mt-1">{daily.count}</p>
                 </div>
-                <div className="bg-white rounded-lg border border-stone-200 p-4 text-center">
-                  <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">In Progress</p>
-                  <p className="text-2xl font-bold text-teal-600 mt-1">{activeTimers.length}</p>
+                <div className="bg-surface-panel rounded-lg border border-stroke p-4 text-center">
+                  <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide">In Progress</p>
+                  <p className="text-2xl font-bold text-teal-400 mt-1">{activeTimers.length}</p>
                 </div>
-                <div className="bg-white rounded-lg border border-amber-200 p-4 text-center">
-                  <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">NG Records</p>
-                  <p className="text-2xl font-bold text-amber-600 mt-1">{daily.ng}</p>
+                <div className="bg-surface-panel rounded-lg border border-amber-500/30 p-4 text-center">
+                  <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">NG Records</p>
+                  <p className="text-2xl font-bold text-amber-400 mt-1">{daily.ng}</p>
                 </div>
-                <div className="bg-white rounded-lg border border-emerald-200 p-4 text-center">
-                  <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">Fixed</p>
-                  <p className="text-2xl font-bold text-emerald-600 mt-1">{daily.fixed}</p>
+                <div className="bg-surface-panel rounded-lg border border-emerald-500/30 p-4 text-center">
+                  <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">Fixed</p>
+                  <p className="text-2xl font-bold text-emerald-400 mt-1">{daily.fixed}</p>
                 </div>
               </div>
             </div>
@@ -1152,7 +1152,7 @@ export default function AssemblyProduction() {
             <div className="stat-card-assembly relative overflow-hidden col-span-1 md:col-span-2">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm font-bold uppercase tracking-widest opacity-90">Today's Production</span>
-                <div className="p-2.5 bg-white/20 rounded-lg backdrop-blur-sm">
+                <div className="p-2.5 bg-surface-panel/20 rounded-lg backdrop-blur-sm">
                   <Package className="w-6 h-6" />
                 </div>
               </div>
@@ -1161,44 +1161,44 @@ export default function AssemblyProduction() {
             </div>
 
             {/* Quality & Progress Card */}
-            <div className="bg-gradient-to-br from-cyan-50 via-white to-emerald-50 rounded-xl p-4 border border-cyan-100 shadow-sm">
+            <div className="bg-gradient-to-br from-signal-info/10 via-surface-panel to-signal-ok/10 rounded-xl p-4 border border-signal-info/20 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide text-cyan-700 bg-white border border-cyan-100">
+                  <span className="px-2 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide text-cyan-400 bg-surface-panel border border-signal-info/20">
                     Quality
                   </span>
-                  <span className="text-xs text-stone-500">Assembly Line</span>
+                  <span className="text-xs text-ink-muted">Assembly Line</span>
                 </div>
-                <div className="p-2 bg-white/70 rounded-lg border border-cyan-100">
-                  <AlertCircle className="w-4 h-4 text-cyan-700" />
+                <div className="p-2 bg-surface-panel/70 rounded-lg border border-signal-info/20">
+                  <AlertCircle className="w-4 h-4 text-cyan-400" />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 mb-3">
-                <div className="bg-white/80 border border-amber-100 rounded-lg p-3">
-                  <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">NG Records</p>
-                  <p className="text-2xl font-bold text-amber-700 mt-1">{daily.ng}</p>
+                <div className="bg-surface-panel/80 border border-signal-warn/20 rounded-lg p-3">
+                  <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">NG Records</p>
+                  <p className="text-2xl font-bold text-amber-400 mt-1">{daily.ng}</p>
                 </div>
-                <div className="bg-white/80 border border-emerald-100 rounded-lg p-3">
-                  <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Fixed</p>
-                  <p className="text-2xl font-bold text-emerald-700 mt-1">{daily.fixed}</p>
+                <div className="bg-surface-panel/80 border border-signal-ok/20 rounded-lg p-3">
+                  <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">Fixed</p>
+                  <p className="text-2xl font-bold text-emerald-400 mt-1">{daily.fixed}</p>
                 </div>
               </div>
 
-              <div className="bg-white/80 border border-cyan-100 rounded-lg p-3 space-y-2">
+              <div className="bg-surface-panel/80 border border-signal-info/20 rounded-lg p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-stone-600 uppercase tracking-wide">Scan Progress</p>
-                  <span className="text-xs font-bold text-stone-700">{scannedCount}/6</span>
+                  <p className="text-xs font-semibold text-ink-secondary uppercase tracking-wide">Scan Progress</p>
+                  <span className="text-xs font-bold text-ink-secondary">{scannedCount}/6</span>
                 </div>
-                <div className="w-full bg-stone-200 rounded-full h-1.5">
+                <div className="w-full bg-surface-overlay rounded-full h-1.5">
                   <div
                     className="bg-cyan-600 h-1.5 rounded-full transition-all duration-300"
                     style={{ width: `${(scannedCount / 6) * 100}%` }}
                   />
                 </div>
-                <div className="flex items-center justify-between text-xs text-stone-600">
+                <div className="flex items-center justify-between text-xs text-ink-secondary">
                   <span>Pass rate</span>
-                  <span className="font-semibold text-emerald-700">{totalIssues ? `${Math.round((daily.fixed / totalIssues) * 100)}%` : "100%"}</span>
+                  <span className="font-semibold text-emerald-400">{totalIssues ? `${Math.round((daily.fixed / totalIssues) * 100)}%` : "100%"}</span>
                 </div>
               </div>
             </div>
@@ -1210,10 +1210,10 @@ export default function AssemblyProduction() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {fields.map((field, i) => (
                 <div key={field} className="relative">
-                  <label className="block text-sm font-medium text-stone-600 mb-1.5">
+                  <label className="block text-sm font-medium text-ink-secondary mb-1.5">
                     {labels[i]}
                     {form[field] && (
-                      <CheckCircle className="inline-block ml-2 w-3.5 h-3.5 text-emerald-600" />
+                      <CheckCircle className="inline-block ml-2 w-3.5 h-3.5 text-emerald-400" />
                     )}
                   </label>
                   <input
@@ -1236,12 +1236,12 @@ export default function AssemblyProduction() {
                     }
 
                     autoFocus={i === curIdx}
-                    className={`w-full px-3 py-3.5 bg-white border rounded-md text-stone-800 text-lg
+                    className={`w-full px-3 py-3.5 bg-surface-raised border rounded-md text-ink-primary text-lg
                              focus:ring-2 focus:ring-teal-500 focus:border-teal-500
                              disabled:opacity-50 disabled:cursor-not-allowed
                              transition-colors duration-150
-                             ${flash === 'success' && form[field] ? 'border-emerald-400 bg-emerald-50' : 'border-stone-300'}
-                             ${flash === 'error' && !form[field] ? 'border-red-400 bg-red-50' : ''}
+                             ${flash === 'success' && form[field] ? 'border-emerald-400 bg-signal-ok/10' : 'border-stroke'}
+                             ${flash === 'error' && !form[field] ? 'border-red-400 bg-signal-error/10' : ''}
                              ${i === curIdx ? 'ring-2 ring-teal-400 border-teal-400' : ''}`}
                     placeholder={`Scan or enter ${labels[i]}`}
                   />
@@ -1274,8 +1274,8 @@ export default function AssemblyProduction() {
             {/* Messages */}
             {msg && (
               <div className={`mt-4 p-3 rounded-md text-center text-sm font-medium
-                ${flash === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : ''}
-                ${flash === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : ''}`}>
+                ${flash === 'success' ? 'bg-signal-ok/10 text-emerald-400 border border-emerald-500/30' : ''}
+                ${flash === 'error' ? 'bg-signal-error/10 text-red-400 border border-red-500/30' : ''}`}>
                 {msg}
               </div>
             )}
@@ -1292,9 +1292,9 @@ export default function AssemblyProduction() {
             {/* Last Production Time Display */}
             {lastProductionTime !== null && (
               <div className="mt-3 text-center">
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-50 border border-cyan-200 rounded-lg">
-                  <Timer className="w-4 h-4 text-cyan-600" />
-                  <span className="text-sm font-medium text-cyan-700">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-signal-info/10 border border-cyan-500/30 rounded-lg">
+                  <Timer className="w-4 h-4 text-cyan-400" />
+                  <span className="text-sm font-medium text-cyan-400">
                     Production Time: {formatDuration(lastProductionTime)}
                   </span>
                 </div>
@@ -1304,38 +1304,38 @@ export default function AssemblyProduction() {
 
           {/* Production Time Bar Chart + Stats */}
           {prodStats.total_with_time > 0 && (
-            <div className="mt-4 bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div className="mt-4 bg-surface-panel rounded-xl border border-stroke shadow-sm overflow-hidden">
               {/* Header */}
-              <div className="px-4 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between">
+              <div className="px-4 pt-4 pb-3 border-b border-stroke-subtle flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-cyan-50 flex items-center justify-center">
-                    <Timer className="w-3.5 h-3.5 text-cyan-600" />
+                  <div className="w-7 h-7 rounded-lg bg-signal-info/10 flex items-center justify-center">
+                    <Timer className="w-3.5 h-3.5 text-cyan-400" />
                   </div>
                   <div>
-                    <span className="font-semibold text-slate-800 text-sm uppercase tracking-wide">
+                    <span className="font-semibold text-ink-primary text-sm uppercase tracking-wide">
                       Production Time
                     </span>
-                    <span className="text-[11px] text-slate-400 ml-2">Today</span>
+                    <span className="text-[11px] text-ink-muted ml-2">Today</span>
                   </div>
                 </div>
-                <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">
+                <span className="text-[11px] font-medium text-ink-muted uppercase tracking-wider">
                   {prodStats.total_with_time} units
                 </span>
               </div>
 
               {/* Mini stats row */}
-              <div className="grid grid-cols-3 divide-x divide-slate-100 bg-slate-50/60">
+              <div className="grid grid-cols-3 divide-x divide-stroke-subtle bg-surface-base/60">
                 <div className="px-3 py-2.5 text-center">
-                  <p className="text-[10px] font-semibold text-cyan-600 uppercase tracking-wider">Avg</p>
-                  <p className="text-sm font-bold text-cyan-700 tabular-nums">{formatDuration(Math.round(prodStats.avg_seconds))}</p>
+                  <p className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider">Avg</p>
+                  <p className="text-sm font-bold text-cyan-400 tabular-nums">{formatDuration(Math.round(prodStats.avg_seconds))}</p>
                 </div>
                 <div className="px-3 py-2.5 text-center">
-                  <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">Fastest</p>
-                  <p className="text-sm font-bold text-emerald-700 tabular-nums">{formatDuration(prodStats.min_seconds)}</p>
+                  <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Fastest</p>
+                  <p className="text-sm font-bold text-emerald-400 tabular-nums">{formatDuration(prodStats.min_seconds)}</p>
                 </div>
                 <div className="px-3 py-2.5 text-center">
-                  <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">Slowest</p>
-                  <p className="text-sm font-bold text-amber-700 tabular-nums">{formatDuration(prodStats.max_seconds)}</p>
+                  <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider">Slowest</p>
+                  <p className="text-sm font-bold text-amber-400 tabular-nums">{formatDuration(prodStats.max_seconds)}</p>
                 </div>
               </div>
 
@@ -1412,9 +1412,9 @@ export default function AssemblyProduction() {
 
               {/* Last production footer */}
               {lastProductionTime !== null && (
-                <div className="px-4 py-2.5 border-t border-slate-100 flex items-center justify-between bg-slate-50/40">
-                  <span className="text-xs text-slate-500">Last Completed</span>
-                  <span className="text-xs font-bold text-cyan-700 tabular-nums">{formatDuration(lastProductionTime)}</span>
+                <div className="px-4 py-2.5 border-t border-stroke-subtle flex items-center justify-between bg-surface-base/40">
+                  <span className="text-xs text-ink-muted">Last Completed</span>
+                  <span className="text-xs font-bold text-cyan-400 tabular-nums">{formatDuration(lastProductionTime)}</span>
                 </div>
               )}
             </div>
@@ -1427,34 +1427,34 @@ export default function AssemblyProduction() {
       {/* NG Modal */}
       {showNg && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full overflow-hidden border border-stone-200">
-            <div className="px-5 py-4 border-b border-stone-200 bg-stone-50 flex items-center justify-between">
+          <div className="bg-surface-panel rounded-lg shadow-xl max-w-lg w-full overflow-hidden border border-stroke">
+            <div className="px-5 py-4 border-b border-stroke bg-surface-base flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-md bg-amber-100 text-amber-700">
+                <div className="p-2 rounded-md bg-signal-warn/15 text-amber-400">
                   <AlertCircle className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="text-base font-semibold text-stone-800">
+                  <div className="text-base font-semibold text-ink-primary">
                     {ngStep === 1 ? "Scan Serial Number" : "Edit & Mark NG"}
                   </div>
-                  <div className="text-xs text-stone-500">Quick mark for NG items</div>
+                  <div className="text-xs text-ink-muted">Quick mark for NG items</div>
                 </div>
               </div>
               <button
                 onClick={() => setShowNg(false)}
-                className="p-1.5 rounded-md hover:bg-stone-200 transition-colors"
+                className="p-1.5 rounded-md hover:bg-surface-overlay transition-colors"
                 aria-label="Close"
               >
-                <X size={16} className="text-stone-500" />
+                <X size={16} className="text-ink-muted" />
               </button>
             </div>
 
-            <div className="p-5 bg-white">
+            <div className="p-5 bg-surface-panel">
               {/* Step 1: Scan SN */}
               {ngStep === 1 && (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-stone-600 mb-1.5">
+                    <label className="block text-sm font-medium text-ink-secondary mb-1.5">
                       Scan or type US-SN
                     </label>
                     <div className="relative">
@@ -1465,7 +1465,7 @@ export default function AssemblyProduction() {
                         onKeyDown={(e) =>
                           e.key === "Enter" && fetchNgRecord(e.target.value.trim())
                         }
-                        className="w-full px-3 py-2.5 bg-stone-50 border border-stone-300 rounded-md
+                        className="w-full px-3 py-2.5 bg-surface-base border border-stroke rounded-md
                                  focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
                         placeholder="e.g. US123456789"
                       />
@@ -1483,8 +1483,8 @@ export default function AssemblyProduction() {
                     </button>
                     <button
                       onClick={() => setShowNg(false)}
-                      className="flex-1 px-4 py-2.5 bg-white hover:bg-stone-50 text-stone-600
-                             font-medium rounded-md transition-colors border border-stone-300"
+                      className="flex-1 px-4 py-2.5 bg-surface-panel hover:bg-surface-raised text-ink-secondary
+                             font-medium rounded-md transition-colors border border-stroke"
                     >
                       Cancel
                     </button>
@@ -1503,7 +1503,7 @@ export default function AssemblyProduction() {
                       ["PCBA AM7", "pcba_am7"],
                     ].map(([label, key]) => (
                       <div key={key}>
-                        <label className="block text-sm font-medium text-stone-600 mb-1">
+                        <label className="block text-sm font-medium text-ink-secondary mb-1">
                           {label}
                         </label>
                       <input
@@ -1511,7 +1511,7 @@ export default function AssemblyProduction() {
                         onChange={(e) =>
                           setNgRec((r) => ({ ...r, [key]: e.target.value }))
                         }
-                        className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-md
+                        className="w-full px-3 py-2 bg-surface-base border border-stroke rounded-md
                                    focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                       />
                     </div>
@@ -1519,13 +1519,13 @@ export default function AssemblyProduction() {
                 </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-stone-600 mb-1">
+                    <label className="block text-sm font-medium text-ink-secondary mb-1">
                       NG Reason
                     </label>
                     <input
                       value={ngReason}
                       onChange={(e) => setNgReason(e.target.value)}
-                      className="w-full px-3 py-2 bg-stone-50 border border-stone-300 rounded-md
+                      className="w-full px-3 py-2 bg-surface-base border border-stroke rounded-md
                                focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                       placeholder="Enter reason for NG"
                     />
@@ -1567,18 +1567,18 @@ export default function AssemblyProduction() {
       {/* NG List Modal */}
       {showNgList && (
         <div className="fixed inset-0 bg-stone-900/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[85vh] flex flex-col border border-stone-200">
-            <div className="p-5 border-b border-stone-200 flex-shrink-0">
+          <div className="bg-surface-panel rounded-lg shadow-xl max-w-6xl w-full max-h-[85vh] flex flex-col border border-stroke">
+            <div className="p-5 border-b border-stroke flex-shrink-0">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-stone-800 flex items-center gap-2">
-                  <AlertCircle className="w-5 h-5 text-amber-600" />
+                <h3 className="text-lg font-semibold text-ink-primary flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-400" />
                   NG Records Management
                 </h3>
                 <button
                   onClick={() => setShowNgList(false)}
-                  className="p-1.5 hover:bg-stone-100 rounded-md transition-colors"
+                  className="p-1.5 hover:bg-surface-raised rounded-md transition-colors"
                 >
-                  <X size={18} className="text-stone-500" />
+                  <X size={18} className="text-ink-muted" />
                 </button>
               </div>
 
@@ -1590,9 +1590,9 @@ export default function AssemblyProduction() {
 
               {/* Batch Actions */}
               {selectedRecords.size > 0 && (
-                <div className="mt-4 p-3 bg-stone-50 rounded-md border border-stone-200">
+                <div className="mt-4 p-3 bg-surface-base rounded-md border border-stroke">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-stone-700">
+                    <span className="text-sm font-medium text-ink-secondary">
                       {selectedRecords.size} records selected
                     </span>
                     <div className="flex gap-2">
@@ -1612,7 +1612,7 @@ export default function AssemblyProduction() {
                       </button>
                       <button
                         onClick={() => setSelectedRecords(new Set())}
-                        className="px-3 py-1.5 bg-stone-500 hover:bg-stone-600 text-white
+                        className="px-3 py-1.5 bg-surface-base0 hover:bg-stone-600 text-white
                                 font-medium rounded-md text-sm transition-colors"
                       >
                         Clear Selection
@@ -1624,10 +1624,10 @@ export default function AssemblyProduction() {
             </div>
 
             <div className="flex-1 overflow-auto p-5">
-              <div className="bg-white rounded-md border border-stone-200 overflow-hidden">
+              <div className="bg-surface-panel rounded-md border border-stroke overflow-hidden">
                 <table className="w-full">
-                  <thead className="sticky top-0 bg-stone-50 z-10">
-                    <tr className="border-b border-stone-200">
+                  <thead className="sticky top-0 bg-surface-base z-10">
+                    <tr className="border-b border-stroke">
                       <th className="px-4 py-3 w-12">
                         <input
                           type="checkbox"
@@ -1639,22 +1639,22 @@ export default function AssemblyProduction() {
                               setSelectedRecords(new Set());
                             }
                           }}
-                          className="rounded border-stone-300 text-teal-600 focus:ring-teal-500"
+                          className="rounded border-stroke text-teal-400 focus:ring-teal-500"
                         />
                       </th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold text-stone-600 uppercase tracking-wide">
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wide">
                         US SN
                       </th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold text-stone-600 uppercase tracking-wide">
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wide">
                         China SN
                       </th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold text-stone-600 uppercase tracking-wide">
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wide">
                         Status
                       </th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold text-stone-600 uppercase tracking-wide">
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wide">
                         NG Reason
                       </th>
-                      <th className="px-5 py-3 text-left text-xs font-semibold text-stone-600 uppercase tracking-wide">
+                      <th className="px-5 py-3 text-left text-xs font-semibold text-ink-secondary uppercase tracking-wide">
                         Timestamp
                       </th>
                     </tr>
@@ -1664,8 +1664,8 @@ export default function AssemblyProduction() {
                       ngRows.map((r) => (
                         <tr
                           key={r.id}
-                          className={`hover:bg-stone-50 transition-colors
-                            ${((r.status || "").toLowerCase() === "fixed") ? "bg-emerald-50/50" : "bg-red-50/50"}`}
+                          className={`hover:bg-surface-raised transition-colors
+                            ${((r.status || "").toLowerCase() === "fixed") ? "bg-signal-ok/10" : "bg-signal-error/10"}`}
                         >
                           <td className="px-4 py-3">
                             <input
@@ -1680,30 +1680,30 @@ export default function AssemblyProduction() {
                                 }
                                 setSelectedRecords(newSelected);
                               }}
-                              className="rounded border-stone-300 text-teal-600 focus:ring-teal-500"
+                              className="rounded border-stroke text-teal-400 focus:ring-teal-500"
                             />
                           </td>
-                          <td className="px-5 py-3 text-sm text-stone-800 font-medium">{r.us_sn}</td>
-                          <td className="px-5 py-3 text-sm text-stone-700">{r.china_sn || '-'}</td>
+                          <td className="px-5 py-3 text-sm text-ink-primary font-medium">{r.us_sn}</td>
+                          <td className="px-5 py-3 text-sm text-ink-secondary">{r.china_sn || '-'}</td>
                           <td className="px-5 py-3">
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
                               ${((r.status || "").toLowerCase() === "fixed")
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-red-100 text-red-700"}`}
+                                ? "bg-signal-ok/15 text-emerald-400"
+                                : "bg-signal-error/15 text-red-400"}`}
                           >
                             {r.status}
                           </span>
                           </td>
-                          <td className="px-5 py-3 text-sm text-stone-600 max-w-xs truncate" title={r.ng_reason}>
+                          <td className="px-5 py-3 text-sm text-ink-secondary max-w-xs truncate" title={r.ng_reason}>
                             {r.ng_reason || '-'}
                           </td>
-                          <td className="px-5 py-3 text-sm text-stone-500">{r.timestamp}</td>
+                          <td className="px-5 py-3 text-sm text-ink-muted">{r.timestamp}</td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} className="px-5 py-8 text-center text-stone-500">
+                        <td colSpan={6} className="px-5 py-8 text-center text-ink-muted">
                           No NG records found
                         </td>
                       </tr>

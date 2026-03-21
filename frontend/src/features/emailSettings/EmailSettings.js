@@ -12,28 +12,28 @@ import './EmailSettings.css';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const CARD = 'bg-white border border-slate-200/80 rounded-xl shadow-sm';
+const CARD = 'bg-surface-panel border border-stroke rounded-xl shadow-sm';
 
 const METRIC_CFG = [
-  { key: 'time',       label: 'Schedule Time',     accent: 'bg-teal-500',    iconBg: 'bg-teal-50',    iconColor: 'text-teal-600',   Icon: Clock    },
-  { key: 'status',     label: 'Status',             accent: 'bg-emerald-500', iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', Icon: Power    },
-  { key: 'recipients', label: 'Active Recipients',  accent: 'bg-cyan-500',    iconBg: 'bg-cyan-50',    iconColor: 'text-cyan-600',   Icon: Users    },
-  { key: 'lastSent',   label: 'Last Sent',          accent: 'bg-amber-500',   iconBg: 'bg-amber-50',   iconColor: 'text-amber-600',  Icon: Send     },
+  { key: 'time',       label: 'Schedule Time',     accent: 'bg-teal-500',    iconBg: 'bg-teal-500/10',    iconColor: 'text-teal-400',   Icon: Clock    },
+  { key: 'status',     label: 'Status',             accent: 'bg-signal-ok', iconBg: 'bg-signal-ok/10', iconColor: 'text-emerald-400', Icon: Power    },
+  { key: 'recipients', label: 'Active Recipients',  accent: 'bg-signal-info',    iconBg: 'bg-signal-info/10',    iconColor: 'text-cyan-400',   Icon: Users    },
+  { key: 'lastSent',   label: 'Last Sent',          accent: 'bg-signal-warn',   iconBg: 'bg-signal-warn/10',   iconColor: 'text-amber-400',  Icon: Send     },
 ];
 
 // ── Plan A: Preview mini-report component ─────────────────────────────────────
 
 const EffBar = ({ value }) => {
   const pct = Math.min(value || 0, 100);
-  const color = pct >= 100 ? 'bg-emerald-500' : pct >= 80 ? 'bg-amber-500' : 'bg-red-500';
-  const text  = pct >= 100 ? 'text-emerald-600' : pct >= 80 ? 'text-amber-600' : 'text-red-500';
+  const color = pct >= 100 ? 'bg-signal-ok' : pct >= 80 ? 'bg-signal-warn' : 'bg-signal-error';
+  const text  = pct >= 100 ? 'text-emerald-400' : pct >= 80 ? 'text-amber-400' : 'text-red-500';
   return (
     <div className="mt-2 space-y-1">
       <div className="flex justify-between text-[10px]">
-        <span className="text-slate-400">Efficiency</span>
+        <span className="text-ink-muted">Efficiency</span>
         <span className={`font-bold ${text}`}>{value || 0}%</span>
       </div>
-      <div className="h-1.5 bg-white/80 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-surface-panel/80 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -48,77 +48,77 @@ const PreviewReport = ({ data }) => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-slate-700">
-          Report for <span className="text-teal-600">{d.date || 'Today'}</span>
+        <p className="text-sm font-semibold text-ink-secondary">
+          Report for <span className="text-teal-400">{d.date || 'Today'}</span>
         </p>
-        <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded-md">
+        <span className="text-xs text-ink-muted bg-surface-raised px-2 py-1 rounded-md">
           California Time
         </span>
       </div>
 
       {/* Today's 4 KPI cards */}
       <div>
-        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Today's Production</p>
+        <p className="text-[11px] font-bold text-ink-muted uppercase tracking-wider mb-3">Today's Production</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
 
           {/* Module */}
-          <div className="p-4 bg-teal-50 border border-teal-100 rounded-xl">
-            <p className="text-[10px] font-semibold text-teal-600 uppercase tracking-wider">Module Line</p>
-            <p className="text-2xl font-bold text-slate-800 tabular-nums mt-1">
+          <div className="p-4 bg-teal-500/10 border border-teal-500/20 rounded-xl">
+            <p className="text-[10px] font-semibold text-teal-400 uppercase tracking-wider">Module Line</p>
+            <p className="text-2xl font-bold text-ink-primary tabular-nums mt-1">
               {(d.module_production || 0).toLocaleString()}
             </p>
-            <p className="text-xs text-slate-500">Plan: {(d.module_plan || 0).toLocaleString()}</p>
+            <p className="text-xs text-ink-muted">Plan: {(d.module_plan || 0).toLocaleString()}</p>
             <EffBar value={d.module_efficiency} />
           </div>
 
           {/* Assembly */}
-          <div className="p-4 bg-cyan-50 border border-cyan-100 rounded-xl">
-            <p className="text-[10px] font-semibold text-cyan-600 uppercase tracking-wider">Assembly Line</p>
-            <p className="text-2xl font-bold text-slate-800 tabular-nums mt-1">
+          <div className="p-4 bg-signal-info/10 border border-signal-info/20 rounded-xl">
+            <p className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider">Assembly Line</p>
+            <p className="text-2xl font-bold text-ink-primary tabular-nums mt-1">
               {(d.assembly_production || 0).toLocaleString()}
             </p>
-            <p className="text-xs text-slate-500">Plan: {(d.assembly_plan || 0).toLocaleString()}</p>
+            <p className="text-xs text-ink-muted">Plan: {(d.assembly_plan || 0).toLocaleString()}</p>
             <EffBar value={d.assembly_efficiency} />
           </div>
 
           {/* Total NG */}
-          <div className="p-4 bg-red-50 border border-red-100 rounded-xl">
+          <div className="p-4 bg-signal-error/10 border border-signal-error/20 rounded-xl">
             <p className="text-[10px] font-semibold text-red-500 uppercase tracking-wider">Total NG</p>
-            <p className="text-2xl font-bold text-slate-800 tabular-nums mt-1">{d.total_ng || 0}</p>
+            <p className="text-2xl font-bold text-ink-primary tabular-nums mt-1">{d.total_ng || 0}</p>
             {(d.ng_reasons || []).slice(0, 2).map((r, i) => (
-              <p key={i} className="text-[10px] text-slate-500 mt-0.5 truncate">
+              <p key={i} className="text-[10px] text-ink-muted mt-0.5 truncate">
                 {r.reason}: <span className="font-semibold">{r.count}</span>
               </p>
             ))}
           </div>
 
           {/* Downtime — split Cell / Assembly */}
-          <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
-            <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">Downtime</p>
-            <p className="text-2xl font-bold text-slate-800 tabular-nums mt-1">
+          <div className="p-4 bg-signal-warn/10 border border-signal-warn/20 rounded-xl">
+            <p className="text-[10px] font-semibold text-amber-400 uppercase tracking-wider">Downtime</p>
+            <p className="text-2xl font-bold text-ink-primary tabular-nums mt-1">
               {d.downtime_hours || 0}
-              <span className="text-sm font-medium text-slate-400 ml-1">hrs total</span>
+              <span className="text-sm font-medium text-ink-muted ml-1">hrs total</span>
             </p>
             <div className="mt-2 space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-semibold text-red-500 uppercase tracking-wider">Cell</span>
-                <span className="text-[11px] font-bold text-slate-700 tabular-nums">
+                <span className="text-[11px] font-bold text-ink-secondary tabular-nums">
                   {d.cell_downtime_hours || 0}h
                 </span>
               </div>
-              <div className="h-1 bg-white/60 rounded-full overflow-hidden">
+              <div className="h-1 bg-surface-panel/60 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-red-400 rounded-full"
                   style={{ width: d.downtime_hours > 0 ? `${Math.min(((d.cell_downtime_hours || 0) / d.downtime_hours) * 100, 100)}%` : '0%' }}
                 />
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-semibold text-cyan-600 uppercase tracking-wider">Assembly</span>
-                <span className="text-[11px] font-bold text-slate-700 tabular-nums">
+                <span className="text-[10px] font-semibold text-cyan-400 uppercase tracking-wider">Assembly</span>
+                <span className="text-[11px] font-bold text-ink-secondary tabular-nums">
                   {d.assembly_downtime_hours || 0}h
                 </span>
               </div>
-              <div className="h-1 bg-white/60 rounded-full overflow-hidden">
+              <div className="h-1 bg-surface-panel/60 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-cyan-400 rounded-full"
                   style={{ width: d.downtime_hours > 0 ? `${Math.min(((d.assembly_downtime_hours || 0) / d.downtime_hours) * 100, 100)}%` : '0%' }}
@@ -132,20 +132,20 @@ const PreviewReport = ({ data }) => {
       {/* NG Breakdown */}
       {(d.ng_reasons || []).length > 0 && (
         <div>
-          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
+          <p className="text-[11px] font-bold text-ink-muted uppercase tracking-wider mb-3">
             NG Breakdown
           </p>
           <div className="space-y-2.5">
             {d.ng_reasons.map((r, i) => (
               <div key={i} className="flex items-center gap-3">
-                <span className="text-xs text-slate-600 min-w-0 flex-1 truncate" title={r.reason}>
+                <span className="text-xs text-ink-secondary min-w-0 flex-1 truncate" title={r.reason}>
                   {r.reason}
                 </span>
-                <div className="w-28 h-2 bg-slate-100 rounded-full overflow-hidden flex-shrink-0">
+                <div className="w-28 h-2 bg-surface-raised rounded-full overflow-hidden flex-shrink-0">
                   <div className="h-full bg-red-400 rounded-full" style={{ width: `${r.percentage}%` }} />
                 </div>
-                <span className="text-xs font-mono text-slate-500 w-7 text-right flex-shrink-0">{r.count}</span>
-                <span className="text-[10px] text-slate-400 w-10 text-right flex-shrink-0">{r.percentage}%</span>
+                <span className="text-xs font-mono text-ink-muted w-7 text-right flex-shrink-0">{r.count}</span>
+                <span className="text-[10px] text-ink-muted w-10 text-right flex-shrink-0">{r.percentage}%</span>
               </div>
             ))}
           </div>
@@ -154,39 +154,39 @@ const PreviewReport = ({ data }) => {
 
       {/* Weekly Summary */}
       <div>
-        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">
+        <p className="text-[11px] font-bold text-ink-muted uppercase tracking-wider mb-3">
           This Week
           {d.day_range && <span className="ml-1 font-normal normal-case">({d.day_range})</span>}
         </p>
         <div className="grid grid-cols-3 gap-3">
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Module</p>
-            <p className="text-lg font-bold text-slate-800 tabular-nums">
+          <div className="p-3 bg-surface-base border border-stroke rounded-xl">
+            <p className="text-[10px] text-ink-muted uppercase tracking-wider mb-1">Module</p>
+            <p className="text-lg font-bold text-ink-primary tabular-nums">
               {(d.weekly_module_count || 0).toLocaleString()}
             </p>
-            <p className="text-xs text-slate-500">Plan: {(d.weekly_module_plan || 0).toLocaleString()}</p>
+            <p className="text-xs text-ink-muted">Plan: {(d.weekly_module_plan || 0).toLocaleString()}</p>
             <p className={`text-xs font-bold mt-1 ${
-              (d.weekly_module_efficiency || 0) >= 100 ? 'text-emerald-600'
-              : (d.weekly_module_efficiency || 0) >= 80 ? 'text-amber-600'
+              (d.weekly_module_efficiency || 0) >= 100 ? 'text-emerald-400'
+              : (d.weekly_module_efficiency || 0) >= 80 ? 'text-amber-400'
               : 'text-red-500'
             }`}>{d.weekly_module_efficiency || 0}% eff.</p>
           </div>
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Assembly</p>
-            <p className="text-lg font-bold text-slate-800 tabular-nums">
+          <div className="p-3 bg-surface-base border border-stroke rounded-xl">
+            <p className="text-[10px] text-ink-muted uppercase tracking-wider mb-1">Assembly</p>
+            <p className="text-lg font-bold text-ink-primary tabular-nums">
               {(d.weekly_assembly_count || 0).toLocaleString()}
             </p>
-            <p className="text-xs text-slate-500">Plan: {(d.weekly_assembly_plan || 0).toLocaleString()}</p>
+            <p className="text-xs text-ink-muted">Plan: {(d.weekly_assembly_plan || 0).toLocaleString()}</p>
             <p className={`text-xs font-bold mt-1 ${
-              (d.weekly_assembly_efficiency || 0) >= 100 ? 'text-emerald-600'
-              : (d.weekly_assembly_efficiency || 0) >= 80 ? 'text-amber-600'
+              (d.weekly_assembly_efficiency || 0) >= 100 ? 'text-emerald-400'
+              : (d.weekly_assembly_efficiency || 0) >= 80 ? 'text-amber-400'
               : 'text-red-500'
             }`}>{d.weekly_assembly_efficiency || 0}% eff.</p>
           </div>
-          <div className="p-3 bg-red-50 border border-red-100 rounded-xl">
+          <div className="p-3 bg-signal-error/10 border border-signal-error/20 rounded-xl">
             <p className="text-[10px] text-red-400 uppercase tracking-wider mb-1">Weekly NG</p>
-            <p className="text-lg font-bold text-slate-800 tabular-nums">{d.weekly_total_ng || 0}</p>
-            <p className="text-xs text-slate-500 mt-1">{d.days_counted || 0} day(s)</p>
+            <p className="text-lg font-bold text-ink-primary tabular-nums">{d.weekly_total_ng || 0}</p>
+            <p className="text-xs text-ink-muted mt-1">{d.days_counted || 0} day(s)</p>
           </div>
         </div>
       </div>
@@ -342,9 +342,9 @@ const EmailSettings = () => {
     lastSent,
   };
   const metricColors = {
-    time:       'text-teal-600',
-    status:     scheduleConfig.enabled ? 'text-emerald-600' : 'text-slate-400',
-    recipients: 'text-cyan-600',
+    time:       'text-teal-400',
+    status:     scheduleConfig.enabled ? 'text-emerald-400' : 'text-ink-muted',
+    recipients: 'text-cyan-400',
     lastSent:   'text-amber-500',
   };
 
@@ -441,7 +441,7 @@ const EmailSettings = () => {
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen p-4 md:p-6"
-      style={{ fontFamily: "'Inter', system-ui, sans-serif", background: 'rgba(248, 250, 252, 0.8)' }}
+      style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
     >
       {/* Toast */}
       {message.text && (
@@ -456,12 +456,12 @@ const EmailSettings = () => {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-9 h-9 rounded-lg bg-teal-50 flex items-center justify-center">
-              <Mail size={18} className="text-teal-600" />
+            <div className="w-9 h-9 rounded-lg bg-teal-500/10 flex items-center justify-center">
+              <Mail size={18} className="text-teal-400" />
             </div>
             <div>
-              <h1 className="text-xl md:text-2xl font-semibold text-slate-800">Email Configuration</h1>
-              <p className="text-sm text-slate-500">Automated production reports & notifications</p>
+              <h1 className="text-xl md:text-2xl font-semibold text-ink-primary">Email Configuration</h1>
+              <p className="text-sm text-ink-muted">Automated production reports & notifications</p>
             </div>
           </div>
         </div>
@@ -475,7 +475,7 @@ const EmailSettings = () => {
                 <div className={`absolute top-0 inset-x-0 h-[3px] ${m.accent}`} />
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400 mb-1.5">{m.label}</p>
+                    <p className="text-[11px] font-medium uppercase tracking-wider text-ink-muted mb-1.5">{m.label}</p>
                     <p className={`text-2xl font-bold tabular-nums ${metricColors[m.key]}`}>{metricValues[m.key]}</p>
                   </div>
                   <div className={`w-8 h-8 rounded-lg ${m.iconBg} flex items-center justify-center flex-shrink-0`}>
@@ -488,24 +488,24 @@ const EmailSettings = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 p-1 bg-slate-100 rounded-lg mb-6 overflow-x-auto">
+        <div className="flex gap-1 p-1 bg-surface-raised rounded-lg mb-6 overflow-x-auto">
           {tabs.map(({ id, label, icon: Icon }) => {
             const active = activeTab === id;
             return (
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md transition-colors duration-150 whitespace-nowrap ${active ? 'bg-white text-slate-900 shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-md transition-colors duration-150 whitespace-nowrap ${active ? 'bg-surface-panel text-ink-primary shadow-sm border border-stroke' : 'text-ink-muted hover:text-ink-secondary'}`}
               >
                 <Icon size={15} />
                 <span>{label}</span>
                 {id === 'recipients' && recipients.length > 0 && (
-                  <span className={`ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded ${active ? 'bg-teal-50 text-teal-600' : 'bg-slate-200 text-slate-500'}`}>
+                  <span className={`ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded ${active ? 'bg-teal-500/10 text-teal-400' : 'bg-surface-raised text-ink-muted'}`}>
                     {recipients.length}
                   </span>
                 )}
                 {id === 'history' && historyStats.failed > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-600">
+                  <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold rounded bg-signal-error/15 text-red-400">
                     {historyStats.failed}
                   </span>
                 )}
@@ -519,34 +519,34 @@ const EmailSettings = () => {
         ══════════════════════════════════════════ */}
         {activeTab === 'schedule' && (
           <div className={CARD}>
-            <div className="px-5 md:px-6 pt-5 md:pt-6 pb-4 border-b border-slate-100 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center">
-                <Clock className="w-4 h-4 text-teal-600" />
+            <div className="px-5 md:px-6 pt-5 md:pt-6 pb-4 border-b border-stroke-subtle flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                <Clock className="w-4 h-4 text-teal-400" />
               </div>
-              <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wider">Schedule Settings</h2>
+              <h2 className="text-sm font-semibold text-ink-primary uppercase tracking-wider">Schedule Settings</h2>
             </div>
 
             <div className="p-5 md:p-6 space-y-5">
               {/* Time + Toggle */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="p-4 bg-slate-50/80 border border-slate-200/60 rounded-xl">
-                  <label className="block text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">
-                    Daily Send Time <span className="ml-1 text-slate-300 font-normal normal-case">(PST / PDT)</span>
+                <div className="p-4 bg-surface-base border border-stroke rounded-xl">
+                  <label className="block text-[11px] font-medium text-ink-muted uppercase tracking-wider mb-2">
+                    Daily Send Time <span className="ml-1 text-ink-muted font-normal normal-case">(PST / PDT)</span>
                   </label>
                   <input
                     type="time"
                     value={scheduleConfig.send_time}
                     onChange={(e) => setScheduleConfig({ ...scheduleConfig, send_time: e.target.value })}
-                    className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-lg text-xl font-mono font-bold text-slate-800 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
+                    className="w-full px-4 py-3 bg-surface-raised border-2 border-stroke rounded-lg text-xl font-mono font-bold text-ink-primary focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
                   />
-                  <p className="text-[11px] text-slate-400 mt-2">Report is sent automatically at this time daily</p>
+                  <p className="text-[11px] text-ink-muted mt-2">Report is sent automatically at this time daily</p>
                 </div>
 
-                <div className="p-4 bg-slate-50/80 border border-slate-200/60 rounded-xl flex flex-col gap-3">
+                <div className="p-4 bg-surface-base border border-stroke rounded-xl flex flex-col gap-3">
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-slate-800">Automated Sending</p>
-                      <p className="text-xs text-slate-500 mt-1">Enable scheduled daily reports</p>
+                      <p className="text-sm font-semibold text-ink-primary">Automated Sending</p>
+                      <p className="text-xs text-ink-muted mt-1">Enable scheduled daily reports</p>
                     </div>
                     <label className="swiss-toggle mt-0.5">
                       <input
@@ -557,8 +557,8 @@ const EmailSettings = () => {
                       <span className="swiss-toggle-track" />
                     </label>
                   </div>
-                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold w-fit ${scheduleConfig.enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                    <div className={`w-2 h-2 rounded-full ${scheduleConfig.enabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold w-fit ${scheduleConfig.enabled ? 'bg-signal-ok/10 text-emerald-400' : 'bg-surface-raised text-ink-muted'}`}>
+                    <div className={`w-2 h-2 rounded-full ${scheduleConfig.enabled ? 'bg-signal-ok animate-pulse' : 'bg-ink-muted'}`} />
                     {scheduleConfig.enabled ? 'Active' : 'Inactive'}
                   </div>
                 </div>
@@ -566,20 +566,20 @@ const EmailSettings = () => {
 
               {/* Plan B: Next send / Last sent row */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-4 bg-teal-50/60 border border-teal-100 rounded-xl">
+                <div className="p-4 bg-teal-500/10 border border-teal-500/20 rounded-xl">
                   <p className="text-[10px] font-semibold text-teal-500 uppercase tracking-wider mb-1">Next Send In</p>
-                  <p className={`text-2xl font-bold tabular-nums ${scheduleConfig.enabled ? 'text-teal-700' : 'text-slate-400'}`}>
+                  <p className={`text-2xl font-bold tabular-nums ${scheduleConfig.enabled ? 'text-teal-400' : 'text-ink-muted'}`}>
                     {scheduleConfig.enabled ? countdown : '—'}
                   </p>
-                  <p className="text-[11px] text-slate-400 mt-1">
+                  <p className="text-[11px] text-ink-muted mt-1">
                     At {scheduleConfig.send_time} PST/PDT
                   </p>
                 </div>
-                <div className="p-4 bg-slate-50 border border-slate-200/60 rounded-xl">
-                  <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Last Sent</p>
-                  <p className="text-sm font-semibold text-slate-700 leading-snug">{lastSent}</p>
+                <div className="p-4 bg-surface-base border border-stroke rounded-xl">
+                  <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-1">Last Sent</p>
+                  <p className="text-sm font-semibold text-ink-secondary leading-snug">{lastSent}</p>
                   {emailHistory.length > 0 && (
-                    <span className={`text-[11px] font-bold ${emailHistory[0].status === 'success' ? 'text-emerald-600' : 'text-red-500'}`}>
+                    <span className={`text-[11px] font-bold ${emailHistory[0].status === 'success' ? 'text-emerald-400' : 'text-red-500'}`}>
                       {emailHistory[0].status === 'success' ? '✓ Success' : '✗ Failed'}
                     </span>
                   )}
@@ -587,7 +587,7 @@ const EmailSettings = () => {
               </div>
 
               {/* Save + Trigger Now */}
-              <div className="pt-5 border-t border-slate-100 flex flex-wrap gap-3">
+              <div className="pt-5 border-t border-stroke-subtle flex flex-wrap gap-3">
                 <button
                   onClick={updateEmailConfig}
                   disabled={loading}
@@ -604,7 +604,7 @@ const EmailSettings = () => {
                     triggerSend(null);
                   }}
                   disabled={loading || !scheduleConfig.enabled || activeRecipients === 0}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-signal-warn hover:bg-amber-600 text-white text-sm font-semibold rounded-lg transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
                   title={activeRecipients === 0 ? 'No active recipients' : 'Send report immediately'}
                 >
                   <Zap size={15} />
@@ -620,20 +620,20 @@ const EmailSettings = () => {
         ══════════════════════════════════════════ */}
         {activeTab === 'recipients' && (
           <div className={CARD}>
-            <div className="px-5 md:px-6 pt-5 md:pt-6 pb-4 border-b border-slate-100 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-cyan-50 flex items-center justify-center">
-                <Users className="w-4 h-4 text-cyan-600" />
+            <div className="px-5 md:px-6 pt-5 md:pt-6 pb-4 border-b border-stroke-subtle flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-signal-info/10 flex items-center justify-center">
+                <Users className="w-4 h-4 text-cyan-400" />
               </div>
               <div className="flex-1">
-                <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wider">
+                <h2 className="text-sm font-semibold text-ink-primary uppercase tracking-wider">
                   Recipients
-                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-500 tabular-nums normal-case">
+                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-surface-raised text-ink-muted tabular-nums normal-case">
                     {recipients.length}
                   </span>
                 </h2>
               </div>
               <div className="flex items-center gap-3">
-                <span className="hidden sm:block text-xs text-slate-400">{activeRecipients} active</span>
+                <span className="hidden sm:block text-xs text-ink-muted">{activeRecipients} active</span>
                 <button
                   onClick={() => setShowAddForm(!showAddForm)}
                   className="flex items-center gap-1.5 px-3.5 py-2 bg-teal-600 text-white text-sm font-semibold rounded-lg hover:bg-teal-700 transition-colors duration-150 shadow-sm"
@@ -646,31 +646,31 @@ const EmailSettings = () => {
 
             <div className="p-5 md:p-6">
               {showAddForm && (
-                <div className="mb-5 pb-5 border-b border-slate-100">
-                  <div className="p-4 bg-teal-50/50 border border-teal-200/60 rounded-xl">
-                    <p className="text-[11px] font-medium text-teal-600 uppercase tracking-wider mb-3">New Recipient</p>
+                <div className="mb-5 pb-5 border-b border-stroke-subtle">
+                  <div className="p-4 bg-teal-500/10 border border-teal-500/30 rounded-xl">
+                    <p className="text-[11px] font-medium text-teal-400 uppercase tracking-wider mb-3">New Recipient</p>
                     <form onSubmit={addRecipient} className="flex flex-col md:flex-row gap-3 items-end">
                       <div className="flex-1 w-full">
-                        <label htmlFor="recipient-email" className="block text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1.5">Email *</label>
+                        <label htmlFor="recipient-email" className="block text-[11px] font-medium text-ink-muted uppercase tracking-wider mb-1.5">Email *</label>
                         <input
                           id="recipient-email"
                           type="email"
                           placeholder="name@company.com"
                           value={newRecipient.email}
                           onChange={(e) => setNewRecipient({ ...newRecipient, email: e.target.value })}
-                          className="w-full px-4 py-2.5 bg-white border-2 border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
+                          className="w-full px-4 py-2.5 bg-surface-raised border-2 border-stroke rounded-lg text-sm text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
                           required
                         />
                       </div>
                       <div className="flex-1 w-full">
-                        <label htmlFor="recipient-name" className="block text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1.5">Name</label>
+                        <label htmlFor="recipient-name" className="block text-[11px] font-medium text-ink-muted uppercase tracking-wider mb-1.5">Name</label>
                         <input
                           id="recipient-name"
                           type="text"
                           placeholder="Optional"
                           value={newRecipient.display_name}
                           onChange={(e) => setNewRecipient({ ...newRecipient, display_name: e.target.value })}
-                          className="w-full px-4 py-2.5 bg-white border-2 border-slate-200 rounded-lg text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
+                          className="w-full px-4 py-2.5 bg-surface-raised border-2 border-stroke rounded-lg text-sm text-ink-primary placeholder:text-ink-muted focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
                         />
                       </div>
                       <div className="flex gap-2 w-full md:w-auto">
@@ -679,7 +679,7 @@ const EmailSettings = () => {
                           <Plus size={15} /><span>Add</span>
                         </button>
                         <button type="button" onClick={() => setShowAddForm(false)}
-                          className="px-4 py-2.5 bg-slate-100 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors duration-150">
+                          className="px-4 py-2.5 bg-surface-raised text-ink-secondary text-sm font-medium rounded-lg hover:bg-surface-raised transition-colors duration-150">
                           Cancel
                         </button>
                       </div>
@@ -690,36 +690,36 @@ const EmailSettings = () => {
 
               {recipients.length === 0 ? (
                 <div className="py-16 text-center">
-                  <Users size={40} className="text-slate-200 mx-auto mb-3" />
-                  <p className="text-base text-slate-400">No recipients configured</p>
-                  <p className="text-xs text-slate-400 mt-1">Click "Add" to get started</p>
+                  <Users size={40} className="text-ink-muted mx-auto mb-3" />
+                  <p className="text-base text-ink-muted">No recipients configured</p>
+                  <p className="text-xs text-ink-muted mt-1">Click "Add" to get started</p>
                 </div>
               ) : (
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-stroke-subtle">
                   {recipients.map((r) => (
                     <div key={r.id} className="flex items-center gap-4 py-4 group">
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-semibold text-sm flex-shrink-0 ${r.is_active ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-400'}`}>
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center font-semibold text-sm flex-shrink-0 ${r.is_active ? 'bg-signal-info/10 text-cyan-400' : 'bg-surface-raised text-ink-muted'}`}>
                         {(r.display_name || r.email).charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{r.display_name || r.email}</p>
-                        {r.display_name && <p className="text-[11px] text-slate-400 truncate mt-0.5">{r.email}</p>}
+                        <p className="text-sm font-medium text-ink-primary truncate">{r.display_name || r.email}</p>
+                        {r.display_name && <p className="text-[11px] text-ink-muted truncate mt-0.5">{r.email}</p>}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <button
                           onClick={() => toggleRecipient(r.id, r.is_active)}
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors duration-150 ${
                             r.is_active
-                              ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
-                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200'
+                              ? 'bg-signal-ok/10 text-emerald-400 hover:bg-signal-ok/15 border border-emerald-500/30'
+                              : 'bg-surface-raised text-ink-muted hover:bg-surface-raised border border-stroke'
                           }`}
                         >
-                          <div className={`w-1.5 h-1.5 rounded-full ${r.is_active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                          <div className={`w-1.5 h-1.5 rounded-full ${r.is_active ? 'bg-signal-ok' : 'bg-ink-muted'}`} />
                           {r.is_active ? 'Active' : 'Inactive'}
                         </button>
                         <button
                           onClick={() => deleteRecipient(r.id)}
-                          className="p-2 text-slate-300 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-150"
+                          className="p-2 text-ink-muted hover:text-red-400 hover:bg-signal-error/10 rounded-lg transition-colors duration-150"
                           title="Delete permanently"
                         >
                           <Trash2 size={15} />
@@ -738,18 +738,18 @@ const EmailSettings = () => {
         ══════════════════════════════════════════ */}
         {activeTab === 'test' && (
           <div className={CARD}>
-            <div className="px-5 md:px-6 pt-5 md:pt-6 pb-4 border-b border-slate-100 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-teal-600" />
+            <div className="px-5 md:px-6 pt-5 md:pt-6 pb-4 border-b border-stroke-subtle flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center">
+                <Zap className="w-4 h-4 text-teal-400" />
               </div>
-              <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wider">Test & Preview</h2>
+              <h2 className="text-sm font-semibold text-ink-primary uppercase tracking-wider">Test & Preview</h2>
             </div>
 
             <div className="p-5 md:p-6 space-y-5">
 
               {/* Plan C: Send-to selector */}
-              <div className="p-4 bg-slate-50/80 border border-slate-200/60 rounded-xl space-y-4">
-                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Send To</p>
+              <div className="p-4 bg-surface-base border border-stroke rounded-xl space-y-4">
+                <p className="text-[11px] font-bold text-ink-muted uppercase tracking-wider">Send To</p>
 
                 {/* All recipients */}
                 <label className="flex items-center gap-3 cursor-pointer">
@@ -762,8 +762,8 @@ const EmailSettings = () => {
                     className="w-4 h-4 accent-teal-600"
                   />
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-700">All active recipients</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${activeRecipients > 0 ? 'bg-cyan-50 text-cyan-700' : 'bg-slate-100 text-slate-400'}`}>
+                    <span className="text-sm font-medium text-ink-secondary">All active recipients</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${activeRecipients > 0 ? 'bg-signal-info/10 text-cyan-400' : 'bg-surface-raised text-ink-muted'}`}>
                       {activeRecipients} {activeRecipients === 1 ? 'person' : 'people'}
                     </span>
                   </div>
@@ -780,18 +780,18 @@ const EmailSettings = () => {
                       onChange={() => setSendToMode('specific')}
                       className="w-4 h-4 accent-teal-600"
                     />
-                    <span className="text-sm font-medium text-slate-700">Specific person</span>
+                    <span className="text-sm font-medium text-ink-secondary">Specific person</span>
                   </label>
 
                   {sendToMode === 'specific' && (
                     <div className="ml-7">
                       {recipients.filter(r => r.is_active).length === 0 ? (
-                        <p className="text-sm text-slate-400 italic">No active recipients available</p>
+                        <p className="text-sm text-ink-muted italic">No active recipients available</p>
                       ) : (
                         <select
                           value={specificEmail}
                           onChange={(e) => setSpecificEmail(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-white border-2 border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
+                          className="w-full px-4 py-2.5 bg-surface-raised border-2 border-stroke rounded-lg text-sm text-ink-secondary focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all"
                         >
                           <option value="">Select recipient…</option>
                           {recipients.filter(r => r.is_active).map(r => (
@@ -807,13 +807,13 @@ const EmailSettings = () => {
               </div>
 
               {/* Info banner */}
-              <div className="flex items-start gap-3 p-4 bg-amber-50/60 border border-amber-200/60 rounded-xl">
+              <div className="flex items-start gap-3 p-4 bg-signal-warn/10 border border-amber-500/30 rounded-xl">
                 <AlertCircle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-slate-600 leading-relaxed">
+                <p className="text-sm text-ink-secondary leading-relaxed">
                   {sendToMode === 'all'
-                    ? <>Test email will be sent to all <strong className="text-slate-800">{activeRecipients} active</strong> recipient(s) with current production data.</>
+                    ? <>Test email will be sent to all <strong className="text-ink-primary">{activeRecipients} active</strong> recipient(s) with current production data.</>
                     : specificEmail
-                      ? <>Test email will be sent only to <strong className="text-slate-800">{specificEmail}</strong>.</>
+                      ? <>Test email will be sent only to <strong className="text-ink-primary">{specificEmail}</strong>.</>
                       : <>Select a recipient from the dropdown above.</>
                   }
                 </p>
@@ -832,7 +832,7 @@ const EmailSettings = () => {
                 <button
                   onClick={fetchPreview}
                   disabled={loading}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-white border-2 border-slate-200 text-sm font-semibold text-slate-700 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-colors duration-150 disabled:opacity-50"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-surface-panel border-2 border-stroke text-sm font-semibold text-ink-secondary rounded-lg hover:bg-surface-raised hover:border-stroke transition-colors duration-150 disabled:opacity-50"
                 >
                   <Eye size={15} />
                   {loading ? 'Loading…' : 'Preview Report Data'}
@@ -841,20 +841,20 @@ const EmailSettings = () => {
 
               {/* Plan C: Send result confirmation */}
               {lastSendResult && (
-                <div className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-                  <CheckCircle size={18} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div className="flex items-start gap-3 p-4 bg-signal-ok/10 border border-emerald-500/30 rounded-xl">
+                  <CheckCircle size={18} className="text-emerald-400 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-emerald-700">Email sent successfully</p>
-                    <p className="text-xs text-slate-500 mt-1 truncate">
+                    <p className="text-sm font-semibold text-emerald-400">Email sent successfully</p>
+                    <p className="text-xs text-ink-muted mt-1 truncate">
                       To: {lastSendResult.recipients.join(', ')}
                     </p>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-xs text-ink-muted mt-0.5">
                       At: {fmtDate(lastSendResult.sent_at)}
                     </p>
                   </div>
                   <button
                     onClick={() => setLastSendResult(null)}
-                    className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors flex-shrink-0"
+                    className="p-1 text-ink-muted hover:text-ink-secondary rounded transition-colors flex-shrink-0"
                   >
                     <X size={14} />
                   </button>
@@ -863,12 +863,12 @@ const EmailSettings = () => {
 
               {/* Plan A: Structured preview (replaces raw JSON) */}
               {showPreview && previewData && (
-                <div className="pt-5 border-t border-slate-100">
+                <div className="pt-5 border-t border-stroke-subtle">
                   <div className="flex items-center justify-between mb-4">
-                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Report Data Preview</p>
+                    <p className="text-[11px] font-bold text-ink-muted uppercase tracking-wider">Report Data Preview</p>
                     <button
                       onClick={() => setShowPreview(false)}
-                      className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                      className="p-1.5 text-ink-muted hover:text-ink-secondary hover:bg-surface-raised rounded-lg transition-colors"
                     >
                       <X size={14} />
                     </button>
@@ -885,14 +885,14 @@ const EmailSettings = () => {
         ══════════════════════════════════════════ */}
         {activeTab === 'history' && (
           <div className={CARD}>
-            <div className="px-5 md:px-6 pt-5 md:pt-6 pb-4 border-b border-slate-100 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center">
-                <History className="w-4 h-4 text-slate-500" />
+            <div className="px-5 md:px-6 pt-5 md:pt-6 pb-4 border-b border-stroke-subtle flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-surface-raised flex items-center justify-center">
+                <History className="w-4 h-4 text-ink-muted" />
               </div>
-              <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wider">Send History</h2>
+              <h2 className="text-sm font-semibold text-ink-primary uppercase tracking-wider">Send History</h2>
               <button
                 onClick={fetchEmailHistory}
-                className="ml-auto flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-teal-600 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-colors"
+                className="ml-auto flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-teal-400 hover:text-teal-400 hover:bg-teal-500/10 rounded-lg transition-colors"
               >
                 <RefreshCw size={14} />
                 Refresh
@@ -903,40 +903,40 @@ const EmailSettings = () => {
 
               {/* Plan D: Stats row */}
               <div className="grid grid-cols-4 gap-3">
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
-                  <p className="text-xl font-bold text-slate-800 tabular-nums">{historyStats.total}</p>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">Total</p>
+                <div className="p-3 bg-surface-base border border-stroke rounded-xl text-center">
+                  <p className="text-xl font-bold text-ink-primary tabular-nums">{historyStats.total}</p>
+                  <p className="text-[10px] text-ink-muted uppercase tracking-wider mt-0.5">Total</p>
                 </div>
-                <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl text-center">
-                  <p className="text-xl font-bold text-emerald-700 tabular-nums">{historyStats.success}</p>
+                <div className="p-3 bg-signal-ok/10 border border-signal-ok/20 rounded-xl text-center">
+                  <p className="text-xl font-bold text-emerald-400 tabular-nums">{historyStats.success}</p>
                   <p className="text-[10px] text-emerald-500 uppercase tracking-wider mt-0.5">Success</p>
                 </div>
-                <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-center">
-                  <p className="text-xl font-bold text-red-600 tabular-nums">{historyStats.failed}</p>
+                <div className="p-3 bg-signal-error/10 border border-signal-error/20 rounded-xl text-center">
+                  <p className="text-xl font-bold text-red-400 tabular-nums">{historyStats.failed}</p>
                   <p className="text-[10px] text-red-400 uppercase tracking-wider mt-0.5">Failed</p>
                 </div>
                 <div className={`p-3 border rounded-xl text-center ${
-                  historyStats.rate >= 90 ? 'bg-emerald-50 border-emerald-100'
-                  : historyStats.rate >= 70 ? 'bg-amber-50 border-amber-100'
-                  : 'bg-red-50 border-red-100'
+                  historyStats.rate >= 90 ? 'bg-signal-ok/10 border-signal-ok/20'
+                  : historyStats.rate >= 70 ? 'bg-signal-warn/10 border-signal-warn/20'
+                  : 'bg-signal-error/10 border-signal-error/20'
                 }`}>
                   <p className={`text-xl font-bold tabular-nums ${
-                    historyStats.rate >= 90 ? 'text-emerald-700'
-                    : historyStats.rate >= 70 ? 'text-amber-600'
-                    : 'text-red-600'
+                    historyStats.rate >= 90 ? 'text-emerald-400'
+                    : historyStats.rate >= 70 ? 'text-amber-400'
+                    : 'text-red-400'
                   }`}>{historyStats.rate}%</p>
-                  <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">Success Rate</p>
+                  <p className="text-[10px] text-ink-muted uppercase tracking-wider mt-0.5">Success Rate</p>
                 </div>
               </div>
 
               {/* Plan D: 7-day bar chart */}
               {emailHistory.length > 0 && (
                 <div>
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  <p className="text-[11px] font-bold text-ink-muted uppercase tracking-wider mb-2">
                     Last 7 Days
-                    <span className="ml-2 font-normal normal-case text-slate-300">(stacked: success / failed)</span>
+                    <span className="ml-2 font-normal normal-case text-ink-muted">(stacked: success / failed)</span>
                   </p>
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="p-3 bg-surface-base border border-stroke rounded-xl">
                     <ResponsiveContainer width="100%" height={80}>
                       <BarChart data={chartData} barSize={22} barGap={3}>
                         <XAxis
@@ -973,7 +973,7 @@ const EmailSettings = () => {
                         ? f.key === 'success' ? 'bg-emerald-600 text-white'
                           : f.key === 'failed' ? 'bg-red-600 text-white'
                           : 'bg-slate-700 text-white'
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                        : 'bg-surface-raised text-ink-muted hover:bg-surface-raised'
                     }`}
                   >
                     {f.label}
@@ -984,29 +984,29 @@ const EmailSettings = () => {
               {/* History table */}
               {filteredHistory.length === 0 ? (
                 <div className="py-12 text-center">
-                  <History size={36} className="text-slate-200 mx-auto mb-3" />
-                  <p className="text-sm text-slate-400">
+                  <History size={36} className="text-ink-muted mx-auto mb-3" />
+                  <p className="text-sm text-ink-muted">
                     {historyFilter === 'all' ? 'No history available' : `No ${historyFilter} records`}
                   </p>
                 </div>
               ) : (
                 <div className="overflow-x-auto -mx-5 md:-mx-6 px-5 md:px-6">
                   {/* Desktop header */}
-                  <div className="hidden md:grid grid-cols-[100px_160px_140px_1fr] gap-4 px-4 py-2.5 bg-slate-50 rounded-lg mb-1">
-                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Status</span>
-                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Date</span>
-                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Trigger</span>
-                    <span className="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Recipients</span>
+                  <div className="hidden md:grid grid-cols-[100px_160px_140px_1fr] gap-4 px-4 py-2.5 bg-surface-base rounded-lg mb-1">
+                    <span className="text-[11px] font-medium text-ink-muted uppercase tracking-wider">Status</span>
+                    <span className="text-[11px] font-medium text-ink-muted uppercase tracking-wider">Date</span>
+                    <span className="text-[11px] font-medium text-ink-muted uppercase tracking-wider">Trigger</span>
+                    <span className="text-[11px] font-medium text-ink-muted uppercase tracking-wider">Recipients</span>
                   </div>
 
-                  <div className="divide-y divide-slate-100">
+                  <div className="divide-y divide-stroke-subtle">
                     {filteredHistory.map((rec) => {
                       const recipientList = parseRecipients(rec.recipients);
                       const isExpanded    = expandedHistory === rec.id;
                       const statusClass   =
-                        rec.status === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : rec.status === 'failed' ? 'bg-red-50 text-red-700 border-red-200'
-                        : 'bg-amber-50 text-amber-700 border-amber-200';
+                        rec.status === 'success' ? 'bg-signal-ok/10 text-emerald-400 border-emerald-500/30'
+                        : rec.status === 'failed' ? 'bg-signal-error/10 text-red-400 border-red-500/30'
+                        : 'bg-signal-warn/10 text-amber-400 border-amber-500/30';
                       const StatusIcon    =
                         rec.status === 'success' ? CheckCircle
                         : rec.status === 'failed' ? XCircle : AlertCircle;
@@ -1014,16 +1014,16 @@ const EmailSettings = () => {
                       return (
                         <div key={rec.id} className="group">
                           {/* Desktop row */}
-                          <div className="hidden md:grid grid-cols-[100px_160px_140px_1fr] gap-4 px-4 py-3.5 items-center hover:bg-slate-50/60 rounded-lg transition-colors">
+                          <div className="hidden md:grid grid-cols-[100px_160px_140px_1fr] gap-4 px-4 py-3.5 items-center hover:bg-surface-raised rounded-lg transition-colors">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold w-fit uppercase tracking-wide border ${statusClass}`}>
                               <StatusIcon size={12} />
                               {rec.status}
                             </span>
-                            <span className="text-sm text-slate-600 font-mono tabular-nums">{fmtDate(rec.sent_at)}</span>
-                            <span className="text-sm text-slate-600 font-medium">{rec.triggered_by}</span>
+                            <span className="text-sm text-ink-secondary font-mono tabular-nums">{fmtDate(rec.sent_at)}</span>
+                            <span className="text-sm text-ink-secondary font-medium">{rec.triggered_by}</span>
                             <button
                               onClick={() => setExpandedHistory(isExpanded ? null : rec.id)}
-                              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-600 transition-colors w-fit"
+                              className="flex items-center gap-2 px-3 py-1.5 bg-surface-raised hover:bg-surface-raised rounded-lg text-xs font-bold text-ink-secondary transition-colors w-fit"
                             >
                               <Users size={12} />
                               <span>{recipientList.length}</span>
@@ -1038,15 +1038,15 @@ const EmailSettings = () => {
                                 <StatusIcon size={12} />
                                 {rec.status}
                               </span>
-                              <span className="text-xs text-slate-400 font-mono tabular-nums">{fmtDate(rec.sent_at)}</span>
+                              <span className="text-xs text-ink-muted font-mono tabular-nums">{fmtDate(rec.sent_at)}</span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="text-sm text-slate-500">
-                                Trigger: <span className="font-medium text-slate-700">{rec.triggered_by}</span>
+                              <span className="text-sm text-ink-muted">
+                                Trigger: <span className="font-medium text-ink-secondary">{rec.triggered_by}</span>
                               </span>
                               <button
                                 onClick={() => setExpandedHistory(isExpanded ? null : rec.id)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-bold text-slate-600"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-raised rounded-lg text-xs font-bold text-ink-secondary"
                               >
                                 <span>{recipientList.length}</span>
                                 {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -1057,11 +1057,11 @@ const EmailSettings = () => {
                           {/* Expanded recipient list */}
                           {isExpanded && (
                             <div className="px-4 pb-4 md:pl-[116px]">
-                              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/60">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Recipient List</p>
+                              <div className="p-3.5 bg-surface-base rounded-xl border border-stroke/60">
+                                <p className="text-[10px] font-bold text-ink-muted uppercase tracking-wider mb-2">Recipient List</p>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1.5">
                                   {recipientList.map((email, i) => (
-                                    <span key={i} className="text-xs text-slate-600 font-mono truncate bg-white px-2.5 py-1.5 rounded-md border border-slate-100">
+                                    <span key={i} className="text-xs text-ink-secondary font-mono truncate bg-surface-panel px-2.5 py-1.5 rounded-md border border-stroke-subtle">
                                       {email}
                                     </span>
                                   ))}
@@ -1072,7 +1072,7 @@ const EmailSettings = () => {
 
                           {/* Error message */}
                           {rec.error_message && (
-                            <div className="mx-4 mb-4 flex items-center gap-3 px-4 py-3 bg-red-50 border border-red-200/60 rounded-xl text-sm text-red-700">
+                            <div className="mx-4 mb-4 flex items-center gap-3 px-4 py-3 bg-signal-error/10 border border-red-500/30 rounded-xl text-sm text-red-400">
                               <AlertCircle size={14} className="flex-shrink-0" />
                               <span>{rec.error_message}</span>
                             </div>

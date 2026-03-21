@@ -48,10 +48,10 @@ function formatTime(iso) {
   }
 }
 
-function InfoRow({ label, value, mono = false, tone = "text-stone-700" }) {
+function InfoRow({ label, value, mono = false, tone = "text-ink-secondary" }) {
   if (!value || value === "-") return null;
   return (
-    <div className="rounded-md bg-stone-50 px-3 py-2 border border-stone-100">
+    <div className="rounded-md bg-surface-base px-3 py-2 border border-stroke-subtle">
       <div className="text-[11px] font-semibold uppercase tracking-wide text-stone-400 mb-1">{label}</div>
       <div className={`text-xs break-all ${mono ? "font-mono" : ""} ${tone}`}>{value}</div>
     </div>
@@ -75,7 +75,7 @@ export default function APowerCard({ card, index, stageId, onAdvance, onMove, on
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96 }}
       transition={{ duration: 0.2, ease: "easeOut", delay: Math.min(index * 0.03, 0.3) }}
-      className={`bg-white border border-stone-200 border-l-4 ${borderClass} rounded-lg shadow-sm`}
+      className={`bg-surface-panel border border-stroke border-l-4 ${borderClass} rounded-lg shadow-sm`}
       draggable={movable}
       onDragStart={(e) => {
         if (!movable) return;
@@ -103,16 +103,16 @@ export default function APowerCard({ card, index, stageId, onAdvance, onMove, on
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-mono font-semibold text-stone-800 text-sm truncate">
+            <span className="font-mono font-semibold text-ink-primary text-sm truncate">
               {card.us_sn}
             </span>
             {card.risk_score > 0.4 && (
-              <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-200">
+              <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-signal-error/15 text-red-400 border border-red-500/30">
                 High Risk
               </span>
             )}
             {card.risk_score > 0.15 && card.risk_score <= 0.4 && (
-              <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">
+              <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-signal-warn/15 text-amber-400 border border-amber-500/30">
                 Med Risk
               </span>
             )}
@@ -129,7 +129,7 @@ export default function APowerCard({ card, index, stageId, onAdvance, onMove, on
         {!confirming && nextLabel && movable && (
           <button
             onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
-            className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md bg-stone-100 hover:bg-teal-50 border border-stone-200 hover:border-teal-300 text-xs text-stone-500 hover:text-teal-700 transition-colors min-h-[28px]"
+            className="shrink-0 flex items-center gap-1 px-2 py-1 rounded-md bg-surface-raised hover:bg-teal-500/10 border border-stroke hover:border-teal-300 text-xs text-ink-muted hover:text-teal-400 transition-colors min-h-[28px]"
           >
             <ArrowRight size={11} />
           </button>
@@ -148,7 +148,7 @@ export default function APowerCard({ card, index, stageId, onAdvance, onMove, on
             </motion.button>
             <button
               onClick={(e) => { e.stopPropagation(); setConfirming(false); }}
-              className="px-1.5 py-1 rounded-md text-stone-400 hover:text-stone-600 min-h-[28px]"
+              className="px-1.5 py-1 rounded-md text-stone-400 hover:text-ink-secondary min-h-[28px]"
             >
               <X size={11} />
             </button>
@@ -156,7 +156,7 @@ export default function APowerCard({ card, index, stageId, onAdvance, onMove, on
         )}
 
         {stageId === "shipped" && (
-          <span className="shrink-0 text-xs text-sky-600 font-semibold">Shipped</span>
+          <span className="shrink-0 text-xs text-sky-400 font-semibold">Shipped</span>
         )}
       </div>
 
@@ -169,9 +169,9 @@ export default function APowerCard({ card, index, stageId, onAdvance, onMove, on
             transition={{ duration: 0.2, ease: "easeOut" }}
             style={{ overflow: "hidden" }}
           >
-            <div className="border-t border-stone-100 px-3 py-3 space-y-3">
+            <div className="border-t border-stroke-subtle px-3 py-3 space-y-3">
               {movable && (
-                <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-3">
+                <div className="rounded-lg border border-stroke bg-surface-base px-3 py-3">
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-stone-400 mb-2">Move To Stage</div>
                   <div className="grid grid-cols-2 gap-2">
                     {STAGE_ORDER.map((targetStage) => {
@@ -188,7 +188,7 @@ export default function APowerCard({ card, index, stageId, onAdvance, onMove, on
                           className={`rounded-md border px-2.5 py-2 text-xs font-semibold transition-colors ${
                             active
                               ? "bg-teal-600 border-teal-600 text-white cursor-default"
-                              : "bg-white border-stone-200 text-stone-600 hover:border-teal-300 hover:text-teal-700"
+                              : "bg-surface-panel border-stroke text-ink-secondary hover:border-teal-300 hover:text-teal-400"
                           }`}
                         >
                           {STAGE_LABEL[targetStage]}
@@ -206,8 +206,8 @@ export default function APowerCard({ card, index, stageId, onAdvance, onMove, on
                 <InfoRow label="Module A" value={card.mod_a} mono />
                 <InfoRow label="Module B" value={card.mod_b} mono />
                 <InfoRow label="Product Line" value={card.product_line} />
-                <InfoRow label="Assembly Status" value={assyStatus} tone={assyStatus === "NG" ? "text-red-600" : "text-stone-700"} />
-                <InfoRow label="NG Reason" value={card.ng_reason} tone="text-red-600" />
+                <InfoRow label="Assembly Status" value={assyStatus} tone={assyStatus === "NG" ? "text-red-400" : "text-ink-secondary"} />
+                <InfoRow label="NG Reason" value={card.ng_reason} tone="text-red-400" />
                 <InfoRow label="Scanned At" value={formatTime(card.scanned_at)} />
                 <InfoRow label="FQC Ready At" value={formatTime(card.fqc_ready_at)} />
                 <InfoRow label="Shipped At" value={formatTime(card.shipped_at)} />

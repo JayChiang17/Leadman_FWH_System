@@ -74,7 +74,7 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
         onClick={onClose}
       >
         <motion.div
-          className="bg-white border border-stone-200 rounded-xl p-6 w-full max-w-xl shadow-xl"
+          className="bg-surface-panel border border-stroke rounded-xl p-6 w-full max-w-xl shadow-xl"
           initial={{ opacity: 0, scale: 0.94, y: 16 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: 16 }}
@@ -85,17 +85,17 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
             <div className="flex items-center gap-2">
               <Zap size={18} className="text-amber-500" />
               <div>
-                <h3 className="text-gray-900 font-bold text-base">Adjust Battery Inventory</h3>
-                <p className="text-xs text-stone-500 mt-0.5">Current system available: {Number(currentAvailable).toLocaleString()}</p>
+                <h3 className="text-ink-primary font-bold text-base">Adjust Battery Inventory</h3>
+                <p className="text-xs text-ink-muted mt-0.5">Current system available: {Number(currentAvailable).toLocaleString()}</p>
               </div>
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center">
+            <button onClick={onClose} className="text-ink-muted hover:text-ink-secondary transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center">
               <X size={18} />
             </button>
           </div>
 
           <div className="mb-4">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">
               Battery Type
             </label>
             <div className="flex gap-2">
@@ -106,7 +106,7 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
                   className={`flex-1 py-2.5 rounded-lg font-bold text-sm border transition-colors duration-150 min-h-[44px]
                     ${kind === k
                       ? "bg-teal-600 border-teal-600 text-white"
-                      : "bg-white border-stone-200 text-gray-600 hover:border-teal-300"
+                      : "bg-surface-panel border-stroke text-ink-secondary hover:border-teal-300"
                     }`}
                 >
                   Battery {k}
@@ -116,7 +116,7 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
           </div>
 
           <div className="mb-4">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">
               Adjust Method
             </label>
             <div className="grid grid-cols-2 gap-2">
@@ -125,7 +125,7 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
                 className={`rounded-lg border px-3 py-3 text-sm font-semibold transition-colors ${
                   mode === "count"
                     ? "bg-stone-900 border-stone-900 text-white"
-                    : "bg-white border-stone-200 text-stone-600 hover:border-stone-400"
+                    : "bg-surface-panel border-stroke text-ink-secondary hover:border-stone-400"
                 }`}
               >
                 <span className="inline-flex items-center gap-2"><Hash size={14} /> Actual Qty</span>
@@ -135,7 +135,7 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
                 className={`rounded-lg border px-3 py-3 text-sm font-semibold transition-colors ${
                   mode === "scan"
                     ? "bg-stone-900 border-stone-900 text-white"
-                    : "bg-white border-stone-200 text-stone-600 hover:border-stone-400"
+                    : "bg-surface-panel border-stroke text-ink-secondary hover:border-stone-400"
                 }`}
               >
                 <span className="inline-flex items-center gap-2"><ScanLine size={14} /> Scan SNs</span>
@@ -145,7 +145,7 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
 
           {mode === "count" ? (
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">
                 Actual Qty On Floor
               </label>
               <input
@@ -154,13 +154,13 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
                 value={targetAvailable}
                 onChange={(e) => { setTargetAvailable(e.target.value); setLocalError(""); }}
                 placeholder="e.g. 38"
-                className="w-full border-2 border-stone-200 focus:border-teal-500 rounded-lg px-4 py-3 text-gray-900 font-mono text-base bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-colors"
+                className="w-full border-2 border-stroke focus:border-teal-500 rounded-lg px-4 py-3 text-ink-primary font-mono text-base bg-surface-panel focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-colors"
                 style={{ fontSize: "16px" }}
               />
             </div>
           ) : (
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">
                 Scan Battery SN One By One
               </label>
               <div className="flex gap-2">
@@ -175,7 +175,7 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
                     }
                   }}
                   placeholder="Scan SN and press Enter"
-                  className="flex-1 border-2 border-stone-200 focus:border-teal-500 rounded-lg px-4 py-3 text-gray-900 font-mono text-base bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-colors"
+                  className="flex-1 border-2 border-stroke focus:border-teal-500 rounded-lg px-4 py-3 text-ink-primary font-mono text-base bg-surface-panel focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-colors"
                   style={{ fontSize: "16px" }}
                 />
                 <button
@@ -187,16 +187,16 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
                 </button>
               </div>
 
-              <div className="mt-3 rounded-lg border border-stone-200 bg-stone-50">
-                <div className="flex items-center justify-between px-3 py-2 border-b border-stone-200">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-stone-500">Scanned List</span>
+              <div className="mt-3 rounded-lg border border-stroke bg-surface-base">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-stroke">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Scanned List</span>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-stone-500">{scannedSns.length} pcs</span>
+                    <span className="text-xs text-ink-muted">{scannedSns.length} pcs</span>
                     {!!scannedSns.length && (
                       <button
                         type="button"
                         onClick={() => setScannedSns([])}
-                        className="text-xs text-red-500 hover:text-red-600 inline-flex items-center gap-1"
+                        className="text-xs text-red-500 hover:text-red-400 inline-flex items-center gap-1"
                       >
                         <Trash2 size={12} /> Clear
                       </button>
@@ -206,8 +206,8 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
                 <div className="max-h-48 overflow-y-auto px-3 py-2 space-y-2">
                   {!scannedSns.length && <p className="text-xs text-stone-400">No SN scanned yet.</p>}
                   {scannedSns.map((sn) => (
-                    <div key={sn} className="flex items-center gap-2 rounded-md bg-white border border-stone-200 px-3 py-2">
-                      <span className="flex-1 font-mono text-xs text-stone-700 break-all">{sn}</span>
+                    <div key={sn} className="flex items-center gap-2 rounded-md bg-surface-panel border border-stroke px-3 py-2">
+                      <span className="flex-1 font-mono text-xs text-ink-secondary break-all">{sn}</span>
                       <button
                         type="button"
                         onClick={() => setScannedSns((prev) => prev.filter((item) => item !== sn))}
@@ -223,7 +223,7 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
           )}
 
           <div className="mb-5">
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+            <label className="block text-xs font-semibold text-ink-muted uppercase tracking-wide mb-2">
               Reason
             </label>
             <input
@@ -231,24 +231,24 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder={mode === "scan" ? "e.g. Floor scan recount" : "e.g. Physical count correction"}
-              className="w-full border-2 border-stone-200 focus:border-teal-500 rounded-lg px-4 py-3 text-gray-900 text-base bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-colors"
+              className="w-full border-2 border-stroke focus:border-teal-500 rounded-lg px-4 py-3 text-ink-primary text-base bg-surface-panel focus:outline-none focus:ring-2 focus:ring-teal-500/20 transition-colors"
               style={{ fontSize: "16px" }}
             />
           </div>
 
-          <div className="mb-5 p-3 bg-stone-50 border border-stone-200 rounded-lg text-sm">
+          <div className="mb-5 p-3 bg-surface-base border border-stroke rounded-lg text-sm">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-stone-500">System available</span>
-              <span className="font-mono font-bold text-stone-800">{Number(currentAvailable).toLocaleString()}</span>
+              <span className="text-ink-muted">System available</span>
+              <span className="font-mono font-bold text-ink-primary">{Number(currentAvailable).toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between gap-3 mt-1.5">
-              <span className="text-stone-500">{mode === "scan" ? "Scanned target" : "Actual target"}</span>
-              <span className="font-mono font-bold text-teal-700">
+              <span className="text-ink-muted">{mode === "scan" ? "Scanned target" : "Actual target"}</span>
+              <span className="font-mono font-bold text-teal-400">
                 {mode === "scan" ? scannedSns.length.toLocaleString() : (Number.isNaN(targetNum) ? "-" : targetNum.toLocaleString())}
               </span>
             </div>
-            <div className="mt-2 text-xs text-stone-500">{helperText}</div>
-            {localError && <div className="mt-2 text-xs text-red-600">{localError}</div>}
+            <div className="mt-2 text-xs text-ink-muted">{helperText}</div>
+            {localError && <div className="mt-2 text-xs text-red-400">{localError}</div>}
           </div>
 
           <div className="flex gap-3">
@@ -261,7 +261,7 @@ export default function BatteryAdjModal({ kind: initialKind, currentAvailableByK
             </button>
             <button
               onClick={onClose}
-              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-stone-100 hover:bg-stone-200 text-gray-700 font-semibold text-sm border border-stone-200 transition-colors min-h-[44px]"
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-surface-raised hover:bg-surface-overlay text-ink-secondary font-semibold text-sm border border-stroke transition-colors min-h-[44px]"
             >
               <X size={16} /> Cancel
             </button>

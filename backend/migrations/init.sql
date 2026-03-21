@@ -81,7 +81,10 @@ CREATE TABLE IF NOT EXISTS assembly.scans (
     status             TEXT DEFAULT '' CHECK (UPPER(status) IN ('', 'OK', 'NG', 'FIXED')),
     ng_reason          TEXT DEFAULT '',
     start_time         TIMESTAMPTZ,
-    production_seconds INTEGER
+    production_seconds INTEGER,
+    apower_stage       TEXT NOT NULL DEFAULT 'assembling' CHECK (apower_stage IN ('assembling','aging','fqc_passed','pending_shipment')),
+    stage_updated_at   TIMESTAMPTZ DEFAULT NOW(),
+    stage_updated_by   TEXT DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_assy_scans_scanned_at     ON assembly.scans(scanned_at);
@@ -95,6 +98,19 @@ CREATE INDEX IF NOT EXISTS idx_assy_scans_scanned_status ON assembly.scans(scann
 CREATE INDEX IF NOT EXISTS idx_assy_scans_am7_status     ON assembly.scans(am7, status);
 CREATE INDEX IF NOT EXISTS idx_assy_scans_au8_status     ON assembly.scans(au8, status);
 CREATE INDEX IF NOT EXISTS idx_assy_scans_us_sn_status   ON assembly.scans(us_sn, status);
+CREATE INDEX IF NOT EXISTS idx_assy_scans_apower_stage   ON assembly.scans(apower_stage);
+
+CREATE TABLE IF NOT EXISTS assembly.stage_history (
+    id          SERIAL PRIMARY KEY,
+    scan_id     INTEGER NOT NULL REFERENCES assembly.scans(id) ON DELETE CASCADE,
+    from_stage  TEXT,
+    to_stage    TEXT NOT NULL,
+    changed_by  TEXT NOT NULL DEFAULT '',
+    changed_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    notes       TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_stage_history_scan_id ON assembly.stage_history(scan_id);
 
 CREATE TABLE IF NOT EXISTS assembly.daily_summary (
     day   DATE PRIMARY KEY,
@@ -137,6 +153,15 @@ CREATE TABLE IF NOT EXISTS model.daily_summary (
 CREATE TABLE IF NOT EXISTS model.weekly_plan (
     week_start TEXT PRIMARY KEY,
     plan_json  JSONB
+);
+
+CREATE TABLE IF NOT EXISTS model.battery_inventory_adj (
+    id         SERIAL PRIMARY KEY,
+    kind       TEXT NOT NULL CHECK(kind IN ('A','B')),
+    delta      INTEGER NOT NULL,
+    reason     TEXT NOT NULL DEFAULT '',
+    operator   TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 
@@ -381,6 +406,52 @@ CREATE TABLE IF NOT EXISTS qc.qc_records (
 
 CREATE INDEX IF NOT EXISTS idx_qc_records_sn       ON qc.qc_records(sn);
 CREATE INDEX IF NOT EXISTS idx_qc_records_fqc      ON qc.qc_records(fqc_ready_at);
+
+
+-- -----------------------------------------
+-- Schema: ml (NG prediction and clustering)
+-- -----------------------------------------
+CREATE SCHEMA IF NOT EXISTS ml;
+
+CREATE TABLE IF NOT EXISTS ml.embedding_cache (
+    ref        TEXT PRIMARY KEY,
+    source     TEXT NOT NULL,
+    embedding  BYTEA NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ml.training_log (
+    id          SERIAL PRIMARY KEY,
+    trained_at  TIMESTAMPTZ DEFAULT NOW(),
+    trigger     TEXT,
+    sample_size INTEGER,
+    ng_count    INTEGER,
+    old_auc     FLOAT,
+    new_auc     FLOAT,
+    accepted    BOOLEAN,
+    note        TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ml.predictions (
+    us_sn        TEXT PRIMARY KEY,
+    risk_score   FLOAT NOT NULL,
+    risk_level   TEXT NOT NULL,
+    predicted_at TIMESTAMPTZ DEFAULT NOW(),
+    model_ver    TEXT
+);
+
+CREATE TABLE IF NOT EXISTS ml.ng_clusters (
+    id              SERIAL PRIMARY KEY,
+    cluster_id      INTEGER NOT NULL,
+    count           INTEGER NOT NULL,
+    representative  TEXT NOT NULL,
+    samples         TEXT[],
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ml_predictions_us_sn        ON ml.predictions(us_sn);
+CREATE INDEX IF NOT EXISTS idx_ml_ng_clusters_cluster_id   ON ml.ng_clusters(cluster_id);
+CREATE INDEX IF NOT EXISTS idx_ml_training_log_trained_at  ON ml.training_log(trained_at DESC);
 
 
 -- -----------------------------------------
