@@ -35,13 +35,13 @@ jobs:
 
       - name: Login to local registry
         run: |
-          "${{ secrets.REGISTRY_PASSWORD }}" | docker login $env:REGISTRY -u ${{ secrets.REGISTRY_USER }} --password-stdin
+          docker login $env:REGISTRY -u "${{ secrets.REGISTRY_USER }}" -p "${{ secrets.REGISTRY_PASSWORD }}"
 
       - name: Set image tag (short SHA)
         id: tag
         run: |
           $sha = git rev-parse --short HEAD
-          "sha=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "sha=$sha"
 
       - name: Build & push backend
         run: |
@@ -59,7 +59,9 @@ jobs:
 
       - name: Pull latest code
         run: |
-          git -C "${{ secrets.DEPLOY_PATH }}" pull origin main
+          git -C "${{ secrets.DEPLOY_PATH }}" fetch origin main
+          git -C "${{ secrets.DEPLOY_PATH }}" checkout main
+          git -C "${{ secrets.DEPLOY_PATH }}" reset --hard origin/main
 
       - name: Restart containers
         env:
