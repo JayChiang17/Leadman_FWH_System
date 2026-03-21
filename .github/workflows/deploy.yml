@@ -1,18 +1,13 @@
 # ──────────────────────────────────────────────────────────────────────────────
-# CD — runs on push to main (after CI passes)
+# CD — runs on push to main
 # Builds images → pushes to local registry (192.168.10.100:5000)
-# Then pulls & restarts containers — all on the self-hosted LAN runner.
-# No internet dependency, no ghcr.io, no SSH needed.
+# Then pulls & restarts containers — all on the self-hosted Windows LAN runner.
 #
 # Required GitHub Secrets:
 #   REGISTRY_USER       — local registry username (e.g. leadman)
 #   REGISTRY_PASSWORD   — local registry password
-#   DEPLOY_PATH         — project folder on server (e.g. /opt/leadman)
+#   DEPLOY_PATH         — project folder on server (e.g. C:\Users\admin\Desktop)
 #   POSTGRES_PASSWORD   — production DB password
-#
-# One-time server setup (before first deploy):
-#   bash registry/setup.sh
-#   docker compose -f docker-compose.registry.yml up -d
 # ──────────────────────────────────────────────────────────────────────────────
 
 name: Deploy
@@ -20,7 +15,7 @@ name: Deploy
 on:
   push:
     branches: [main]
-  workflow_dispatch:   # allow manual trigger from GitHub UI
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -33,54 +28,50 @@ jobs:
     environment: production
     defaults:
       run:
-        shell: bash
+        shell: pwsh
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Login to local registry
         run: |
-          echo "${{ secrets.REGISTRY_PASSWORD }}" | \
-          docker login $REGISTRY -u ${{ secrets.REGISTRY_USER }} --password-stdin
+          "${{ secrets.REGISTRY_PASSWORD }}" | docker login $env:REGISTRY -u ${{ secrets.REGISTRY_USER }} --password-stdin
 
       - name: Set image tag (short SHA)
         id: tag
-        run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: |
+          $sha = git rev-parse --short HEAD
+          "sha=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
       - name: Build & push backend
         run: |
-          docker build \
-            -t $REGISTRY/leadman-backend:${{ steps.tag.outputs.sha }} \
-            -t $REGISTRY/leadman-backend:latest \
-            ./backend
-          docker push $REGISTRY/leadman-backend:${{ steps.tag.outputs.sha }}
-          docker push $REGISTRY/leadman-backend:latest
+          $sha = "${{ steps.tag.outputs.sha }}"
+          docker build -t "$env:REGISTRY/leadman-backend:$sha" -t "$env:REGISTRY/leadman-backend:latest" ./backend
+          docker push "$env:REGISTRY/leadman-backend:$sha"
+          docker push "$env:REGISTRY/leadman-backend:latest"
 
       - name: Build & push frontend
         run: |
-          docker build \
-            --build-arg REACT_APP_API_BASE=/api \
-            -t $REGISTRY/leadman-frontend:${{ steps.tag.outputs.sha }} \
-            -t $REGISTRY/leadman-frontend:latest \
-            ./frontend
-          docker push $REGISTRY/leadman-frontend:${{ steps.tag.outputs.sha }}
-          docker push $REGISTRY/leadman-frontend:latest
+          $sha = "${{ steps.tag.outputs.sha }}"
+          docker build --build-arg REACT_APP_API_BASE=/api -t "$env:REGISTRY/leadman-frontend:$sha" -t "$env:REGISTRY/leadman-frontend:latest" ./frontend
+          docker push "$env:REGISTRY/leadman-frontend:$sha"
+          docker push "$env:REGISTRY/leadman-frontend:latest"
 
       - name: Pull latest code
-        run: git -C ${{ secrets.DEPLOY_PATH }} pull origin main
-
-      - name: Pull updated images
-        run: docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml pull
+        run: |
+          git -C "${{ secrets.DEPLOY_PATH }}" pull origin main
 
       - name: Restart containers
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
-          docker compose -f ${{ secrets.DEPLOY_PATH }}/docker-compose.yml \
-            up -d --remove-orphans
+          docker compose -f "${{ secrets.DEPLOY_PATH }}\docker-compose.yml" pull
+          docker compose -f "${{ secrets.DEPLOY_PATH }}\docker-compose.yml" up -d --remove-orphans
 
       - name: Prune old images
         run: docker image prune -f
 
       - name: Done
-        run: echo "✅ Deployed ${{ steps.tag.outputs.sha }} at $(date)"
+        run: |
+          $sha = "${{ steps.tag.outputs.sha }}"
+          Write-Host "Deployed $sha at $(Get-Date)"
