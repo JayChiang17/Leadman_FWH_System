@@ -4,7 +4,7 @@ import {
   LineChart, Line, BarChart, Bar, Area, AreaChart,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ComposedChart, Cell, LabelList, ReferenceLine,
-  Brush
+  Brush, Treemap,
 } from "recharts";
 import {
   Calendar, Factory, ArrowUpRight, ArrowDownRight,
@@ -237,6 +237,56 @@ const CustomTooltip = ({ active, payload, label }) => {
           </div>
         );
       })}
+    </div>
+  );
+};
+
+/* ─────────────────── NG Treemap helpers ─────────────────── */
+const buildNgTreemapData = (categories) =>
+  categories.slice(0, 8).map((cat, idx) => ({
+    name: cat.name,
+    size: Math.max(Number(cat.value) || 1, 1),
+    color: COLORS.pieColors[idx % COLORS.pieColors.length],
+  }));
+
+const NgTreemapCell = ({ x, y, width, height, name, size, color }) => {
+  const show = width > 38 && height > 18;
+  const fs = Math.min(10, Math.max(8, width / 8));
+  return (
+    <g>
+      <rect
+        x={x + 1} y={y + 1}
+        width={Math.max(width - 2, 0)} height={Math.max(height - 2, 0)}
+        fill={color || "#0d9488"} fillOpacity={0.82}
+        rx={3} stroke="#111827" strokeWidth={1.5}
+      />
+      {show && (
+        <text x={x + width / 2} y={y + height / 2 + (height > 38 ? -7 : 0)}
+              textAnchor="middle" dominantBaseline="middle"
+              fill="#fff" fontSize={fs} fontWeight={600}
+              style={{ pointerEvents: "none" }}>
+          {name?.length > 14 ? `${name.slice(0, 13)}…` : name}
+        </text>
+      )}
+      {show && height > 38 && (
+        <text x={x + width / 2} y={y + height / 2 + 8}
+              textAnchor="middle" dominantBaseline="middle"
+              fill="rgba(255,255,255,0.65)" fontSize={9}
+              style={{ pointerEvents: "none" }}>
+          {size != null ? `${size}%` : ""}
+        </text>
+      )}
+    </g>
+  );
+};
+
+const NgTreemapTooltip = ({ active, payload }) => {
+  if (!active || !payload?.length) return null;
+  const d = payload[0]?.payload;
+  return (
+    <div className="bg-surface-panel p-2.5 rounded-lg border border-stroke shadow-lg text-xs">
+      <p className="font-semibold text-ink-primary">{d?.name}</p>
+      <p className="text-ink-muted mt-0.5">{d?.size}%</p>
     </div>
   );
 };
@@ -623,7 +673,7 @@ const renderModuleCharts = () => {
 
         {/* ─── Bento Row 2: NG Analysis + Yield/NG Detail ─── */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-          {/* NG Reasons - Horizontal Bar */}
+          {/* NG Reasons — Treemap */}
           {moduleNgCategories.length > 0 && (
             <motion.div {...cardTransition}>
               <div className={`${CHART_CARD} h-full`}>
@@ -631,23 +681,16 @@ const renderModuleCharts = () => {
                   <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">NG Reasons</h3>
                   <p className="text-xs text-ink-muted mt-0.5">Normalized percentage share</p>
                 </div>
-                <div className="space-y-2.5">
-                  {moduleNgCategories.slice(0, 6).map((item, idx) => {
-                    const color = COLORS.pieColors[idx % COLORS.pieColors.length];
-                    const value = Number(item.value) || 0;
-                    return (
-                      <div key={item.name}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-medium text-ink-secondary truncate max-w-[70%]">{item.name}</span>
-                          <span className="text-xs font-semibold text-ink-primary tabular-nums">{value}%</span>
-                        </div>
-                        <div className="h-2 bg-surface-raised rounded-full overflow-hidden">
-                          <div className="h-full rounded-full transition-all duration-300" style={{ width: `${Math.min(value, 100)}%`, backgroundColor: color }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <Treemap
+                    data={buildNgTreemapData(moduleNgCategories)}
+                    dataKey="size"
+                    aspectRatio={4 / 3}
+                    content={<NgTreemapCell />}
+                  >
+                    <Tooltip content={<NgTreemapTooltip />} />
+                  </Treemap>
+                </ResponsiveContainer>
               </div>
             </motion.div>
           )}
@@ -850,7 +893,7 @@ const renderAssemblyCharts = () => {
 
         {/* ─── Bento Row 2: NG Analysis + Yield/NG Detail ─── */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-          {/* NG Reasons - Horizontal Bar */}
+          {/* NG Reasons — Treemap */}
           {ngCategories.length > 0 && (
             <motion.div {...cardTransition}>
               <div className={`${CHART_CARD} h-full`}>
@@ -858,23 +901,16 @@ const renderAssemblyCharts = () => {
                   <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">NG Reasons</h3>
                   <p className="text-xs text-ink-muted mt-0.5">Normalized percentage share</p>
                 </div>
-                <div className="space-y-2.5">
-                  {ngCategories.slice(0, 6).map((item, idx) => {
-                    const color = COLORS.pieColors[idx % COLORS.pieColors.length];
-                    const value = Number(item.value) || 0;
-                    return (
-                      <div key={item.name}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-medium text-ink-secondary truncate max-w-[70%]">{item.name}</span>
-                          <span className="text-xs font-semibold text-ink-primary tabular-nums">{value}%</span>
-                        </div>
-                        <div className="h-2 bg-surface-raised rounded-full overflow-hidden">
-                          <div className="h-full rounded-full transition-all duration-300" style={{ width: `${Math.min(value, 100)}%`, backgroundColor: color }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <Treemap
+                    data={buildNgTreemapData(ngCategories)}
+                    dataKey="size"
+                    aspectRatio={4 / 3}
+                    content={<NgTreemapCell />}
+                  >
+                    <Tooltip content={<NgTreemapTooltip />} />
+                  </Treemap>
+                </ResponsiveContainer>
               </div>
             </motion.div>
           )}
@@ -1122,78 +1158,6 @@ const renderTrendAnalysis = () => {
           </ResponsiveContainer>
         </motion.div>
 
-        {/* P1-3: Paired Bar Chart — compact alongside summary */}
-        {data.length > 1 && (
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-3 mt-2">
-            {/* Bar chart: 3 cols */}
-            <motion.div {...cardTransition} className={`${CHART_CARD} xl:col-span-3`}>
-              <div className="mb-3">
-                <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-ink-primary">Pairs vs Assembly</h3>
-                <p className="text-xs text-ink-muted mt-0.5">Daily comparison &middot; label = conversion %</p>
-              </div>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={data} margin={{ top: 20, right: 16, left: 0, bottom: 4 }} barCategoryGap="20%">
-                  <CartesianGrid strokeDasharray="3 3" stroke={GRID_COLOR} vertical={false} />
-                  <XAxis dataKey="date" stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <YAxis stroke="#565e74" tick={{ fill: '#8d93a5', fontSize: 11 }} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.length) return null;
-                      const d = payload[0]?.payload;
-                      return (
-                        <div className="bg-surface-panel p-3 rounded-lg border border-stroke shadow-lg text-xs">
-                          <p className="font-semibold text-ink-primary mb-1">{d?.date}</p>
-                          <div className="space-y-0.5">
-                            <p className="text-ink-secondary">Pairs: <span className="font-bold tabular-nums">{d?.module_pairs}</span></p>
-                            <p className="text-ink-secondary">Assembly: <span className="font-bold tabular-nums">{d?.assembly}</span></p>
-                            <p className="text-ink-secondary">Efficiency: <span className="font-bold tabular-nums">{d?.efficiency}%</span></p>
-                          </div>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Legend wrapperStyle={{ paddingTop: "8px", color: '#8d93a5' }} iconType="rect" iconSize={10}
-                    formatter={(v) => <span style={{ color: "#8d93a5", fontWeight: 500, fontSize: LEGEND_FS }}>{v}</span>} />
-                  <Bar dataKey="module_pairs" name="Pairs" fill="#0d9488" barSize={16} radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="assembly" name="Assembly" fill="#f59e0b" barSize={16} radius={[4, 4, 0, 0]}>
-                    <LabelList content={({ x, y, width, index }) => {
-                      const eff = data[index]?.efficiency;
-                      if (!eff) return null;
-                      const color = eff >= 95 ? "#10b981" : eff >= 80 ? "#f59e0b" : "#ef4444";
-                      return (
-                        <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={10} fontWeight={600} fill={color}>
-                          {eff}%
-                        </text>
-                      );
-                    }} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </motion.div>
-
-            {/* Right side: quick stats */}
-            <div className="xl:col-span-2 grid grid-cols-2 gap-3">
-              <div className={`${CARD_SURFACE} p-4`}>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">Total Pairs</p>
-                <p className="text-2xl font-bold tabular-nums text-teal-400 mt-1">{stats.total_module_pairs?.toLocaleString()}</p>
-              </div>
-              <div className={`${CARD_SURFACE} p-4`}>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">Total Assembly</p>
-                <p className="text-2xl font-bold tabular-nums text-cyan-400 mt-1">{stats.total_assembly?.toLocaleString()}</p>
-              </div>
-              <div className={`${CARD_SURFACE} p-4`}>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">Total Module</p>
-                <p className="text-2xl font-bold tabular-nums text-ink-secondary mt-1">{stats.total_module?.toLocaleString()}</p>
-              </div>
-              <div className={`${CARD_SURFACE} p-4`}>
-                <p className="text-[11px] font-medium uppercase tracking-wider text-ink-muted">Avg Efficiency</p>
-                <p className={`text-2xl font-bold tabular-nums mt-1 ${stats.avg_efficiency >= 95 ? "text-emerald-400" : stats.avg_efficiency >= 80 ? "text-amber-400" : "text-red-400"}`}>
-                  {stats.avg_efficiency}%
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     );
   };
