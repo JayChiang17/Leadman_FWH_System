@@ -35,16 +35,19 @@ jobs:
 
       - name: Login to local registry
         run: |
+          $ErrorActionPreference = "Stop"
           docker login $env:REGISTRY -u "${{ secrets.REGISTRY_USER }}" -p "${{ secrets.REGISTRY_PASSWORD }}"
 
       - name: Set image tag (short SHA)
         id: tag
         run: |
+          $ErrorActionPreference = "Stop"
           $sha = git rev-parse --short HEAD
           Add-Content -Path $env:GITHUB_OUTPUT -Value "sha=$sha"
 
       - name: Build & push backend
         run: |
+          $ErrorActionPreference = "Stop"
           $sha = "${{ steps.tag.outputs.sha }}"
           docker build -t "$env:REGISTRY/leadman-backend:$sha" -t "$env:REGISTRY/leadman-backend:latest" ./backend
           docker push "$env:REGISTRY/leadman-backend:$sha"
@@ -52,6 +55,7 @@ jobs:
 
       - name: Build & push frontend
         run: |
+          $ErrorActionPreference = "Stop"
           $sha = "${{ steps.tag.outputs.sha }}"
           docker build --build-arg REACT_APP_API_BASE=/api -t "$env:REGISTRY/leadman-frontend:$sha" -t "$env:REGISTRY/leadman-frontend:latest" ./frontend
           docker push "$env:REGISTRY/leadman-frontend:$sha"
@@ -59,6 +63,7 @@ jobs:
 
       - name: Pull latest code
         run: |
+          $ErrorActionPreference = "Stop"
           git -C "${{ secrets.DEPLOY_PATH }}" fetch origin main
           git -C "${{ secrets.DEPLOY_PATH }}" checkout main
           git -C "${{ secrets.DEPLOY_PATH }}" reset --hard origin/main
@@ -67,8 +72,17 @@ jobs:
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
+          $ErrorActionPreference = "Stop"
           docker compose -f "${{ secrets.DEPLOY_PATH }}\docker-compose.yml" pull
           docker compose -f "${{ secrets.DEPLOY_PATH }}\docker-compose.yml" up -d --remove-orphans
+
+      - name: Health check
+        run: |
+          Write-Host "Waiting 15s for containers to start..."
+          Start-Sleep -Seconds 15
+          $resp = Invoke-WebRequest -Uri "http://localhost/health" -UseBasicParsing -TimeoutSec 10
+          if ($resp.StatusCode -ne 200) { throw "Health check failed: $($resp.StatusCode)" }
+          Write-Host "Health check passed"
 
       - name: Prune old images
         run: docker image prune -f

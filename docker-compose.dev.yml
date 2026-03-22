@@ -16,8 +16,6 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backend/migrations/init.sql:/docker-entrypoint-initdb.d/01-init.sql
-      - ./backend/migrations/002_add_apower_wip.sql:/docker-entrypoint-initdb.d/02-wip.sql
-      - ./backend/migrations/003_ml_schema.sql:/docker-entrypoint-initdb.d/03-ml.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U leadman"]
       interval: 10s

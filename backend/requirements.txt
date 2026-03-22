@@ -1,63 +1,63 @@
 # Web Framework
-fastapi
-uvicorn[standard]
+fastapi>=0.111,<0.120
+uvicorn[standard]>=0.29,<0.35
 
 # Google Sheets Integration
-gspread
-google-auth
+gspread>=6.0,<7.0
+google-auth>=2.29,<3.0
 
 # Environment Variables
-python-dotenv
+python-dotenv>=1.0,<2.0
 
 # Authentication & Security
-bcrypt
-python-jose[cryptography]
-pydantic-settings
-email-validator
+bcrypt>=4.1,<5.0
+python-jose[cryptography]>=3.3,<4.0
+pydantic-settings>=2.2,<3.0
+email-validator>=2.1,<3.0
 
 # Data Processing & Excel
-pandas
-openpyxl
+pandas>=2.2,<3.0
+openpyxl>=3.1,<4.0
 
 # Date & Time
-pytz
+pytz>=2024.1
 
 # WebSocket & CORS
-python-multipart
-redis
+python-multipart>=0.0.9,<0.1
+redis>=5.0,<6.0
 
 # System Monitoring
-psutil
-docker
+psutil>=5.9,<7.0
+docker>=7.0,<8.0
 
 # Task Scheduling
-apscheduler
+apscheduler>=3.10,<4.0
 
 # HTTP Requests & Microsoft Graph API
-requests
-msal
+requests>=2.31,<3.0
+msal>=1.28,<2.0
 
 # PostgreSQL
-psycopg2-binary
+psycopg2-binary>=2.9,<3.0
 
 # ML: NG prediction + clustering
-scikit-learn
-xgboost
-shap
-sentence-transformers
-hdbscan
-numpy
-joblib
+scikit-learn>=1.4,<2.0
+xgboost>=2.0,<3.0
+shap>=0.45,<0.50
+sentence-transformers>=2.7,<3.0
+hdbscan>=0.8.33,<0.9
+numpy>=1.26,<2.0
+joblib>=1.4,<2.0
 
 # AI document search (RAG system)
-PyPDF2
-python-docx
-pytesseract
-Pillow
-langchain
-langchain-huggingface
-langchain-community
-faiss-cpu
+PyPDF2>=3.0,<4.0
+python-docx>=1.1,<2.0
+pytesseract>=0.3,<0.4
+Pillow>=10.3,<12.0
+langchain>=0.2,<0.4
+langchain-huggingface>=0.0.3,<0.2
+langchain-community>=0.2,<0.4
+faiss-cpu>=1.8,<2.0
 
 # Standard libraries (already included in Python)
 # json - built-in

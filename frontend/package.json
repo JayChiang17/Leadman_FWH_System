@@ -12,7 +12,6 @@
     "chart.js": "^4.4.9",
     "chartjs-plugin-annotation": "^3.1.0",
     "chartjs-plugin-datalabels": "^2.2.0",
-    "date-fn": "^0.0.2",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.12",
     "jwt-decode": "^4.0.0",

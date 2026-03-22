@@ -28,6 +28,10 @@ backend/data/*.db-wal
 backend/data/*.lock
 frontend/nul
 
+# Secrets — never commit these
+backend/.env
+.env
+
 # Local caches and package installs
 backend/.cache/
 backend/.local/
